@@ -9,6 +9,7 @@ describe("dev script contract", () => {
     expect(packageJson.scripts.dev).toContain("--strictPort");
     expect(packageJson.scripts["electron:dev"]).toBe("node scripts/electron-dev.cjs");
     expect(devScript).toContain("http://127.0.0.1:5173");
+    expect(devScript).toContain("ready in");
     expect(devScript).toContain("Vite exited before Electron started");
   });
 });

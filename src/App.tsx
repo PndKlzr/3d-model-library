@@ -16,7 +16,6 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
-  const [metadataLoadingId, setMetadataLoadingId] = useState<string | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
 
@@ -46,51 +45,6 @@ function App() {
       void scanLibrary(settings.libraryPath);
     }
   }, [settings?.libraryPath]);
-
-  useEffect(() => {
-    if (!selectedModel) {
-      return;
-    }
-
-    if (selectedModel.dimensionsMm || selectedModel.previewError) {
-      return;
-    }
-
-    let isMounted = true;
-    setMetadataLoadingId(selectedModel.id);
-
-    window.modelLibrary
-      .readModelMetadata(selectedModel.absolutePath)
-      .then((metadata) => {
-        if (!isMounted) {
-          return;
-        }
-
-        const enrichedModel = { ...selectedModel, ...metadata };
-        setSelectedModel(enrichedModel);
-        setScanResult((current) => {
-          if (!current) {
-            return current;
-          }
-
-          return {
-            ...current,
-            models: current.models.map((model) =>
-              model.id === selectedModel.id ? enrichedModel : model
-            )
-          };
-        });
-      })
-      .finally(() => {
-        if (isMounted) {
-          setMetadataLoadingId(null);
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedModel]);
 
   async function chooseFolder() {
     const libraryPath = await window.modelLibrary.chooseLibraryFolder();
@@ -218,7 +172,6 @@ function App() {
         model={selectedModel}
         settings={settings}
         launchMessage={launchMessage}
-        isMetadataLoading={metadataLoadingId === selectedModel?.id}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onLaunchSlicer={launchSlicer}
       />

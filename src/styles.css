@@ -279,7 +279,7 @@ button {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 8px 22px rgba(35, 45, 50, 0.08);
+  box-shadow: none;
   overflow: hidden;
   padding: 0;
   text-align: left;
@@ -287,7 +287,7 @@ button {
 
 .model-card.selected {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(40, 124, 120, 0.17), 0 8px 22px rgba(35, 45, 50, 0.08);
+  box-shadow: 0 0 0 2px rgba(40, 124, 120, 0.22);
 }
 
 .model-thumb {
@@ -398,6 +398,29 @@ button {
   padding: 20px;
   color: var(--ink-muted);
   text-align: center;
+}
+
+.preview-placeholder {
+  display: grid;
+  gap: 10px;
+  max-width: 260px;
+  place-items: center;
+  padding: 20px;
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.preview-placeholder strong {
+  color: #2f393d;
+}
+
+.preview-placeholder span {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.preview-placeholder .primary-button {
+  margin-top: 4px;
 }
 
 .details-content {

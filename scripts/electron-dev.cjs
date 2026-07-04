@@ -1,9 +1,7 @@
 const { spawn } = require("node:child_process");
-const http = require("node:http");
-
 const vite = spawn("cmd.exe", ["/c", "npm.cmd", "run", "dev"], {
   shell: false,
-  stdio: "inherit"
+  stdio: ["ignore", "pipe", "pipe"]
 });
 
 let electron = null;
@@ -17,26 +15,18 @@ const startupTimer = setTimeout(() => {
   }
 }, 30000);
 
-const pollTimer = setInterval(() => {
-  if (didStartElectron) {
-    return;
+vite.stdout.on("data", (chunk) => {
+  const text = chunk.toString();
+  process.stdout.write(text);
+
+  if (!didStartElectron && text.includes("ready in")) {
+    startElectron();
   }
+});
 
-  const request = http.get("http://127.0.0.1:5173", (response) => {
-    response.resume();
-    didStartElectron = true;
-    clearInterval(pollTimer);
-    clearTimeout(startupTimer);
-    electron = spawn("cmd.exe", ["/c", "npm.cmd", "exec", "electron", "."], {
-      shell: false,
-      stdio: "inherit"
-    });
-    electron.on("exit", (code) => shutdown(code ?? 0));
-  });
-
-  request.on("error", () => undefined);
-  request.setTimeout(1000, () => request.destroy());
-}, 250);
+vite.stderr.on("data", (chunk) => {
+  process.stderr.write(chunk);
+});
 
 vite.on("exit", (code) => {
   if (!didStartElectron) {
@@ -54,9 +44,18 @@ function shutdown(code) {
   }
 
   isShuttingDown = true;
-  clearInterval(pollTimer);
   clearTimeout(startupTimer);
   electron?.kill();
   vite.kill();
   process.exit(code);
+}
+
+function startElectron() {
+  didStartElectron = true;
+  clearTimeout(startupTimer);
+  electron = spawn("cmd.exe", ["/c", "npm.cmd", "exec", "electron", "."], {
+    shell: false,
+    stdio: "inherit"
+  });
+  electron.on("exit", (code) => shutdown(code ?? 0));
 }

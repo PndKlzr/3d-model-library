@@ -1,4 +1,5 @@
-import { AlertTriangle, Calendar, FolderOpen, Ruler, Scissors, Weight } from "lucide-react";
+import { Calendar, Eye, FolderOpen, Scissors, Weight } from "lucide-react";
+import { useEffect, useState } from "react";
 import { ModelViewer } from "./ModelViewer";
 import type { AppSettings, ModelFile } from "../shared/types";
 
@@ -6,7 +7,6 @@ type DetailsPanelProps = {
   model: ModelFile | null;
   settings: AppSettings;
   launchMessage: string | null;
-  isMetadataLoading: boolean;
   onOpenSettings: () => void;
   onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
 };
@@ -15,16 +15,31 @@ export function DetailsPanel({
   model,
   settings,
   launchMessage,
-  isMetadataLoading,
   onOpenSettings,
   onLaunchSlicer
 }: DetailsPanelProps) {
+  const [showPreview, setShowPreview] = useState(false);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
+
+  useEffect(() => {
+    setShowPreview(false);
+  }, [model?.id]);
 
   return (
     <aside className="details-panel" aria-label="Detalhes do modelo">
       <div className="preview-stage">
-        {model ? <ModelViewer model={model} /> : (
+        {model && showPreview ? (
+          <ModelViewer model={model} />
+        ) : model ? (
+          <div className="preview-placeholder">
+            <Eye size={28} />
+            <strong>Preview pausado</strong>
+            <span>Para manter a biblioteca leve, o 3D só carrega quando você pedir.</span>
+            <button className="primary-button" type="button" onClick={() => setShowPreview(true)}>
+              Carregar preview 3D
+            </button>
+          </div>
+        ) : (
           <span>Visualizador 3D</span>
         )}
       </div>
@@ -36,14 +51,6 @@ export function DetailsPanel({
           <p>Selecione um arquivo para ver dimensões, data, pasta e abrir no slicer.</p>
         ) : (
           <>
-            {model.previewError ? (
-              <div className="notice warning">
-                <AlertTriangle size={16} />
-                <span>{model.previewError}</span>
-              </div>
-            ) : null}
-            {isMetadataLoading ? <div className="notice">Calculando dimensões...</div> : null}
-
             <dl className="metadata-list">
               <div>
                 <dt>
@@ -65,13 +72,6 @@ export function DetailsPanel({
                   Modificado
                 </dt>
                 <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
-              </div>
-              <div>
-                <dt>
-                  <Ruler size={15} />
-                  Dimensões
-                </dt>
-                <dd>{formatDimensions(model.dimensionsMm)}</dd>
               </div>
             </dl>
 
@@ -116,12 +116,4 @@ function formatBytes(bytes: number): string {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDimensions(dimensions: ModelFile["dimensionsMm"]): string {
-  if (!dimensions) {
-    return "Indisponível";
-  }
-
-  return `${dimensions.x} × ${dimensions.y} × ${dimensions.z} mm`;
 }
