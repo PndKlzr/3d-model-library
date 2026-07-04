@@ -40,6 +40,22 @@ describe("buildFolderTree", () => {
   it("returns no folders when all models are in the root", () => {
     expect(buildFolderTree([model("bench.stl", ""), model("clip.3mf", "")])).toEqual([]);
   });
+
+  it("includes explicit folders even when they do not contain models", () => {
+    expect(buildFolderTree([], ["empty", "empty/nested"])).toEqual([
+      {
+        id: "empty",
+        name: "empty",
+        children: [
+          {
+            id: "empty/nested",
+            name: "nested",
+            children: []
+          }
+        ]
+      }
+    ]);
+  });
 });
 
 function model(name: string, relativeFolder: string): ModelFile {

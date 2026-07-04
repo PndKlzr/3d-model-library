@@ -27,6 +27,7 @@ export type ModelFile = {
 export type LibraryScanResult = {
   rootPath: string;
   models: ModelFile[];
+  folders: string[];
   errors: Array<{ path: string; message: string }>;
 };
 

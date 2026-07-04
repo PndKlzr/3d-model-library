@@ -41,6 +41,16 @@ describe("scanLibrary", () => {
     expect(result.models.find((model) => model.name === "rock.stl")?.relativeFolder).toBe(
       "props/terrain"
     );
+    expect(result.folders).toEqual(["props", "props/terrain"]);
+  });
+
+  it("returns empty folders so newly created folders appear in the UI", async () => {
+    await mkdir(path.join(tempRoot, "new-folder", "nested"), { recursive: true });
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models).toEqual([]);
+    expect(result.folders).toEqual(["new-folder", "new-folder/nested"]);
   });
 
   it("keeps scanning when a child directory cannot be read", async () => {

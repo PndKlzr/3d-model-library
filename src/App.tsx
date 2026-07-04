@@ -431,7 +431,7 @@ function App() {
   }
 
   const models = scanResult?.models ?? [];
-  const folders = buildFolderTree(models);
+  const folders = buildFolderTree(models, scanResult?.folders ?? []);
   const folderCards = getGridFolderCards(folders, models, selectedFolder);
   const filteredModels = filterModels(
     models,

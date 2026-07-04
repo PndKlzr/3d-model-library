@@ -6,9 +6,16 @@ const MODEL_EXTENSIONS = new Set([".stl", ".3mf"]);
 
 export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> {
   const models: ModelFile[] = [];
+  const folders = new Set<string>();
   const errors: LibraryScanResult["errors"] = [];
 
   async function scanDirectory(directoryPath: string) {
+    const relativeDirectory = normalizeRelativeFolder(path.relative(rootPath, directoryPath));
+
+    if (relativeDirectory) {
+      folders.add(relativeDirectory);
+    }
+
     let entries;
 
     try {
@@ -70,11 +77,11 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
     left.relativeFolder.localeCompare(right.relativeFolder) || left.name.localeCompare(right.name)
   );
 
-  return { rootPath, models, errors };
+  return { rootPath, models, folders: [...folders].sort(), errors };
 }
 
 function normalizeRelativeFolder(relativeFolder: string): string {
-  if (relativeFolder === ".") {
+  if (relativeFolder === "." || relativeFolder === "") {
     return "";
   }
 
