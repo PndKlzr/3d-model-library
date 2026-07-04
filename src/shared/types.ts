@@ -34,3 +34,9 @@ export type SlicerLaunchResult = {
   ok: boolean;
   message: string;
 };
+
+export type FileOperationResult = {
+  ok: boolean;
+  message: string;
+  path?: string;
+};

@@ -1,4 +1,4 @@
-import { Calendar, Eye, FolderOpen, Scissors, Weight } from "lucide-react";
+import { Calendar, Eye, FolderOpen, Pencil, Scissors, Weight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ModelViewer } from "./ModelViewer";
 import type { AppSettings, ModelFile } from "../shared/types";
@@ -9,6 +9,7 @@ type DetailsPanelProps = {
   launchMessage: string | null;
   onOpenSettings: () => void;
   onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
+  onRenameModelFile: () => void;
 };
 
 export function DetailsPanel({
@@ -16,7 +17,8 @@ export function DetailsPanel({
   settings,
   launchMessage,
   onOpenSettings,
-  onLaunchSlicer
+  onLaunchSlicer,
+  onRenameModelFile
 }: DetailsPanelProps) {
   const [showPreview, setShowPreview] = useState(false);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
@@ -46,7 +48,20 @@ export function DetailsPanel({
 
       <div className="details-content">
         <p className="eyebrow">Selecionado</p>
-        <h2>{model ? model.name : "Nenhum modelo selecionado"}</h2>
+        <div className="details-title-row">
+          <h2>{model ? model.name : "Nenhum modelo selecionado"}</h2>
+          {model ? (
+            <button
+              className="icon-only"
+              type="button"
+              onClick={onRenameModelFile}
+              aria-label="Renomear arquivo"
+              title="Renomear arquivo"
+            >
+              <Pencil size={16} />
+            </button>
+          ) : null}
+        </div>
         {!model ? (
           <p>Selecione um arquivo para ver dimensões, data, pasta e abrir no slicer.</p>
         ) : (

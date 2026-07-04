@@ -3,6 +3,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AppSettings } from "../src/shared/types.js";
+import {
+  createLibraryFolder,
+  moveModelFiles,
+  renameLibraryFolder,
+  renameModelFile
+} from "./services/fileOrganizer.js";
 import { scanLibrary } from "./services/libraryScanner.js";
 import { readModelMetadata } from "./services/modelMetadata.js";
 import { readEmbeddedThumbnail } from "./services/modelThumbnail.js";
@@ -32,6 +38,26 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("library:scan", (_event, rootPath: string) => scanLibrary(rootPath));
+
+  ipcMain.handle(
+    "library:create-folder",
+    (_event, parentRelativeFolder: string, folderName: string) =>
+      createLibraryFolder(requireLibraryPath(), parentRelativeFolder, folderName)
+  );
+
+  ipcMain.handle(
+    "library:move-models",
+    (_event, sourcePaths: string[], destinationRelativeFolder: string) =>
+      moveModelFiles(requireLibraryPath(), sourcePaths, destinationRelativeFolder)
+  );
+
+  ipcMain.handle("library:rename-folder", (_event, folderRelativePath: string, newName: string) =>
+    renameLibraryFolder(requireLibraryPath(), folderRelativePath, newName)
+  );
+
+  ipcMain.handle("library:rename-model-file", (_event, sourcePath: string, newName: string) =>
+    renameModelFile(requireLibraryPath(), sourcePath, newName)
+  );
 
   ipcMain.handle("model:metadata", async (_event, absolutePath: string) => {
     assertPathInsideLibrary(absolutePath);
@@ -73,19 +99,25 @@ function registerIpcHandlers() {
 }
 
 function assertPathInsideLibrary(absolutePath: string) {
-  const settings = settingsStore.getSettings();
+  const libraryPath = requireLibraryPath();
 
-  if (!settings.libraryPath) {
-    throw new Error("Library folder is not configured");
-  }
-
-  const relativePath = path.relative(settings.libraryPath, absolutePath);
+  const relativePath = path.relative(libraryPath, absolutePath);
   const isOutsideLibrary =
     relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
 
   if (isOutsideLibrary) {
     throw new Error("Model file is outside the configured library folder");
   }
+}
+
+function requireLibraryPath(): string {
+  const settings = settingsStore.getSettings();
+
+  if (!settings.libraryPath) {
+    throw new Error("Library folder is not configured");
+  }
+
+  return settings.libraryPath;
 }
 
 async function createWindow() {

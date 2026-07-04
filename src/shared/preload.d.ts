@@ -1,4 +1,10 @@
-import type { AppSettings, LibraryScanResult, ModelFile, SlicerLaunchResult } from "./types";
+import type {
+  AppSettings,
+  FileOperationResult,
+  LibraryScanResult,
+  ModelFile,
+  SlicerLaunchResult
+} from "./types";
 
 export type ModelLibraryApi = {
   version: string;
@@ -6,6 +12,16 @@ export type ModelLibraryApi = {
   saveSettings: (settings: AppSettings) => Promise<AppSettings>;
   chooseLibraryFolder: () => Promise<string | null>;
   scanLibrary: (rootPath: string) => Promise<LibraryScanResult>;
+  createFolder: (
+    parentRelativeFolder: string,
+    folderName: string
+  ) => Promise<FileOperationResult>;
+  moveModels: (
+    sourcePaths: string[],
+    destinationRelativeFolder: string
+  ) => Promise<FileOperationResult>;
+  renameFolder: (folderRelativePath: string, newName: string) => Promise<FileOperationResult>;
+  renameModelFile: (sourcePath: string, newName: string) => Promise<FileOperationResult>;
   readModelMetadata: (absolutePath: string) => Promise<{
     dimensionsMm: ModelFile["dimensionsMm"];
     objectCount: number | null;
