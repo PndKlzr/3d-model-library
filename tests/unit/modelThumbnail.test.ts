@@ -28,6 +28,20 @@ describe("readEmbeddedThumbnail", () => {
     await expect(readEmbeddedThumbnail(filePath)).resolves.toBe("data:image/png;base64,AQID");
   });
 
+  it("falls back to slicer metadata preview images when no thumbnail path exists", async () => {
+    const filePath = path.join(tempRoot, "metadata-preview.3mf");
+    await writeFile(
+      filePath,
+      zipSync({
+        "Metadata/plate_1.png": new Uint8Array([1, 2, 3]),
+        "Metadata/plate_1_small.png": new Uint8Array([4, 5, 6]),
+        "Metadata/pick_1.png": new Uint8Array([7, 8, 9])
+      })
+    );
+
+    await expect(readEmbeddedThumbnail(filePath)).resolves.toBe("data:image/png;base64,BAUG");
+  });
+
   it("returns null for STL files", async () => {
     const filePath = path.join(tempRoot, "model.stl");
     await writeFile(filePath, "solid model\nendsolid model");

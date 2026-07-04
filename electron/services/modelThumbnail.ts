@@ -34,16 +34,19 @@ export async function readEmbeddedThumbnail(filePath: string): Promise<string | 
 function findThumbnailPath(paths: string[]): string | null {
   const imagePaths = paths.filter((filePath) => {
     const normalized = filePath.toLowerCase();
-    return (
-      normalized.includes("thumbnail") &&
-      Boolean(IMAGE_MIME_BY_EXTENSION[path.extname(normalized)])
-    );
+    return Boolean(IMAGE_MIME_BY_EXTENSION[path.extname(normalized)]);
   });
 
   return (
     imagePaths.find((filePath) => filePath.toLowerCase().includes("thumbnail_3mf")) ??
     imagePaths.find((filePath) => filePath.toLowerCase().includes("thumbnail_middle")) ??
     imagePaths.find((filePath) => filePath.toLowerCase().includes("thumbnail_small")) ??
+    imagePaths.find((filePath) => filePath.toLowerCase().includes("thumbnail")) ??
+    imagePaths.find((filePath) => filePath.toLowerCase().includes("metadata/plate_1_small")) ??
+    imagePaths.find((filePath) => filePath.toLowerCase().includes("metadata/plate_1")) ??
+    imagePaths.find((filePath) => filePath.toLowerCase().includes("metadata/pick_1")) ??
+    imagePaths.find((filePath) => filePath.toLowerCase().includes("metadata/top_1")) ??
+    imagePaths.find((filePath) => filePath.toLowerCase().startsWith("metadata/")) ??
     imagePaths[0] ??
     null
   );
