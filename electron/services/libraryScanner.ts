@@ -1,6 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryScanResult, ModelFile } from "../../src/shared/types.js";
+import { readModelMetadata } from "./modelMetadata.js";
 
 const MODEL_EXTENSIONS = new Set([".stl", ".3mf"]);
 
@@ -42,6 +43,7 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
       try {
         const fileStat = await stat(absolutePath);
         const relativeFolder = normalizeRelativeFolder(path.dirname(path.relative(rootPath, absolutePath)));
+        const metadata = await readModelMetadata(absolutePath);
 
         models.push({
           id: absolutePath,
@@ -51,9 +53,9 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
           relativeFolder,
           sizeBytes: fileStat.size,
           modifiedAt: fileStat.mtime.toISOString(),
-          dimensionsMm: null,
-          objectCount: null,
-          previewError: null
+          dimensionsMm: metadata.dimensionsMm,
+          objectCount: metadata.objectCount,
+          previewError: metadata.previewError
         });
       } catch (error) {
         errors.push({
