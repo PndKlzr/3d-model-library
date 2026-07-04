@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AppSettings } from "../src/shared/types.js";
+import { scanLibrary } from "./services/libraryScanner.js";
 import { createElectronSettingsStore } from "./services/settingsStore.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +26,8 @@ function registerIpcHandlers() {
 
     return result.canceled ? null : result.filePaths[0];
   });
+
+  ipcMain.handle("library:scan", (_event, rootPath: string) => scanLibrary(rootPath));
 }
 
 async function createWindow() {

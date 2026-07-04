@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AppSettings } from "../src/shared/types.js";
+import type { AppSettings, LibraryScanResult } from "../src/shared/types.js";
 
 contextBridge.exposeInMainWorld("modelLibrary", {
   version: "0.1.0",
@@ -7,5 +7,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   saveSettings: (settings: AppSettings) =>
     ipcRenderer.invoke("settings:save", settings) as Promise<AppSettings>,
   chooseLibraryFolder: () =>
-    ipcRenderer.invoke("settings:choose-library-folder") as Promise<string | null>
+    ipcRenderer.invoke("settings:choose-library-folder") as Promise<string | null>,
+  scanLibrary: (rootPath: string) =>
+    ipcRenderer.invoke("library:scan", rootPath) as Promise<LibraryScanResult>
 });
