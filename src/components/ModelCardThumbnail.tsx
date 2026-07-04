@@ -1,6 +1,6 @@
 import { Box } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { requestModelThumbnail } from "../lib/modelThumbnailQueue";
+import { requestRenderedModelThumbnail } from "../lib/modelThumbnailQueue";
 import type { ModelFile } from "../shared/types";
 
 type ModelCardThumbnailProps = {
@@ -30,7 +30,7 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
 
         observer.disconnect();
         setDidQueue(true);
-        void requestModelThumbnail(model).then((imageUrl) => {
+        void loadThumbnail(model).then((imageUrl) => {
           if (isMounted && imageUrl) {
             setThumbnailUrl(imageUrl);
           }
@@ -59,4 +59,16 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
       )}
     </div>
   );
+}
+
+async function loadThumbnail(model: ModelFile) {
+  if (model.extension === ".3mf") {
+    const embeddedThumbnail = await window.modelLibrary.readModelThumbnail(model.absolutePath);
+
+    if (embeddedThumbnail) {
+      return embeddedThumbnail;
+    }
+  }
+
+  return requestRenderedModelThumbnail(model);
 }

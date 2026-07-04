@@ -4,13 +4,16 @@ import { describe, expect, it } from "vitest";
 describe("performance contract", () => {
   it("does not auto-render model thumbnails in the grid", async () => {
     const modelGridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const cardThumbnailSource = await readFile("src/components/ModelCardThumbnail.tsx", "utf8");
     const thumbnailSource = await readFile("src/lib/modelThumbnailQueue.ts", "utf8");
 
     expect(modelGridSource).not.toContain("../components/ModelThumbnail");
     expect(modelGridSource).not.toContain("<ModelThumbnail");
     expect(modelGridSource).not.toContain("readModelFile");
     expect(modelGridSource).toContain("ModelCardThumbnail");
-    expect(thumbnailSource).toContain("readModelThumbnail");
+    expect(cardThumbnailSource).toContain("readModelThumbnail");
+    expect(cardThumbnailSource).toContain("requestRenderedModelThumbnail");
+    expect(thumbnailSource).not.toContain("readModelThumbnail");
     expect(thumbnailSource).toContain("readModelFile");
     expect(thumbnailSource).toContain("pendingJobs");
   });

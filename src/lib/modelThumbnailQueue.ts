@@ -9,7 +9,7 @@ const thumbnailCache = new Map<string, Promise<string | null>>();
 const pendingJobs: Array<() => void> = [];
 let activeJobs = 0;
 
-export function requestModelThumbnail(model: ModelFile): Promise<string | null> {
+export function requestRenderedModelThumbnail(model: ModelFile): Promise<string | null> {
   const cacheKey = `${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
   const cached = thumbnailCache.get(cacheKey);
 
@@ -50,14 +50,6 @@ function runNextThumbnailJob() {
 
 async function generateModelThumbnail(model: ModelFile): Promise<string | null> {
   await waitForIdle();
-
-  if (model.extension === ".3mf") {
-    const embeddedThumbnail = await window.modelLibrary.readModelThumbnail(model.absolutePath);
-
-    if (embeddedThumbnail) {
-      return embeddedThumbnail;
-    }
-  }
 
   const modelBytes = await window.modelLibrary.readModelFile(model.absolutePath);
   await waitForIdle();
