@@ -7,6 +7,7 @@ describe("Electron preload contract", () => {
 
     expect(preloadSource).toContain("require(\"electron\")");
     expect(preloadSource).toContain("contextBridge.exposeInMainWorld(\"modelLibrary\"");
+    expect(preloadSource).toContain("readModelMetadata");
     expect(preloadSource).not.toContain("import ");
   });
 });

@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AppSettings } from "../src/shared/types.js";
 import { scanLibrary } from "./services/libraryScanner.js";
+import { readModelMetadata } from "./services/modelMetadata.js";
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 
@@ -31,6 +32,11 @@ function registerIpcHandlers() {
 
   ipcMain.handle("library:scan", (_event, rootPath: string) => scanLibrary(rootPath));
 
+  ipcMain.handle("model:metadata", async (_event, absolutePath: string) => {
+    assertPathInsideLibrary(absolutePath);
+    return readModelMetadata(absolutePath);
+  });
+
   ipcMain.handle("settings:choose-slicer-executable", async () => {
     const result = await dialog.showOpenDialog({
       title: "Escolha o executável do slicer",
@@ -53,23 +59,27 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("model:read-file", async (_event, absolutePath: string) => {
-    const settings = settingsStore.getSettings();
-
-    if (!settings.libraryPath) {
-      throw new Error("Library folder is not configured");
-    }
-
-    const relativePath = path.relative(settings.libraryPath, absolutePath);
-    const isOutsideLibrary =
-      relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
-
-    if (isOutsideLibrary) {
-      throw new Error("Model file is outside the configured library folder");
-    }
+    assertPathInsideLibrary(absolutePath);
 
     const buffer = await readFile(absolutePath);
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   });
+}
+
+function assertPathInsideLibrary(absolutePath: string) {
+  const settings = settingsStore.getSettings();
+
+  if (!settings.libraryPath) {
+    throw new Error("Library folder is not configured");
+  }
+
+  const relativePath = path.relative(settings.libraryPath, absolutePath);
+  const isOutsideLibrary =
+    relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
+
+  if (isOutsideLibrary) {
+    throw new Error("Model file is outside the configured library folder");
+  }
 }
 
 async function createWindow() {

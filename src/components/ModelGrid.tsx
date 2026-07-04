@@ -1,4 +1,5 @@
 import { Box, Search, Settings } from "lucide-react";
+import { ModelThumbnail } from "./ModelThumbnail";
 import type { ModelFile } from "../shared/types";
 
 type ModelGridProps = {
@@ -74,10 +75,7 @@ export function ModelGrid({
               type="button"
               onClick={() => onSelectModel(model)}
             >
-              <div className="model-thumb">
-                <Box size={32} />
-                <span>{model.extension.toUpperCase()}</span>
-              </div>
+              <ModelThumbnail model={model} />
               <div className="model-card-meta">
                 <strong title={model.name}>{model.name}</strong>
                 <span title={model.relativeFolder || "Raiz"}>

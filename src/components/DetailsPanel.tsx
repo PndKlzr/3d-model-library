@@ -6,6 +6,7 @@ type DetailsPanelProps = {
   model: ModelFile | null;
   settings: AppSettings;
   launchMessage: string | null;
+  isMetadataLoading: boolean;
   onOpenSettings: () => void;
   onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
 };
@@ -14,6 +15,7 @@ export function DetailsPanel({
   model,
   settings,
   launchMessage,
+  isMetadataLoading,
   onOpenSettings,
   onLaunchSlicer
 }: DetailsPanelProps) {
@@ -40,6 +42,7 @@ export function DetailsPanel({
                 <span>{model.previewError}</span>
               </div>
             ) : null}
+            {isMetadataLoading ? <div className="notice">Calculando dimensões...</div> : null}
 
             <dl className="metadata-list">
               <div>

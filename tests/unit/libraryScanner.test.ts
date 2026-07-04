@@ -52,4 +52,17 @@ describe("scanLibrary", () => {
     expect(result.errors[0].path).toBe(missingRoot);
     expect(result.errors[0].message).toContain("ENOENT");
   });
+
+  it("does not parse model geometry during the initial scan", async () => {
+    await writeFile(path.join(tempRoot, "corrupt.stl"), "not enough vertex data");
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models[0]).toMatchObject({
+      name: "corrupt.stl",
+      dimensionsMm: null,
+      objectCount: null,
+      previewError: null
+    });
+  });
 });
