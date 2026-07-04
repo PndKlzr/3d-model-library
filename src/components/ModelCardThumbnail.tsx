@@ -9,14 +9,14 @@ type ModelCardThumbnailProps = {
 
 export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const didRequestRef = useRef(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const [didQueue, setDidQueue] = useState(false);
 
   useEffect(() => {
     const element = rootRef.current;
     let isMounted = true;
 
-    if (!element || didQueue) {
+    if (!element || didRequestRef.current) {
       return () => {
         isMounted = false;
       };
@@ -29,7 +29,7 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
         }
 
         observer.disconnect();
-        setDidQueue(true);
+        didRequestRef.current = true;
         void loadThumbnail(model).then((imageUrl) => {
           if (isMounted && imageUrl) {
             setThumbnailUrl(imageUrl);
@@ -45,7 +45,7 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
       isMounted = false;
       observer.disconnect();
     };
-  }, [didQueue, model]);
+  }, [model]);
 
   return (
     <div className="thumb-fallback" ref={rootRef}>

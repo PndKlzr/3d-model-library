@@ -13,6 +13,7 @@ describe("performance contract", () => {
     expect(modelGridSource).toContain("ModelCardThumbnail");
     expect(cardThumbnailSource).toContain("readModelThumbnail");
     expect(cardThumbnailSource).toContain("requestRenderedModelThumbnail");
+    expect(cardThumbnailSource).not.toContain("setDidQueue");
     expect(thumbnailSource).not.toContain("readModelThumbnail");
     expect(thumbnailSource).toContain("readModelFile");
     expect(thumbnailSource).toContain("pendingJobs");
