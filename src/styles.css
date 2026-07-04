@@ -315,6 +315,8 @@ button {
 .thumb-fallback {
   display: grid;
   gap: 8px;
+  width: 100%;
+  height: 100%;
   place-items: center;
 }
 

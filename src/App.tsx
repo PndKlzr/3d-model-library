@@ -18,6 +18,7 @@ function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
+  const [thumbnailUrls, setThumbnailUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let isMounted = true;
@@ -161,6 +162,7 @@ function App() {
         models={filteredModels}
         scanErrors={scanResult?.errors ?? []}
         selectedModelId={selectedModel?.id ?? null}
+        thumbnailUrls={thumbnailUrls}
         searchQuery={searchQuery}
         isScanning={isScanning}
         onSearchChange={setSearchQuery}
@@ -174,6 +176,9 @@ function App() {
         launchMessage={launchMessage}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onLaunchSlicer={launchSlicer}
+        onPreviewImage={(modelId, imageUrl) =>
+          setThumbnailUrls((current) => ({ ...current, [modelId]: imageUrl }))
+        }
       />
       {isSettingsOpen ? (
         <SettingsDialog

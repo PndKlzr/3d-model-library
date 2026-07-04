@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { AppSettings } from "../src/shared/types.js";
 import { scanLibrary } from "./services/libraryScanner.js";
 import { readModelMetadata } from "./services/modelMetadata.js";
+import { readEmbeddedThumbnail } from "./services/modelThumbnail.js";
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 
@@ -35,6 +36,11 @@ function registerIpcHandlers() {
   ipcMain.handle("model:metadata", async (_event, absolutePath: string) => {
     assertPathInsideLibrary(absolutePath);
     return readModelMetadata(absolutePath);
+  });
+
+  ipcMain.handle("model:thumbnail", async (_event, absolutePath: string) => {
+    assertPathInsideLibrary(absolutePath);
+    return readEmbeddedThumbnail(absolutePath);
   });
 
   ipcMain.handle("settings:choose-slicer-executable", async () => {

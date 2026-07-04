@@ -9,6 +9,7 @@ type DetailsPanelProps = {
   launchMessage: string | null;
   onOpenSettings: () => void;
   onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
+  onPreviewImage: (modelId: string, imageUrl: string) => void;
 };
 
 export function DetailsPanel({
@@ -16,7 +17,8 @@ export function DetailsPanel({
   settings,
   launchMessage,
   onOpenSettings,
-  onLaunchSlicer
+  onLaunchSlicer,
+  onPreviewImage
 }: DetailsPanelProps) {
   const [showPreview, setShowPreview] = useState(false);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
@@ -29,7 +31,10 @@ export function DetailsPanel({
     <aside className="details-panel" aria-label="Detalhes do modelo">
       <div className="preview-stage">
         {model && showPreview ? (
-          <ModelViewer model={model} />
+          <ModelViewer
+            model={model}
+            onPreviewImage={(imageUrl) => onPreviewImage(model.id, imageUrl)}
+          />
         ) : model ? (
           <div className="preview-placeholder">
             <Eye size={28} />

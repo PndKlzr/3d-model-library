@@ -5,8 +5,11 @@ describe("performance contract", () => {
   it("does not auto-render model thumbnails in the grid", async () => {
     const modelGridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 
-    expect(modelGridSource).not.toContain("ModelThumbnail");
+    expect(modelGridSource).not.toContain("../components/ModelThumbnail");
+    expect(modelGridSource).not.toContain("<ModelThumbnail");
     expect(modelGridSource).not.toContain("readModelFile");
+    expect(modelGridSource).toContain("readModelThumbnail");
+    expect(modelGridSource).toContain("thumbnailUrls");
   });
 
   it("does not calculate model metadata automatically on selection", async () => {
@@ -20,5 +23,12 @@ describe("performance contract", () => {
 
     expect(detailsSource).toContain("Carregar preview 3D");
     expect(detailsSource).toContain("showPreview");
+  });
+
+  it("uses the tolerant 3MF preview parser instead of ThreeMFLoader", async () => {
+    const viewerSource = await readFile("src/components/ModelViewer.tsx", "utf8");
+
+    expect(viewerSource).toContain("parseThreeMfPreview");
+    expect(viewerSource).not.toContain("ThreeMFLoader");
   });
 });

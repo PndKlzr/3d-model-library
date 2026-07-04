@@ -11,6 +11,7 @@ export type ModelLibraryApi = {
     objectCount: number | null;
     previewError: string | null;
   }>;
+  readModelThumbnail: (absolutePath: string) => Promise<string | null>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   chooseSlicerExecutable: () => Promise<string | null>;
   launchSlicer: (slicerId: string, modelPath: string) => Promise<SlicerLaunchResult>;

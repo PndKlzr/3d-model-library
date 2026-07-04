@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   chooseLibraryFolder: () => ipcRenderer.invoke("settings:choose-library-folder"),
   scanLibrary: (rootPath) => ipcRenderer.invoke("library:scan", rootPath),
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
+  readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
   readModelFile: (absolutePath) => ipcRenderer.invoke("model:read-file", absolutePath),
   chooseSlicerExecutable: () => ipcRenderer.invoke("settings:choose-slicer-executable"),
   launchSlicer: (slicerId, modelPath) => ipcRenderer.invoke("slicer:launch", slicerId, modelPath)
