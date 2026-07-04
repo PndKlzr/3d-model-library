@@ -1,4 +1,5 @@
 import { AlertTriangle, Calendar, FolderOpen, Ruler, Scissors, Weight } from "lucide-react";
+import { ModelViewer } from "./ModelViewer";
 import type { AppSettings, ModelFile } from "../shared/types";
 
 type DetailsPanelProps = {
@@ -12,12 +13,7 @@ export function DetailsPanel({ model, settings }: DetailsPanelProps) {
   return (
     <aside className="details-panel" aria-label="Detalhes do modelo">
       <div className="preview-stage">
-        {model ? (
-          <>
-            <span>{model.extension.toUpperCase()}</span>
-            <strong>{model.name}</strong>
-          </>
-        ) : (
+        {model ? <ModelViewer model={model} /> : (
           <span>Visualizador 3D</span>
         )}
       </div>

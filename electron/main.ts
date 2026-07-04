@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AppSettings } from "../src/shared/types.js";
@@ -28,6 +29,25 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("library:scan", (_event, rootPath: string) => scanLibrary(rootPath));
+
+  ipcMain.handle("model:read-file", async (_event, absolutePath: string) => {
+    const settings = settingsStore.getSettings();
+
+    if (!settings.libraryPath) {
+      throw new Error("Library folder is not configured");
+    }
+
+    const relativePath = path.relative(settings.libraryPath, absolutePath);
+    const isOutsideLibrary =
+      relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
+
+    if (isOutsideLibrary) {
+      throw new Error("Model file is outside the configured library folder");
+    }
+
+    const buffer = await readFile(absolutePath);
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  });
 }
 
 async function createWindow() {

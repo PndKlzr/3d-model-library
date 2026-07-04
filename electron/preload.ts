@@ -9,5 +9,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   chooseLibraryFolder: () =>
     ipcRenderer.invoke("settings:choose-library-folder") as Promise<string | null>,
   scanLibrary: (rootPath: string) =>
-    ipcRenderer.invoke("library:scan", rootPath) as Promise<LibraryScanResult>
+    ipcRenderer.invoke("library:scan", rootPath) as Promise<LibraryScanResult>,
+  readModelFile: (absolutePath: string) =>
+    ipcRenderer.invoke("model:read-file", absolutePath) as Promise<ArrayBuffer>
 });

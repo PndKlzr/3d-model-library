@@ -6,6 +6,7 @@ export type ModelLibraryApi = {
   saveSettings: (settings: AppSettings) => Promise<AppSettings>;
   chooseLibraryFolder: () => Promise<string | null>;
   scanLibrary: (rootPath: string) => Promise<LibraryScanResult>;
+  readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
 };
 
 declare global {
