@@ -141,16 +141,20 @@ button {
 }
 
 .folder-row,
-.icon-button {
+.secondary-button,
+.primary-button {
   border: 1px solid transparent;
   border-radius: var(--radius);
-  background: transparent;
   color: #273033;
 }
 
 .folder-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 10px 11px;
+  background: transparent;
   text-align: left;
 }
 
@@ -159,6 +163,27 @@ button {
   background: #e0ecea;
   color: var(--accent-strong);
   font-weight: 700;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 16px;
+  padding: 8px 10px;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.toggle-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.folder-list {
+  display: grid;
+  gap: 2px;
 }
 
 .library-panel {
@@ -182,31 +207,51 @@ button {
   text-transform: uppercase;
 }
 
-.icon-button {
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
+.secondary-button,
+.primary-button {
+  min-height: 38px;
+  padding: 0 13px;
+  font-weight: 800;
+}
+
+.secondary-button {
   border-color: var(--line);
   background: var(--panel-strong);
 }
 
+.primary-button {
+  border-color: var(--accent-strong);
+  background: var(--accent);
+  color: white;
+}
+
+.secondary-button:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
 .search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+  padding: 0 12px;
+  color: var(--ink-muted);
 }
 
 .search-box input {
   width: 100%;
   height: 42px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0 12px;
-  background: var(--panel-strong);
+  border: 0;
+  background: transparent;
   color: #1f2528;
   outline: none;
 }
 
-.search-box input:focus {
+.search-box:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(40, 124, 120, 0.18);
 }
@@ -218,16 +263,26 @@ button {
 }
 
 .model-card {
+  display: block;
+  width: 100%;
   min-height: 190px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.86);
   box-shadow: 0 8px 22px rgba(35, 45, 50, 0.08);
   overflow: hidden;
+  padding: 0;
+  text-align: left;
+}
+
+.model-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(40, 124, 120, 0.17), 0 8px 22px rgba(35, 45, 50, 0.08);
 }
 
 .model-thumb {
   display: grid;
+  gap: 8px;
   height: 130px;
   place-items: center;
   background:
@@ -235,6 +290,10 @@ button {
     #dfe6e8;
   color: #617076;
   font-weight: 700;
+}
+
+.model-thumb svg {
+  margin-bottom: -26px;
 }
 
 .model-card-meta {
@@ -263,6 +322,7 @@ button {
 
 .preview-stage {
   display: grid;
+  gap: 8px;
   height: 320px;
   place-items: center;
   border: 1px solid #cdd6da;
@@ -272,10 +332,91 @@ button {
     #eef2f3;
   color: #617076;
   font-weight: 800;
+  text-align: center;
+}
+
+.preview-stage strong {
+  width: min(280px, 100%);
+  overflow: hidden;
+  color: #283236;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .details-content {
   margin-top: 18px;
   border-top: 1px solid var(--line);
   padding-top: 18px;
+}
+
+.metadata-list {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.metadata-list div {
+  display: grid;
+  gap: 5px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.metadata-list dt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.metadata-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid #cbd6d9;
+  border-radius: var(--radius);
+  background: #eef3f4;
+  padding: 10px;
+  color: #465258;
+  font-size: 13px;
+}
+
+.notice.warning {
+  border-color: #d8b49e;
+  background: #fff4ed;
+  color: var(--warn);
+}
+
+.slicer-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.empty-state {
+  display: grid;
+  place-items: center;
+  min-height: 280px;
+  border: 1px dashed #bdc9cd;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.58);
+  color: var(--ink-muted);
+  text-align: center;
+}
+
+.empty-state strong {
+  margin-top: 10px;
+  color: #2f393d;
+}
+
+.empty-state span {
+  max-width: 320px;
+  margin-top: 4px;
 }
