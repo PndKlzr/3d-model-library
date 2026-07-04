@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Bounds, OrbitControls } from "@react-three/drei";
 import { RotateCcw } from "lucide-react";
+import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { parseThreeMfPreview } from "../lib/threeMfPreview";
 import type { ModelFile } from "../shared/types";
@@ -76,7 +77,7 @@ export function ModelViewer({ model }: ModelViewerProps) {
   }
 
   return (
-    <div className="viewer-wrap">
+    <div className="viewer-wrap" onContextMenu={(event) => event.preventDefault()}>
       <button
         className="viewer-reset"
         type="button"
@@ -100,7 +101,18 @@ export function ModelViewer({ model }: ModelViewerProps) {
           {parsedModel}
         </Bounds>
         <gridHelper args={[160, 16, "#9eb2b5", "#d1dbde"]} />
-        <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
+        <OrbitControls
+          makeDefault
+          enableDamping
+          enablePan
+          enableZoom
+          dampingFactor={0.08}
+          mouseButtons={{
+            LEFT: THREE.MOUSE.PAN,
+            MIDDLE: THREE.MOUSE.DOLLY,
+            RIGHT: THREE.MOUSE.ROTATE
+          }}
+        />
       </Canvas>
     </div>
   );

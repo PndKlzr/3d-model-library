@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { strToU8, zipSync } from "fflate";
+import * as THREE from "three";
 import { parseThreeMfPreview } from "../../src/lib/threeMfPreview";
 
 describe("parseThreeMfPreview", () => {
@@ -74,5 +75,72 @@ describe("parseThreeMfPreview", () => {
     });
 
     expect(parseThreeMfPreview(zipped.buffer as ArrayBuffer).children).toHaveLength(1);
+  });
+
+  it("keeps build item transforms so separate parts do not collapse together", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <resources>
+    <object id="1" type="model">
+      <mesh>
+        <vertices>
+          <vertex x="0" y="0" z="0" />
+          <vertex x="10" y="0" z="0" />
+          <vertex x="0" y="10" z="0" />
+        </vertices>
+        <triangles>
+          <triangle v1="0" v2="1" v3="2" />
+        </triangles>
+      </mesh>
+    </object>
+  </resources>
+  <build>
+    <item objectid="1" transform="1 0 0 0 0 1 0 0 0 0 1 0" />
+    <item objectid="1" transform="1 0 0 80 0 1 0 0 0 0 1 0" />
+  </build>
+</model>`;
+
+    const zipped = zipSync({ "3D/3dmodel.model": strToU8(xml) });
+    const group = parseThreeMfPreview(zipped.buffer as ArrayBuffer);
+    const box = new THREE.Box3().setFromObject(group);
+
+    expect(group.children).toHaveLength(2);
+    expect(box.getSize(new THREE.Vector3()).x).toBeGreaterThan(80);
+  });
+
+  it("applies component transforms inside composite 3MF objects", () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">
+  <resources>
+    <object id="1" type="model">
+      <mesh>
+        <vertices>
+          <vertex x="0" y="0" z="0" />
+          <vertex x="10" y="0" z="0" />
+          <vertex x="0" y="10" z="0" />
+        </vertices>
+        <triangles>
+          <triangle v1="0" v2="1" v3="2" />
+        </triangles>
+      </mesh>
+    </object>
+    <object id="2" type="model">
+      <components>
+        <component objectid="1" />
+        <component objectid="1" transform="1 0 0 50 0 1 0 0 0 0 1 0" />
+      </components>
+    </object>
+  </resources>
+  <build>
+    <item objectid="2" />
+  </build>
+</model>`;
+
+    const zipped = zipSync({ "3D/3dmodel.model": strToU8(xml) });
+    const group = parseThreeMfPreview(zipped.buffer as ArrayBuffer);
+    const box = new THREE.Box3().setFromObject(group);
+
+    expect(group.children).toHaveLength(1);
+    expect(box.getSize(new THREE.Vector3()).x).toBeGreaterThan(50);
   });
 });

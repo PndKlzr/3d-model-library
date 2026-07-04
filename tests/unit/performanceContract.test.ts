@@ -45,4 +45,13 @@ describe("performance contract", () => {
     expect(viewerSource).toContain("parseThreeMfPreview");
     expect(viewerSource).not.toContain("ThreeMFLoader");
   });
+
+  it("uses slicer-style mouse controls in the 3D viewer", async () => {
+    const viewerSource = await readFile("src/components/ModelViewer.tsx", "utf8");
+
+    expect(viewerSource).toContain("mouseButtons");
+    expect(viewerSource).toContain("LEFT: THREE.MOUSE.PAN");
+    expect(viewerSource).toContain("RIGHT: THREE.MOUSE.ROTATE");
+    expect(viewerSource).toContain("enableZoom");
+  });
 });
