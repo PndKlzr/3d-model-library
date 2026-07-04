@@ -1,12 +1,11 @@
 import { Box, Search, Settings } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import type { ModelFile } from "../shared/types";
 
 type ModelGridProps = {
   models: ModelFile[];
   scanErrors: Array<{ path: string; message: string }>;
   selectedModelId: string | null;
-  thumbnailUrls: Record<string, string>;
   searchQuery: string;
   isScanning: boolean;
   onSearchChange: (query: string) => void;
@@ -19,7 +18,6 @@ export function ModelGrid({
   models,
   scanErrors,
   selectedModelId,
-  thumbnailUrls,
   searchQuery,
   isScanning,
   onSearchChange,
@@ -78,11 +76,7 @@ export function ModelGrid({
               onClick={() => onSelectModel(model)}
             >
               <div className="model-thumb">
-                {thumbnailUrls[model.id] ? (
-                  <img className="thumbnail-image" src={thumbnailUrls[model.id]} alt="" />
-                ) : (
-                  <EmbeddedPreviewImage model={model} />
-                )}
+                <ModelCardThumbnail model={model} />
               </div>
               <div className="model-card-meta">
                 <strong title={model.name}>{model.name}</strong>
@@ -95,50 +89,6 @@ export function ModelGrid({
         </div>
       )}
     </section>
-  );
-}
-
-function EmbeddedPreviewImage({ model }: { model: ModelFile }) {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const [didTryLoad, setDidTryLoad] = useState(false);
-
-  useEffect(() => {
-    const element = rootRef.current;
-
-    if (!element || didTryLoad || model.extension !== ".3mf") {
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) {
-          return;
-        }
-
-        observer.disconnect();
-        setDidTryLoad(true);
-        void window.modelLibrary.readModelThumbnail(model.absolutePath).then(setThumbnailUrl);
-      },
-      { rootMargin: "200px" }
-    );
-
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [didTryLoad, model.absolutePath, model.extension]);
-
-  return (
-    <div className="thumb-fallback" ref={rootRef}>
-      {thumbnailUrl ? (
-        <img className="thumbnail-image" src={thumbnailUrl} alt="" />
-      ) : (
-        <>
-          <Box size={30} />
-          <span>{model.extension.toUpperCase()}</span>
-        </>
-      )}
-    </div>
   );
 }
 

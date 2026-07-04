@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas } from "@react-three/fiber";
 import { Bounds, OrbitControls } from "@react-three/drei";
 import { RotateCcw } from "lucide-react";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
@@ -8,10 +8,9 @@ import type { ModelFile } from "../shared/types";
 
 type ModelViewerProps = {
   model: ModelFile;
-  onPreviewImage?: (imageUrl: string) => void;
 };
 
-export function ModelViewer({ model, onPreviewImage }: ModelViewerProps) {
+export function ModelViewer({ model }: ModelViewerProps) {
   const [modelBytes, setModelBytes] = useState<ArrayBuffer | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
@@ -91,7 +90,7 @@ export function ModelViewer({ model, onPreviewImage }: ModelViewerProps) {
         key={resetKey}
         camera={{ position: [90, 70, 110], fov: 45 }}
         dpr={[1, 1.5]}
-        gl={{ powerPreference: "high-performance", preserveDrawingBuffer: true }}
+        gl={{ powerPreference: "high-performance" }}
       >
         <color attach="background" args={["#edf2f3"]} />
         <ambientLight intensity={0.75} />
@@ -102,23 +101,7 @@ export function ModelViewer({ model, onPreviewImage }: ModelViewerProps) {
         </Bounds>
         <gridHelper args={[160, 16, "#9eb2b5", "#d1dbde"]} />
         <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
-        {onPreviewImage ? <PreviewSnapshot onPreviewImage={onPreviewImage} /> : null}
       </Canvas>
     </div>
   );
-}
-
-function PreviewSnapshot({ onPreviewImage }: { onPreviewImage: (imageUrl: string) => void }) {
-  const { gl, invalidate } = useThree();
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      invalidate();
-      onPreviewImage(gl.domElement.toDataURL("image/webp", 0.76));
-    }, 400);
-
-    return () => window.clearTimeout(timer);
-  }, [gl, invalidate, onPreviewImage]);
-
-  return null;
 }

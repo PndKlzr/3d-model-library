@@ -273,9 +273,10 @@ button {
 }
 
 .model-card {
-  display: block;
+  display: grid;
+  grid-template-rows: 130px minmax(64px, auto);
   width: 100%;
-  min-height: 190px;
+  min-height: 194px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.86);
@@ -294,12 +295,14 @@ button {
   position: relative;
   display: grid;
   height: 130px;
+  min-height: 130px;
   place-items: center;
   background:
     linear-gradient(135deg, rgba(40, 124, 120, 0.16), transparent),
     #dfe6e8;
   color: #617076;
   font-weight: 700;
+  overflow: hidden;
 }
 
 .model-thumb canvas {
@@ -307,6 +310,7 @@ button {
 }
 
 .thumbnail-image {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -323,10 +327,19 @@ button {
 .model-card-meta {
   display: grid;
   gap: 4px;
+  min-width: 0;
   padding: 11px;
 }
 
-.model-card-meta strong,
+.model-card-meta strong {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .model-card-meta span {
   overflow: hidden;
   text-overflow: ellipsis;
