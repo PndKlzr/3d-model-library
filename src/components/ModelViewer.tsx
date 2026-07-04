@@ -88,7 +88,12 @@ export function ModelViewer({ model }: ModelViewerProps) {
       >
         <RotateCcw size={16} />
       </button>
-      <Canvas key={resetKey} camera={{ position: [90, 70, 110], fov: 45 }} shadows>
+      <Canvas
+        key={resetKey}
+        camera={{ position: [90, 70, 110], fov: 45 }}
+        dpr={[1, 1.5]}
+        gl={{ powerPreference: "high-performance" }}
+      >
         <color attach="background" args={["#edf2f3"]} />
         <ambientLight intensity={0.75} />
         <directionalLight position={[80, 120, 70]} intensity={1.3} castShadow />
