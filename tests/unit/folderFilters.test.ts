@@ -10,8 +10,14 @@ const models: ModelFile[] = [
 ];
 
 describe("filterModels", () => {
-  it("returns every model in the All view", () => {
-    expect(filterModels(models, ALL_FOLDERS_ID, false, "")).toHaveLength(4);
+  it("returns every model in the All view when includeSubfolders is enabled", () => {
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "")).toHaveLength(4);
+  });
+
+  it("returns only root files in the All view when includeSubfolders is disabled", () => {
+    const result = filterModels(models, ALL_FOLDERS_ID, false, "");
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual(["root.stl"]);
   });
 
   it("includes nested files when includeSubfolders is enabled", () => {

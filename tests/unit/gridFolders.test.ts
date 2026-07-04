@@ -12,10 +12,13 @@ const models = [
 ];
 
 describe("getGridFolderCards", () => {
-  it("returns no folder cards for the All view", () => {
+  it("returns top-level folder cards for the All view", () => {
     const cards = getGridFolderCards(buildFolderTree(models), models, ALL_FOLDERS_ID);
 
-    expect(cards).toEqual([]);
+    expect(cards).toEqual([
+      { id: "cosplay", name: "cosplay", modelCount: 2, childCount: 1 },
+      { id: "terrain", name: "terrain", modelCount: 1, childCount: 1 }
+    ]);
   });
 
   it("returns direct child folders for the selected folder", () => {

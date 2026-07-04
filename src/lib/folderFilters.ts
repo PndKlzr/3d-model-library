@@ -27,10 +27,11 @@ export function filterModels(
   const filteredModels = models.filter((model) => {
     const normalizedModelFolder = normalizeFolder(model.relativeFolder);
     const folderMatches =
-      normalizedSelectedFolder === ALL_FOLDERS_ID ||
-      (includeSubfolders
-        ? isFolderOrDescendant(normalizedModelFolder, normalizedSelectedFolder)
-        : normalizedModelFolder === normalizedSelectedFolder);
+      normalizedSelectedFolder === ALL_FOLDERS_ID
+        ? includeSubfolders || normalizedModelFolder === ""
+        : includeSubfolders
+          ? isFolderOrDescendant(normalizedModelFolder, normalizedSelectedFolder)
+          : normalizedModelFolder === normalizedSelectedFolder;
 
     if (!folderMatches) {
       return false;

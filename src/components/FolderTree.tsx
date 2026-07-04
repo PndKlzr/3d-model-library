@@ -38,7 +38,6 @@ export function FolderTree({
   onMoveModelsToFolder
 }: FolderTreeProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
-  const isAllModelsSelected = selectedFolder === ALL_FOLDERS_ID;
 
   function allowFolderDrop(event: DragEvent, folderId: string) {
     if (!canMoveModels) {
@@ -88,10 +87,9 @@ export function FolderTree({
         <input
           type="checkbox"
           checked={includeSubfolders}
-          disabled={isAllModelsSelected}
           onChange={(event) => onToggleIncludeSubfolders(event.currentTarget.checked)}
         />
-        <span>{isAllModelsSelected ? "Todos ja inclui tudo" : "Incluir subpastas"}</span>
+        <span>Incluir subpastas</span>
       </label>
 
       <div className="folder-tools" aria-label="Organizar pastas">
