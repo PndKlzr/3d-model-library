@@ -69,6 +69,61 @@ describe("filterModels", () => {
 
     expect(result.map((modelFile) => modelFile.name)).toEqual(["root.stl", "visor.3mf"]);
   });
+
+  it("can show only duplicate models", () => {
+    const result = filterModels(models, ALL_FOLDERS_ID, true, "", {
+      onlyDuplicates: true,
+      duplicateIds: new Set(["cosplay/helmet.stl", "terrain/forest/tree.stl"])
+    });
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual(["helmet.stl", "tree.stl"]);
+  });
+
+  it("can show only favorite models", () => {
+    const result = filterModels(models, ALL_FOLDERS_ID, true, "", {
+      onlyFavorites: true,
+      metadataByPath: {
+        "C:/library//root.stl": { favorite: true, tags: [], notes: "" },
+        "C:/library/cosplay/helmet.stl": { favorite: false, tags: [], notes: "" }
+      }
+    });
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual(["root.stl"]);
+  });
+
+  it("requires every selected tag to match", () => {
+    const result = filterModels(models, ALL_FOLDERS_ID, true, "", {
+      selectedTags: ["cosplay", "helmet"],
+      metadataByPath: {
+        "C:/library/cosplay/helmet.stl": {
+          favorite: false,
+          tags: ["cosplay", "helmet"],
+          notes: ""
+        },
+        "C:/library/cosplay/helmet/visor.3mf": {
+          favorite: false,
+          tags: ["cosplay"],
+          notes: ""
+        }
+      }
+    });
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual(["helmet.stl"]);
+  });
+
+  it("matches search queries against tags", () => {
+    const result = filterModels(models, ALL_FOLDERS_ID, true, "fixture", {
+      metadataByPath: {
+        "C:/library/terrain/forest/tree.stl": {
+          favorite: false,
+          tags: ["fixture"],
+          notes: ""
+        }
+      }
+    });
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual(["tree.stl"]);
+  });
 });
 
 function model(

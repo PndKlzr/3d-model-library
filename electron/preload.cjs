@@ -14,8 +14,13 @@ contextBridge.exposeInMainWorld("modelLibrary", {
     ipcRenderer.invoke("library:rename-folder", folderRelativePath, newName),
   renameModelFile: (sourcePath, newName) =>
     ipcRenderer.invoke("library:rename-model-file", sourcePath, newName),
+  getLibraryMetadata: () => ipcRenderer.invoke("metadata:get"),
+  toggleFavorite: (modelPath) => ipcRenderer.invoke("metadata:toggle-favorite", modelPath),
+  setModelTags: (modelPath, tags) => ipcRenderer.invoke("metadata:set-tags", modelPath, tags),
+  setModelNotes: (modelPath, notes) => ipcRenderer.invoke("metadata:set-notes", modelPath, notes),
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
+  showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
   readModelFile: (absolutePath) => ipcRenderer.invoke("model:read-file", absolutePath),
   chooseSlicerExecutable: () => ipcRenderer.invoke("settings:choose-slicer-executable"),
   launchSlicer: (slicerId, modelPath) => ipcRenderer.invoke("slicer:launch", slicerId, modelPath)

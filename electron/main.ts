@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,10 @@ import {
 import { scanLibrary } from "./services/libraryScanner.js";
 import { readModelMetadata } from "./services/modelMetadata.js";
 import { readEmbeddedThumbnail } from "./services/modelThumbnail.js";
+import {
+  createElectronLibraryMetadataStore,
+  type LibraryMetadataStore
+} from "./services/libraryMetadataStore.js";
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 
@@ -20,6 +24,7 @@ const __dirname = path.dirname(__filename);
 
 const isDev = !app.isPackaged;
 let settingsStore: SettingsStore;
+let libraryMetadataStore: LibraryMetadataStore;
 
 function registerIpcHandlers() {
   ipcMain.handle("settings:get", () => settingsStore.getSettings());
@@ -59,6 +64,23 @@ function registerIpcHandlers() {
     renameModelFile(requireLibraryPath(), sourcePath, newName)
   );
 
+  ipcMain.handle("metadata:get", () => libraryMetadataStore.getMetadata());
+
+  ipcMain.handle("metadata:toggle-favorite", (_event, modelPath: string) => {
+    assertPathInsideLibrary(modelPath);
+    return libraryMetadataStore.toggleFavorite(modelPath);
+  });
+
+  ipcMain.handle("metadata:set-tags", (_event, modelPath: string, tags: string[]) => {
+    assertPathInsideLibrary(modelPath);
+    return libraryMetadataStore.setTags(modelPath, tags);
+  });
+
+  ipcMain.handle("metadata:set-notes", (_event, modelPath: string, notes: string) => {
+    assertPathInsideLibrary(modelPath);
+    return libraryMetadataStore.setNotes(modelPath, notes);
+  });
+
   ipcMain.handle("model:metadata", async (_event, absolutePath: string) => {
     assertPathInsideLibrary(absolutePath);
     return readModelMetadata(absolutePath);
@@ -67,6 +89,11 @@ function registerIpcHandlers() {
   ipcMain.handle("model:thumbnail", async (_event, absolutePath: string) => {
     assertPathInsideLibrary(absolutePath);
     return readEmbeddedThumbnail(absolutePath);
+  });
+
+  ipcMain.handle("model:show-in-folder", (_event, absolutePath: string) => {
+    assertPathInsideLibrary(absolutePath);
+    shell.showItemInFolder(absolutePath);
   });
 
   ipcMain.handle("settings:choose-slicer-executable", async () => {
@@ -87,7 +114,13 @@ function registerIpcHandlers() {
       return { ok: false, message: "Slicer não configurado." };
     }
 
-    return launchSlicer(slicer, modelPath);
+    const result = await launchSlicer(slicer, modelPath);
+
+    if (result.ok) {
+      libraryMetadataStore.recordSlicerOpen(modelPath, slicerId);
+    }
+
+    return result;
   });
 
   ipcMain.handle("model:read-file", async (_event, absolutePath: string) => {
@@ -156,6 +189,7 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   settingsStore = await createElectronSettingsStore();
+  libraryMetadataStore = await createElectronLibraryMetadataStore();
   registerIpcHandlers();
   await createWindow();
 

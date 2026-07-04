@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   FileOperationResult,
+  LibraryMetadata,
   LibraryScanResult,
   ModelFile,
   SlicerLaunchResult
@@ -22,12 +23,17 @@ export type ModelLibraryApi = {
   ) => Promise<FileOperationResult>;
   renameFolder: (folderRelativePath: string, newName: string) => Promise<FileOperationResult>;
   renameModelFile: (sourcePath: string, newName: string) => Promise<FileOperationResult>;
+  getLibraryMetadata: () => Promise<LibraryMetadata>;
+  toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
+  setModelTags: (modelPath: string, tags: string[]) => Promise<LibraryMetadata>;
+  setModelNotes: (modelPath: string, notes: string) => Promise<LibraryMetadata>;
   readModelMetadata: (absolutePath: string) => Promise<{
     dimensionsMm: ModelFile["dimensionsMm"];
     objectCount: number | null;
     previewError: string | null;
   }>;
   readModelThumbnail: (absolutePath: string) => Promise<string | null>;
+  showModelInFolder: (absolutePath: string) => Promise<void>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   chooseSlicerExecutable: () => Promise<string | null>;
   launchSlicer: (slicerId: string, modelPath: string) => Promise<SlicerLaunchResult>;

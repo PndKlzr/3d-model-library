@@ -31,6 +31,23 @@ export type LibraryScanResult = {
   errors: Array<{ path: string; message: string }>;
 };
 
+export type ModelUserMetadata = {
+  favorite: boolean;
+  tags: string[];
+  notes: string;
+};
+
+export type SlicerHistoryEntry = {
+  modelPath: string;
+  slicerId: string;
+  openedAt: string;
+};
+
+export type LibraryMetadata = {
+  models: Record<string, ModelUserMetadata>;
+  slicerHistory: SlicerHistoryEntry[];
+};
+
 export type SlicerLaunchResult = {
   ok: boolean;
   message: string;

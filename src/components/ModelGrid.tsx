@@ -1,9 +1,9 @@
-import { Box, Folder, Search, Settings } from "lucide-react";
+import { Box, ChevronLeft, ChevronRight, Folder, Search, Settings, Star } from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
-import type { ModelSortMode, ModelTypeFilter } from "../lib/folderFilters";
+import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
-import type { ModelFile } from "../shared/types";
+import type { ModelFile, ModelUserMetadata } from "../shared/types";
 
 type ModelGridProps = {
   models: ModelFile[];
@@ -15,13 +15,27 @@ type ModelGridProps = {
   typeFilter: ModelTypeFilter;
   sortMode: ModelSortMode;
   onlySelected: boolean;
+  onlyFavorites: boolean;
+  onlyDuplicates: boolean;
+  availableTags: string[];
+  selectedTags: Set<string>;
+  metadataByPath: Record<string, ModelUserMetadata>;
+  duplicateModelIds: Set<string>;
   isScanning: boolean;
   canMoveModels: boolean;
   operationMessage: string | null;
+  selectedFolder: string;
+  canNavigateBack: boolean;
+  canNavigateForward: boolean;
   onSearchChange: (query: string) => void;
   onTypeFilterChange: (type: ModelTypeFilter) => void;
   onSortModeChange: (sortMode: ModelSortMode) => void;
   onOnlySelectedChange: (onlySelected: boolean) => void;
+  onOnlyFavoritesChange: (onlyFavorites: boolean) => void;
+  onOnlyDuplicatesChange: (onlyDuplicates: boolean) => void;
+  onToggleTagFilter: (tag: string) => void;
+  onNavigateBack: () => void;
+  onNavigateForward: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
@@ -43,13 +57,27 @@ export function ModelGrid({
   typeFilter,
   sortMode,
   onlySelected,
+  onlyFavorites,
+  onlyDuplicates,
+  availableTags,
+  selectedTags,
+  metadataByPath,
+  duplicateModelIds,
   isScanning,
   canMoveModels,
   operationMessage,
+  selectedFolder,
+  canNavigateBack,
+  canNavigateForward,
   onSearchChange,
   onTypeFilterChange,
   onSortModeChange,
   onOnlySelectedChange,
+  onOnlyFavoritesChange,
+  onOnlyDuplicatesChange,
+  onToggleTagFilter,
+  onNavigateBack,
+  onNavigateForward,
   onOpenFolder,
   onOpenFolderContextMenu,
   onMoveModelsToFolder,
@@ -89,6 +117,29 @@ export function ModelGrid({
         <div>
           <p className="eyebrow">STL / 3MF</p>
           <h2>Sua biblioteca visual</h2>
+          <div className="breadcrumb-row" aria-label="Caminho da pasta">
+            <button
+              className="icon-only small-icon"
+              type="button"
+              onClick={onNavigateBack}
+              disabled={!canNavigateBack}
+              aria-label="Voltar pasta"
+              title="Voltar"
+            >
+              <ChevronLeft size={15} />
+            </button>
+            <button
+              className="icon-only small-icon"
+              type="button"
+              onClick={onNavigateForward}
+              disabled={!canNavigateForward}
+              aria-label="Avancar pasta"
+              title="Avancar"
+            >
+              <ChevronRight size={15} />
+            </button>
+            <Breadcrumb selectedFolder={selectedFolder} onOpenFolder={onOpenFolder} />
+          </div>
         </div>
         <div className="toolbar-actions">
           <button
@@ -145,7 +196,38 @@ export function ModelGrid({
           />
           So selecionados
         </label>
+        <label className="filter-check">
+          <input
+            type="checkbox"
+            checked={onlyFavorites}
+            onChange={(event) => onOnlyFavoritesChange(event.currentTarget.checked)}
+          />
+          Favoritos
+        </label>
+        <label className="filter-check">
+          <input
+            type="checkbox"
+            checked={onlyDuplicates}
+            onChange={(event) => onOnlyDuplicatesChange(event.currentTarget.checked)}
+          />
+          Duplicados
+        </label>
       </div>
+
+      {availableTags.length > 0 ? (
+        <div className="tag-filter-row" aria-label="Filtros por tag">
+          {availableTags.map((tag) => (
+            <button
+              className={`tag-chip ${selectedTags.has(tag) ? "active" : ""}`}
+              type="button"
+              key={tag}
+              onClick={() => onToggleTagFilter(tag)}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {scanErrors.length > 0 ? (
         <div className="scan-errors" role="status">
@@ -202,52 +284,130 @@ export function ModelGrid({
           ))}
 
           {models.map((model) => (
-            <div
-              className={`model-card ${selectedModelId === model.id ? "selected" : ""} ${
-                selectedModelIds.has(model.id) ? "checked" : ""
-              }`}
+            <ModelCard
               key={model.id}
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", model.absolutePath);
-                onDragStartModel(model);
-              }}
-              onDragEnd={onDragEndModel}
-            >
-              <label className="card-check" onClick={(event) => event.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  checked={selectedModelIds.has(model.id)}
-                  onChange={(event) => onToggleModelSelection(model, event.currentTarget.checked)}
-                  aria-label={`Selecionar ${model.name}`}
-                />
-              </label>
-              <button
-                className="model-card-main"
-                type="button"
-                onClick={(event) =>
-                  onOpenModel(model, {
-                    ctrlKey: event.ctrlKey || event.metaKey,
-                    shiftKey: event.shiftKey
-                  })
-                }
-              >
-                <div className="model-thumb">
-                  <ModelCardThumbnail model={model} />
-                </div>
-                <div className="model-card-meta">
-                  <strong title={model.name}>{model.name}</strong>
-                  <span title={model.relativeFolder || "Raiz"}>
-                    {model.relativeFolder || "Raiz"} - {formatBytes(model.sizeBytes)}
-                  </span>
-                </div>
-              </button>
-            </div>
+              model={model}
+              metadata={metadataByPath[model.absolutePath]}
+              isDuplicate={duplicateModelIds.has(model.id)}
+              isSelected={selectedModelId === model.id}
+              isChecked={selectedModelIds.has(model.id)}
+              onOpenModel={onOpenModel}
+              onToggleModelSelection={onToggleModelSelection}
+              onDragStartModel={onDragStartModel}
+              onDragEndModel={onDragEndModel}
+            />
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+type BreadcrumbProps = {
+  selectedFolder: string;
+  onOpenFolder: (folderId: string) => void;
+};
+
+function Breadcrumb({ selectedFolder, onOpenFolder }: BreadcrumbProps) {
+  const parts = selectedFolder === ALL_FOLDERS_ID ? [] : selectedFolder.split("/").filter(Boolean);
+
+  return (
+    <nav className="breadcrumbs">
+      <button type="button" onClick={() => onOpenFolder(ALL_FOLDERS_ID)}>
+        Todos os modelos
+      </button>
+      {parts.map((part, index) => {
+        const folderId = parts.slice(0, index + 1).join("/");
+
+        return (
+          <span key={folderId}>
+            <ChevronRight size={13} />
+            <button type="button" onClick={() => onOpenFolder(folderId)}>
+              {part}
+            </button>
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
+
+type ModelCardProps = {
+  model: ModelFile;
+  metadata: ModelUserMetadata | undefined;
+  isDuplicate: boolean;
+  isSelected: boolean;
+  isChecked: boolean;
+  onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
+  onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
+  onDragStartModel: (model: ModelFile) => void;
+  onDragEndModel: () => void;
+};
+
+function ModelCard({
+  model,
+  metadata,
+  isDuplicate,
+  isSelected,
+  isChecked,
+  onOpenModel,
+  onToggleModelSelection,
+  onDragStartModel,
+  onDragEndModel
+}: ModelCardProps) {
+  return (
+    <div
+      className={`model-card ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", model.absolutePath);
+        onDragStartModel(model);
+      }}
+      onDragEnd={onDragEndModel}
+    >
+      <label className="card-check" onClick={(event) => event.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={(event) => onToggleModelSelection(model, event.currentTarget.checked)}
+          aria-label={`Selecionar ${model.name}`}
+        />
+      </label>
+      {metadata?.favorite ? (
+        <div className="favorite-badge" title="Favorito" aria-label="Favorito">
+          <Star size={15} fill="currentColor" />
+        </div>
+      ) : null}
+      <button
+        className="model-card-main"
+        type="button"
+        onClick={(event) =>
+          onOpenModel(model, {
+            ctrlKey: event.ctrlKey || event.metaKey,
+            shiftKey: event.shiftKey
+          })
+        }
+      >
+        <div className="model-thumb">
+          <ModelCardThumbnail model={model} />
+        </div>
+        <div className="model-card-meta">
+          <strong title={model.name}>{model.name}</strong>
+          <span title={model.relativeFolder || "Raiz"}>
+            {model.relativeFolder || "Raiz"} - {formatBytes(model.sizeBytes)}
+          </span>
+          {isDuplicate ? <span className="duplicate-label">Possivel duplicado</span> : null}
+          {metadata?.tags.length ? (
+            <div className="card-tags" aria-label="Tags">
+              {metadata.tags.slice(0, 3).map((tag) => (
+                <span key={tag}>{tag}</span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </button>
+    </div>
   );
 }
 

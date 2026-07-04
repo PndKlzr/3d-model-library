@@ -1,4 +1,4 @@
-import type { ModelFile } from "../shared/types";
+import type { ModelFile, ModelUserMetadata } from "../shared/types";
 
 export const ALL_FOLDERS_ID = "__all__";
 
@@ -10,6 +10,11 @@ export type ModelFilterOptions = {
   sort?: ModelSortMode;
   onlySelected?: boolean;
   selectedIds?: Set<string>;
+  onlyDuplicates?: boolean;
+  duplicateIds?: Set<string>;
+  onlyFavorites?: boolean;
+  selectedTags?: string[];
+  metadataByPath?: Record<string, ModelUserMetadata>;
 };
 
 export function filterModels(
@@ -23,9 +28,12 @@ export function filterModels(
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const typeFilter = options.type ?? "all";
   const sortMode = options.sort ?? "name";
+  const selectedTags = normalizeTags(options.selectedTags ?? []);
+  const metadataByPath = normalizeMetadataPathMap(options.metadataByPath ?? {});
 
   const filteredModels = models.filter((model) => {
     const normalizedModelFolder = normalizeFolder(model.relativeFolder);
+    const modelMetadata = metadataByPath.get(normalizeModelPath(model.absolutePath));
     const folderMatches =
       normalizedSelectedFolder === ALL_FOLDERS_ID
         ? includeSubfolders || normalizedModelFolder === ""
@@ -45,11 +53,28 @@ export function filterModels(
       return false;
     }
 
+    if (options.onlyDuplicates && !options.duplicateIds?.has(model.id)) {
+      return false;
+    }
+
+    if (options.onlyFavorites && !modelMetadata?.favorite) {
+      return false;
+    }
+
+    if (
+      selectedTags.length > 0 &&
+      !selectedTags.every((tag) => modelMetadata?.tags.includes(tag))
+    ) {
+      return false;
+    }
+
     if (!normalizedSearch) {
       return true;
     }
 
-    return `${model.name} ${normalizedModelFolder}`.toLowerCase().includes(normalizedSearch);
+    return `${model.name} ${normalizedModelFolder} ${modelMetadata?.tags.join(" ") ?? ""}`
+      .toLowerCase()
+      .includes(normalizedSearch);
   });
 
   return filteredModels.sort((left, right) => sortModels(left, right, sortMode));
@@ -73,4 +98,26 @@ function sortModels(left: ModelFile, right: ModelFile, sortMode: ModelSortMode):
 
 function normalizeFolder(folder: string): string {
   return folder.replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+}
+
+function normalizeTags(tags: string[]): string[] {
+  return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))];
+}
+
+function normalizeMetadataPathMap(
+  metadataByPath: Record<string, ModelUserMetadata>
+): Map<string, ModelUserMetadata> {
+  return new Map(
+    Object.entries(metadataByPath).map(([modelPath, metadata]) => [
+      normalizeModelPath(modelPath),
+      {
+        ...metadata,
+        tags: normalizeTags(metadata.tags ?? [])
+      }
+    ])
+  );
+}
+
+function normalizeModelPath(modelPath: string): string {
+  return modelPath.replaceAll("\\", "/").toLowerCase();
 }

@@ -13,6 +13,11 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("moveModels");
     expect(preloadSource).toContain("renameFolder");
     expect(preloadSource).toContain("renameModelFile");
+    expect(preloadSource).toContain("getLibraryMetadata");
+    expect(preloadSource).toContain("toggleFavorite");
+    expect(preloadSource).toContain("setModelTags");
+    expect(preloadSource).toContain("setModelNotes");
+    expect(preloadSource).toContain("showModelInFolder");
     expect(preloadSource).not.toContain("import ");
   });
 });

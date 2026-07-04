@@ -6,10 +6,17 @@ import { ModelGrid } from "./components/ModelGrid";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { buildFolderTree } from "./lib/folderTree";
 import { ALL_FOLDERS_ID, filterModels, type ModelSortMode, type ModelTypeFilter } from "./lib/folderFilters";
+import {
+  createFolderNavigationHistory,
+  goBackInFolderHistory,
+  goForwardInFolderHistory,
+  pushFolderHistory
+} from "./lib/folderNavigationHistory";
+import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
-import type { AppSettings, LibraryScanResult, ModelFile } from "./shared/types";
+import type { AppSettings, LibraryMetadata, LibraryScanResult, ModelFile } from "./shared/types";
 
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
 
@@ -17,6 +24,7 @@ function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [scanResult, setScanResult] = useState<LibraryScanResult | null>(null);
   const [selectedFolder, setSelectedFolder] = useState(ALL_FOLDERS_ID);
+  const [folderHistory, setFolderHistory] = useState(createFolderNavigationHistory);
   const [selectedModel, setSelectedModel] = useState<ModelFile | null>(null);
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(() => new Set());
   const [lastSelectedModelId, setLastSelectedModelId] = useState<string | null>(null);
@@ -33,7 +41,14 @@ function App() {
   const [typeFilter, setTypeFilter] = useState<ModelTypeFilter>("all");
   const [sortMode, setSortMode] = useState<ModelSortMode>("name");
   const [onlySelected, setOnlySelected] = useState(false);
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [onlyDuplicates, setOnlyDuplicates] = useState(false);
+  const [selectedTagFilters, setSelectedTagFilters] = useState<Set<string>>(() => new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [libraryMetadata, setLibraryMetadata] = useState<LibraryMetadata>({
+    models: {},
+    slicerHistory: []
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -43,11 +58,11 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    window.modelLibrary
-      .getSettings()
-      .then((loadedSettings) => {
+    Promise.all([window.modelLibrary.getSettings(), window.modelLibrary.getLibraryMetadata()])
+      .then(([loadedSettings, loadedMetadata]) => {
         if (isMounted) {
           setSettings(loadedSettings);
+          setLibraryMetadata(loadedMetadata);
         }
       })
       .finally(() => {
@@ -122,6 +137,7 @@ function App() {
 
     setSettings(savedSettings);
     setSelectedFolder(ALL_FOLDERS_ID);
+    setFolderHistory(createFolderNavigationHistory());
     setSelectedModel(null);
     setSelectedModelIds(new Set());
     setLastSelectedModelId(null);
@@ -154,6 +170,36 @@ function App() {
   async function launchSlicer(slicerId: string, modelPath: string) {
     const result = await window.modelLibrary.launchSlicer(slicerId, modelPath);
     setLaunchMessage(result.message);
+
+    if (result.ok) {
+      setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
+    }
+  }
+
+  async function toggleFavorite(modelPath: string) {
+    setLibraryMetadata(await window.modelLibrary.toggleFavorite(modelPath));
+  }
+
+  async function setModelTags(modelPath: string, tags: string[]) {
+    setLibraryMetadata(await window.modelLibrary.setModelTags(modelPath, tags));
+  }
+
+  async function setModelNotes(modelPath: string, notes: string) {
+    setLibraryMetadata(await window.modelLibrary.setModelNotes(modelPath, notes));
+  }
+
+  function toggleTagFilter(tag: string) {
+    setSelectedTagFilters((currentTags) => {
+      const nextTags = new Set(currentTags);
+
+      if (nextTags.has(tag)) {
+        nextTags.delete(tag);
+      } else {
+        nextTags.add(tag);
+      }
+
+      return nextTags;
+    });
   }
 
   async function scanLibrary(rootPath: string, preferredSelectedPaths: string[] = []) {
@@ -203,10 +249,39 @@ function App() {
   }
 
   function selectFolder(folderId: string) {
+    setFolderHistory((currentHistory) =>
+      pushFolderHistory(currentHistory, selectedFolder, folderId)
+    );
+    navigateToFolder(folderId);
+  }
+
+  function navigateToFolder(folderId: string) {
     setLastFocusedItem("folder");
     setFolderContextMenu(null);
     setSelectedFolder(folderId);
     expandFolderAncestors(folderId);
+  }
+
+  function goBackFolder() {
+    const result = goBackInFolderHistory(folderHistory, selectedFolder);
+
+    if (!result) {
+      return;
+    }
+
+    setFolderHistory(result.history);
+    navigateToFolder(result.folderId);
+  }
+
+  function goForwardFolder() {
+    const result = goForwardInFolderHistory(folderHistory, selectedFolder);
+
+    if (!result) {
+      return;
+    }
+
+    setFolderHistory(result.history);
+    navigateToFolder(result.folderId);
   }
 
   function openFolderContextMenu(folderId: string, x: number, y: number) {
@@ -433,6 +508,8 @@ function App() {
   const models = scanResult?.models ?? [];
   const folders = buildFolderTree(models, scanResult?.folders ?? []);
   const folderCards = getGridFolderCards(folders, models, selectedFolder);
+  const availableTags = getAvailableTags(models, libraryMetadata);
+  const duplicateModelIds = getDuplicateModelIds(models);
   const filteredModels = filterModels(
     models,
     selectedFolder,
@@ -442,7 +519,12 @@ function App() {
       type: typeFilter,
       sort: sortMode,
       onlySelected,
-      selectedIds: selectedModelIds
+      selectedIds: selectedModelIds,
+      onlyDuplicates,
+      duplicateIds: duplicateModelIds,
+      onlyFavorites,
+      selectedTags: [...selectedTagFilters],
+      metadataByPath: libraryMetadata.models
     }
   );
 
@@ -474,13 +556,27 @@ function App() {
         typeFilter={typeFilter}
         sortMode={sortMode}
         onlySelected={onlySelected}
+        onlyFavorites={onlyFavorites}
+        onlyDuplicates={onlyDuplicates}
+        availableTags={availableTags}
+        selectedTags={selectedTagFilters}
+        metadataByPath={libraryMetadata.models}
+        duplicateModelIds={duplicateModelIds}
         isScanning={isScanning}
         canMoveModels={draggedModelIds.length > 0}
         operationMessage={operationMessage}
+        selectedFolder={selectedFolder}
+        canNavigateBack={folderHistory.back.length > 0}
+        canNavigateForward={folderHistory.forward.length > 0}
         onSearchChange={setSearchQuery}
         onTypeFilterChange={setTypeFilter}
         onSortModeChange={setSortMode}
         onOnlySelectedChange={setOnlySelected}
+        onOnlyFavoritesChange={setOnlyFavorites}
+        onOnlyDuplicatesChange={setOnlyDuplicates}
+        onToggleTagFilter={toggleTagFilter}
+        onNavigateBack={goBackFolder}
+        onNavigateForward={goForwardFolder}
         onOpenFolder={selectFolder}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
@@ -494,10 +590,17 @@ function App() {
       <DetailsPanel
         model={selectedModel}
         settings={settings}
+        modelMetadata={
+          selectedModel ? libraryMetadata.models[selectedModel.absolutePath] ?? null : null
+        }
         launchMessage={launchMessage}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onLaunchSlicer={launchSlicer}
         onRenameModelFile={renameSelectedModel}
+        onShowModelInFolder={(modelPath) => window.modelLibrary.showModelInFolder(modelPath)}
+        onToggleFavorite={toggleFavorite}
+        onSetModelTags={setModelTags}
+        onSetModelNotes={setModelNotes}
       />
       {isSettingsOpen ? (
         <SettingsDialog
@@ -575,6 +678,23 @@ function readExpandedFolders(): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+function getAvailableTags(models: ModelFile[], libraryMetadata: LibraryMetadata): string[] {
+  const modelPaths = new Set(models.map((model) => model.absolutePath));
+  const tags = new Set<string>();
+
+  for (const [modelPath, metadata] of Object.entries(libraryMetadata.models)) {
+    if (!modelPaths.has(modelPath)) {
+      continue;
+    }
+
+    for (const tag of metadata.tags) {
+      tags.add(tag);
+    }
+  }
+
+  return [...tags].sort((left, right) => left.localeCompare(right));
 }
 
 function isTextInputTarget(target: EventTarget | null): boolean {
