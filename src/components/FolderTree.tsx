@@ -1,5 +1,5 @@
 import { ChevronRight, Folder, FolderPen, FolderPlus, Layers3 } from "lucide-react";
-import type { DragEvent } from "react";
+import type { DragEvent, MouseEvent } from "react";
 import { useState } from "react";
 import type { FolderNode } from "../lib/folderTree";
 import { ALL_FOLDERS_ID } from "../lib/folderFilters";
@@ -17,6 +17,7 @@ type FolderTreeProps = {
   onToggleIncludeSubfolders: (value: boolean) => void;
   onCreateFolder: () => void;
   onRenameFolder: () => void;
+  onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
 };
 
@@ -33,9 +34,11 @@ export function FolderTree({
   onToggleIncludeSubfolders,
   onCreateFolder,
   onRenameFolder,
+  onOpenFolderContextMenu,
   onMoveModelsToFolder
 }: FolderTreeProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const isAllModelsSelected = selectedFolder === ALL_FOLDERS_ID;
 
   function allowFolderDrop(event: DragEvent, folderId: string) {
     if (!canMoveModels) {
@@ -85,9 +88,10 @@ export function FolderTree({
         <input
           type="checkbox"
           checked={includeSubfolders}
+          disabled={isAllModelsSelected}
           onChange={(event) => onToggleIncludeSubfolders(event.currentTarget.checked)}
         />
-        <span>Incluir subpastas</span>
+        <span>{isAllModelsSelected ? "Todos ja inclui tudo" : "Incluir subpastas"}</span>
       </label>
 
       <div className="folder-tools" aria-label="Organizar pastas">
@@ -123,6 +127,7 @@ export function FolderTree({
             expandedFolderIds={expandedFolderIds}
             onSelectFolder={onSelectFolder}
             onToggleFolder={onToggleFolder}
+            onOpenFolderContextMenu={onOpenFolderContextMenu}
             onDragOverFolder={allowFolderDrop}
             onDragLeaveFolder={() => setDragOverFolder(null)}
             onDropOnFolder={dropOnFolder}
@@ -141,6 +146,7 @@ function FolderNodeButton({
   expandedFolderIds,
   onSelectFolder,
   onToggleFolder,
+  onOpenFolderContextMenu,
   onDragOverFolder,
   onDragLeaveFolder,
   onDropOnFolder,
@@ -153,6 +159,7 @@ function FolderNodeButton({
   expandedFolderIds: Set<string>;
   onSelectFolder: (folderId: string) => void;
   onToggleFolder: (folderId: string) => void;
+  onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onDragOverFolder: (event: DragEvent, folderId: string) => void;
   onDragLeaveFolder: () => void;
   onDropOnFolder: (event: DragEvent, folderId: string) => void;
@@ -160,6 +167,11 @@ function FolderNodeButton({
 }) {
   const isExpanded = expandedFolderIds.has(folder.id);
   const hasChildren = folder.children.length > 0;
+
+  function openContextMenu(event: MouseEvent) {
+    event.preventDefault();
+    onOpenFolderContextMenu(folder.id, event.clientX, event.clientY);
+  }
 
   return (
     <div>
@@ -171,6 +183,7 @@ function FolderNodeButton({
         onDragOver={(event) => onDragOverFolder(event, folder.id)}
         onDragLeave={onDragLeaveFolder}
         onDrop={(event) => onDropOnFolder(event, folder.id)}
+        onContextMenu={openContextMenu}
       >
         {hasChildren ? (
           <button
@@ -202,6 +215,7 @@ function FolderNodeButton({
           expandedFolderIds={expandedFolderIds}
           onSelectFolder={onSelectFolder}
           onToggleFolder={onToggleFolder}
+          onOpenFolderContextMenu={onOpenFolderContextMenu}
           onDragOverFolder={onDragOverFolder}
           onDragLeaveFolder={onDragLeaveFolder}
           onDropOnFolder={onDropOnFolder}

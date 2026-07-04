@@ -23,6 +23,7 @@ type ModelGridProps = {
   onSortModeChange: (sortMode: ModelSortMode) => void;
   onOnlySelectedChange: (onlySelected: boolean) => void;
   onOpenFolder: (folderId: string) => void;
+  onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
@@ -50,6 +51,7 @@ export function ModelGrid({
   onSortModeChange,
   onOnlySelectedChange,
   onOpenFolder,
+  onOpenFolderContextMenu,
   onMoveModelsToFolder,
   onOpenModel,
   onToggleModelSelection,
@@ -176,6 +178,10 @@ export function ModelGrid({
               key={folderCard.id}
               type="button"
               onClick={() => onOpenFolder(folderCard.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onOpenFolderContextMenu(folderCard.id, event.clientX, event.clientY);
+              }}
               onDragOver={(event) => allowFolderDrop(event, folderCard.id)}
               onDragLeave={() => setDragOverFolder(null)}
               onDrop={(event) => dropOnFolder(event, folderCard.id)}

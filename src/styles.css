@@ -248,6 +248,10 @@ button {
   accent-color: var(--accent);
 }
 
+.toggle-row input:disabled {
+  opacity: 0.45;
+}
+
 .folder-list {
   display: grid;
   gap: 2px;
@@ -408,6 +412,33 @@ button {
   width: 15px;
   height: 15px;
   accent-color: var(--accent);
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 150px;
+  border: 1px solid #bcc9cd;
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+  box-shadow: 0 12px 30px rgba(30, 40, 45, 0.18);
+  padding: 5px;
+}
+
+.context-menu button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 8px 10px;
+  color: #273033;
+  text-align: left;
+  font-weight: 800;
+}
+
+.context-menu button:hover {
+  background: #e7f2f0;
+  color: var(--accent-strong);
 }
 
 .model-grid {

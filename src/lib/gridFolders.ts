@@ -14,8 +14,12 @@ export function getGridFolderCards(
   models: ModelFile[],
   selectedFolder: string
 ): GridFolderCard[] {
+  if (selectedFolder === ALL_FOLDERS_ID) {
+    return [];
+  }
+
   const children =
-    selectedFolder === ALL_FOLDERS_ID ? folders : findFolderNode(folders, selectedFolder)?.children ?? [];
+    findFolderNode(folders, selectedFolder)?.children ?? [];
 
   return children.map((folder) => ({
     id: folder.id,

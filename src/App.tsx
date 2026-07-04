@@ -8,6 +8,7 @@ import { buildFolderTree } from "./lib/folderTree";
 import { ALL_FOLDERS_ID, filterModels, type ModelSortMode, type ModelTypeFilter } from "./lib/folderFilters";
 import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
+import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
 import type { AppSettings, LibraryScanResult, ModelFile } from "./shared/types";
 
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
@@ -19,7 +20,13 @@ function App() {
   const [selectedModel, setSelectedModel] = useState<ModelFile | null>(null);
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(() => new Set());
   const [lastSelectedModelId, setLastSelectedModelId] = useState<string | null>(null);
+  const [lastFocusedItem, setLastFocusedItem] = useState<FocusedLibraryItem>("folder");
   const [draggedModelIds, setDraggedModelIds] = useState<string[]>([]);
+  const [folderContextMenu, setFolderContextMenu] = useState<{
+    folderId: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() =>
     readExpandedFolders()
   );
@@ -66,6 +73,40 @@ function App() {
       JSON.stringify([...expandedFolderIds])
     );
   }, [expandedFolderIds]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFolderContextMenu(null);
+        return;
+      }
+
+      if (event.key !== "F2" || isTextInputTarget(event.target)) {
+        return;
+      }
+
+      const target = getRenameTarget({
+        lastFocusedItem,
+        selectedFolder,
+        selectedModelId: selectedModel?.id ?? null
+      });
+
+      if (target.type === "none") {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (target.type === "folder") {
+        void renameFolder(target.folderId);
+      } else {
+        void renameSelectedModel();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lastFocusedItem, selectedFolder, selectedModel]);
 
   async function chooseFolder() {
     const libraryPath = await window.modelLibrary.chooseLibraryFolder();
@@ -162,8 +203,17 @@ function App() {
   }
 
   function selectFolder(folderId: string) {
+    setLastFocusedItem("folder");
+    setFolderContextMenu(null);
     setSelectedFolder(folderId);
     expandFolderAncestors(folderId);
+  }
+
+  function openFolderContextMenu(folderId: string, x: number, y: number) {
+    setLastFocusedItem("folder");
+    setSelectedFolder(folderId);
+    expandFolderAncestors(folderId);
+    setFolderContextMenu({ folderId, x, y });
   }
 
   function toggleExpandedFolder(folderId: string) {
@@ -190,6 +240,8 @@ function App() {
   }
 
   function openModel(model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) {
+    setLastFocusedItem("model");
+    setFolderContextMenu(null);
     const result = updateSelectionForGesture({
       orderedIds: filteredModels.map((item) => item.id),
       selectedIds: selectedModelIds,
@@ -205,6 +257,8 @@ function App() {
   }
 
   function toggleModelSelection(model: ModelFile, selected: boolean) {
+    setLastFocusedItem("model");
+    setFolderContextMenu(null);
     setSelectedModel(model);
     setLastSelectedModelId(model.id);
     setSelectedModelIds((currentIds) => {
@@ -221,6 +275,8 @@ function App() {
   }
 
   function startDraggingModel(model: ModelFile) {
+    setLastFocusedItem("model");
+    setFolderContextMenu(null);
     const ids = selectedModelIds.has(model.id) ? [...selectedModelIds] : [model.id];
     setDraggedModelIds(ids);
 
@@ -256,23 +312,25 @@ function App() {
     });
   }
 
-  async function renameFolder() {
-    if (!settings?.libraryPath || selectedFolder === ALL_FOLDERS_ID) {
+  async function renameFolder(folderId = selectedFolder) {
+    setFolderContextMenu(null);
+
+    if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
       setOperationMessage("Selecione uma pasta para renomear.");
       return;
     }
 
-    const currentName = selectedFolder.split("/").pop() ?? selectedFolder;
+    const currentName = folderId.split("/").pop() ?? folderId;
     const nextName = window.prompt("Novo nome da pasta", currentName);
 
     if (!nextName) {
       return;
     }
 
-    const parentFolder = selectedFolder.split("/").slice(0, -1).join("/");
+    const parentFolder = folderId.split("/").slice(0, -1).join("/");
 
     await runLibraryOperation(async () => {
-      const result = await window.modelLibrary.renameFolder(selectedFolder, nextName);
+      const result = await window.modelLibrary.renameFolder(folderId, nextName);
       selectFolder(joinFolder(parentFolder, nextName.trim()));
       return { message: result.message, selectedPaths: [] };
     });
@@ -403,6 +461,7 @@ function App() {
         onToggleIncludeSubfolders={updateIncludeSubfolders}
         onCreateFolder={createFolder}
         onRenameFolder={renameFolder}
+        onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
       />
       <ModelGrid
@@ -423,6 +482,7 @@ function App() {
         onSortModeChange={setSortMode}
         onOnlySelectedChange={setOnlySelected}
         onOpenFolder={selectFolder}
+        onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
         onOpenModel={openModel}
         onToggleModelSelection={toggleModelSelection}
@@ -447,6 +507,18 @@ function App() {
           onChooseLibraryFolder={chooseFolder}
           onChooseSlicerExecutable={chooseSlicerExecutable}
         />
+      ) : null}
+      {folderContextMenu ? (
+        <div
+          className="context-menu"
+          style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
+          role="menu"
+          onMouseLeave={() => setFolderContextMenu(null)}
+        >
+          <button type="button" role="menuitem" onClick={() => renameFolder(folderContextMenu.folderId)}>
+            Renomear
+          </button>
+        </div>
       ) : null}
     </main>
   );
@@ -503,6 +575,19 @@ function readExpandedFolders(): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+function isTextInputTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    target.isContentEditable ||
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT"
+  );
 }
 
 export default App;
