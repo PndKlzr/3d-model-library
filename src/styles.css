@@ -35,6 +35,47 @@ button {
   cursor: pointer;
 }
 
+.first-run {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  background:
+    linear-gradient(90deg, rgba(40, 124, 120, 0.08) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(40, 124, 120, 0.06) 1px, transparent 1px),
+    #e9edf0;
+  background-size: 42px 42px;
+}
+
+.first-run-panel {
+  width: min(480px, 100%);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+
+.first-run-panel h1,
+.first-run-panel p {
+  margin: 0;
+}
+
+.first-run-panel p:not(.eyebrow) {
+  margin-top: 10px;
+  color: var(--ink-muted);
+}
+
+.first-run-panel button {
+  margin-top: 20px;
+  border: 1px solid var(--accent-strong);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: white;
+  padding: 10px 14px;
+  font-weight: 800;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 260px minmax(420px, 1fr) 360px;

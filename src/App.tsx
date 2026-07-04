@@ -1,4 +1,73 @@
+import { useEffect, useState } from "react";
+import type { AppSettings } from "./shared/types";
+
 function App() {
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    window.modelLibrary
+      .getSettings()
+      .then((loadedSettings) => {
+        if (isMounted) {
+          setSettings(loadedSettings);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (isLoading) {
+    return (
+      <main className="first-run">
+        <div>
+          <p className="eyebrow">Carregando</p>
+          <h1>Preparando biblioteca</h1>
+        </div>
+      </main>
+    );
+  }
+
+  if (!settings?.libraryPath) {
+    return (
+      <main className="first-run">
+        <div className="first-run-panel">
+          <p className="eyebrow">Primeira abertura</p>
+          <h1>Escolha sua pasta de modelos</h1>
+          <p>Depois disso o app vai lembrar essa pasta toda vez que abrir.</p>
+          <button
+            type="button"
+            onClick={async () => {
+              const libraryPath = await window.modelLibrary.chooseLibraryFolder();
+
+              if (!libraryPath || !settings) {
+                return;
+              }
+
+              const savedSettings = await window.modelLibrary.saveSettings({
+                ...settings,
+                libraryPath
+              });
+
+              setSettings(savedSettings);
+            }}
+          >
+            Escolher pasta
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar" aria-label="Pastas da biblioteca">
