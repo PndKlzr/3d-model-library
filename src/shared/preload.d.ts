@@ -1,4 +1,4 @@
-import type { AppSettings, LibraryScanResult } from "./types";
+import type { AppSettings, LibraryScanResult, SlicerLaunchResult } from "./types";
 
 export type ModelLibraryApi = {
   version: string;
@@ -7,6 +7,8 @@ export type ModelLibraryApi = {
   chooseLibraryFolder: () => Promise<string | null>;
   scanLibrary: (rootPath: string) => Promise<LibraryScanResult>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
+  chooseSlicerExecutable: () => Promise<string | null>;
+  launchSlicer: (slicerId: string, modelPath: string) => Promise<SlicerLaunchResult>;
 };
 
 declare global {

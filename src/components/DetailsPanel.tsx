@@ -5,9 +5,18 @@ import type { AppSettings, ModelFile } from "../shared/types";
 type DetailsPanelProps = {
   model: ModelFile | null;
   settings: AppSettings;
+  launchMessage: string | null;
+  onOpenSettings: () => void;
+  onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
 };
 
-export function DetailsPanel({ model, settings }: DetailsPanelProps) {
+export function DetailsPanel({
+  model,
+  settings,
+  launchMessage,
+  onOpenSettings,
+  onLaunchSlicer
+}: DetailsPanelProps) {
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
 
   return (
@@ -69,14 +78,23 @@ export function DetailsPanel({ model, settings }: DetailsPanelProps) {
                 <div className="notice">
                   <Scissors size={16} />
                   <span>Configure Cura ou Creality Print para abrir este modelo.</span>
+                  <button type="button" onClick={onOpenSettings}>
+                    Configurar
+                  </button>
                 </div>
               ) : (
                 enabledSlicers.map((slicer) => (
-                  <button className="primary-button" type="button" key={slicer.id}>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    key={slicer.id}
+                    onClick={() => onLaunchSlicer(slicer.id, model.absolutePath)}
+                  >
                     Abrir no {slicer.name}
                   </button>
                 ))
               )}
+              {launchMessage ? <div className="notice">{launchMessage}</div> : null}
             </div>
           </>
         )}

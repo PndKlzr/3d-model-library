@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import type { AppSettings } from "../src/shared/types.js";
 import { scanLibrary } from "./services/libraryScanner.js";
 import { createElectronSettingsStore } from "./services/settingsStore.js";
+import { launchSlicer } from "./services/slicerLauncher.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,27 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("library:scan", (_event, rootPath: string) => scanLibrary(rootPath));
+
+  ipcMain.handle("settings:choose-slicer-executable", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Escolha o executável do slicer",
+      filters: [{ name: "Executáveis", extensions: ["exe"] }],
+      properties: ["openFile"]
+    });
+
+    return result.canceled ? null : result.filePaths[0];
+  });
+
+  ipcMain.handle("slicer:launch", async (_event, slicerId: string, modelPath: string) => {
+    const settings = settingsStore.getSettings();
+    const slicer = settings.slicers.find((item) => item.id === slicerId);
+
+    if (!slicer) {
+      return { ok: false, message: "Slicer não configurado." };
+    }
+
+    return launchSlicer(slicer, modelPath);
+  });
 
   ipcMain.handle("model:read-file", async (_event, absolutePath: string) => {
     const settings = settingsStore.getSettings();
