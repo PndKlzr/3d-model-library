@@ -12,4 +12,12 @@ describe("dev script contract", () => {
     expect(devScript).toContain("ready in");
     expect(devScript).toContain("Vite exited before Electron started");
   });
+
+  it("starts Electron when the fixed Vite URL is already running", async () => {
+    const devScript = await readFile("scripts/electron-dev.cjs", "utf8");
+
+    expect(devScript).toContain("isViteAlreadyRunning");
+    expect(devScript).toContain("Existing Vite server detected");
+    expect(devScript).toContain("startElectron({ ownsVite: false })");
+  });
 });
