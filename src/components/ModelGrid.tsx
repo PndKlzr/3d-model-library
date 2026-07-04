@@ -1,9 +1,19 @@
-import { Box, ChevronLeft, ChevronRight, Folder, Search, Settings, Star } from "lucide-react";
+import {
+  Box,
+  ChevronLeft,
+  ChevronRight,
+  Folder,
+  RotateCcw,
+  Search,
+  Settings,
+  Star,
+  Trash2
+} from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
-import type { ModelFile, ModelUserMetadata } from "../shared/types";
+import type { LibraryActionLogEntry, ModelFile, ModelUserMetadata } from "../shared/types";
 
 type ModelGridProps = {
   models: ModelFile[];
@@ -24,6 +34,7 @@ type ModelGridProps = {
   isScanning: boolean;
   canMoveModels: boolean;
   operationMessage: string | null;
+  actionLogEntries: LibraryActionLogEntry[];
   selectedFolder: string;
   canNavigateBack: boolean;
   canNavigateForward: boolean;
@@ -39,6 +50,8 @@ type ModelGridProps = {
   onOpenFolder: (folderId: string) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
+  onTrashSelectedModels: () => void;
+  onUndoLastAction: () => void;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
@@ -66,6 +79,7 @@ export function ModelGrid({
   isScanning,
   canMoveModels,
   operationMessage,
+  actionLogEntries,
   selectedFolder,
   canNavigateBack,
   canNavigateForward,
@@ -81,6 +95,8 @@ export function ModelGrid({
   onOpenFolder,
   onOpenFolderContextMenu,
   onMoveModelsToFolder,
+  onTrashSelectedModels,
+  onUndoLastAction,
   onOpenModel,
   onToggleModelSelection,
   onDragStartModel,
@@ -90,6 +106,7 @@ export function ModelGrid({
 }: ModelGridProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const hasGridContent = folderCards.length > 0 || models.length > 0;
+  const undoableAction = actionLogEntries.find((entry) => entry.undoable && !entry.undone);
 
   function allowFolderDrop(event: DragEvent, folderId: string) {
     if (!canMoveModels) {
@@ -142,6 +159,26 @@ export function ModelGrid({
           </div>
         </div>
         <div className="toolbar-actions">
+          <button
+            className="secondary-button danger-button"
+            type="button"
+            onClick={onTrashSelectedModels}
+            disabled={selectedModelIds.size === 0}
+            title="Mover selecionados para a Lixeira"
+          >
+            <Trash2 size={16} />
+            Lixeira
+          </button>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={onUndoLastAction}
+            disabled={!undoableAction}
+            title={undoableAction ? `Desfazer: ${undoableAction.label}` : "Nada para desfazer"}
+          >
+            <RotateCcw size={16} />
+            Desfazer
+          </button>
           <button
             className="icon-only"
             type="button"
@@ -243,6 +280,19 @@ export function ModelGrid({
       {operationMessage ? (
         <div className="operation-message" role="status">
           {operationMessage}
+        </div>
+      ) : null}
+
+      {actionLogEntries.length > 0 ? (
+        <div className="action-log" aria-label="Log de acoes recentes">
+          {actionLogEntries.slice(0, 4).map((entry) => (
+            <div className={entry.undone ? "undone" : ""} key={entry.id}>
+              <strong>{entry.label}</strong>
+              <span>{entry.detail}</span>
+              {entry.undoable ? <em>desfazer disponivel</em> : null}
+              {entry.undone ? <em>desfeito</em> : null}
+            </div>
+          ))}
         </div>
       ) : null}
 

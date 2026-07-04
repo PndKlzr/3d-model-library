@@ -4,6 +4,7 @@ import { FirstRun } from "./components/FirstRun";
 import { FolderTree } from "./components/FolderTree";
 import { ModelGrid } from "./components/ModelGrid";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
 import { buildFolderTree } from "./lib/folderTree";
 import { ALL_FOLDERS_ID, filterModels, type ModelSortMode, type ModelTypeFilter } from "./lib/folderFilters";
 import {
@@ -16,9 +17,20 @@ import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
-import type { AppSettings, LibraryMetadata, LibraryScanResult, ModelFile } from "./shared/types";
+import type {
+  AppSettings,
+  FileRestorePair,
+  LibraryActionLogEntry,
+  LibraryMetadata,
+  LibraryScanResult,
+  ModelFile
+} from "./shared/types";
 
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
+
+type LocalActionLogEntry = LibraryActionLogEntry & {
+  restorePairs?: FileRestorePair[];
+};
 
 function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -54,6 +66,7 @@ function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
+  const [actionLogEntries, setActionLogEntries] = useState<LocalActionLogEntry[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -383,7 +396,11 @@ function App() {
     await runLibraryOperation(async () => {
       const result = await window.modelLibrary.createFolder(parentFolder, folderName);
       selectFolder(joinFolder(parentFolder, folderName.trim()));
-      return { message: result.message, selectedPaths: [] };
+      return {
+        message: result.message,
+        selectedPaths: [],
+        action: createActionLogEntry("Pasta criada", joinFolder(parentFolder, folderName.trim()))
+      };
     });
   }
 
@@ -404,10 +421,22 @@ function App() {
 
     const parentFolder = folderId.split("/").slice(0, -1).join("/");
 
+    const sourcePath = buildFolderPath(settings.libraryPath, folderId);
+    const destinationLabel = joinFolder(parentFolder, nextName.trim());
+
     await runLibraryOperation(async () => {
       const result = await window.modelLibrary.renameFolder(folderId, nextName);
-      selectFolder(joinFolder(parentFolder, nextName.trim()));
-      return { message: result.message, selectedPaths: [] };
+      selectFolder(destinationLabel);
+      return {
+        message: result.message,
+        selectedPaths: [],
+        action: createActionLogEntry("Pasta renomeada", `${folderId} -> ${destinationLabel}`, [
+          {
+            sourcePath: result.path ?? buildFolderPath(settings.libraryPath ?? "", destinationLabel),
+            destinationPath: sourcePath
+          }
+        ])
+      };
     });
   }
 
@@ -422,11 +451,18 @@ function App() {
       return;
     }
 
+    const previousPath = selectedModel.absolutePath;
+
     await runLibraryOperation(async () => {
       const result = await window.modelLibrary.renameModelFile(selectedModel.absolutePath, nextName);
       return {
         message: result.message,
-        selectedPaths: result.path ? [result.path] : []
+        selectedPaths: result.path ? [result.path] : [],
+        action: result.path
+          ? createActionLogEntry("Arquivo renomeado", `${selectedModel.name} -> ${nextName}`, [
+              { sourcePath: result.path, destinationPath: previousPath }
+            ])
+          : undefined
       };
     });
   }
@@ -445,6 +481,12 @@ function App() {
 
     await runLibraryOperation(async () => {
       const targetFolder = destinationFolder === ALL_FOLDERS_ID ? "" : destinationFolder;
+      const restorePairs = modelsToMove
+        .map((model) => ({
+          sourcePath: buildMovedModelPath(settings.libraryPath ?? "", targetFolder, model.name),
+          destinationPath: model.absolutePath
+        }))
+        .filter((pair) => !samePath(pair.sourcePath, pair.destinationPath));
       const result = await window.modelLibrary.moveModels(
         modelsToMove.map((model) => model.absolutePath),
         targetFolder
@@ -452,15 +494,84 @@ function App() {
 
       return {
         message: result.message,
-        selectedPaths: modelsToMove.map((model) =>
-          buildMovedModelPath(settings.libraryPath ?? "", targetFolder, model.name)
+        selectedPaths: restorePairs.map((pair) => pair.sourcePath),
+        action:
+          restorePairs.length > 0
+            ? createActionLogEntry(
+                "Modelos movidos",
+                `${restorePairs.length} para ${targetFolder || "Raiz"}`,
+                restorePairs
+              )
+            : undefined
+      };
+    });
+  }
+
+  async function trashSelectedModels() {
+    if (!settings?.libraryPath || selectedModelIds.size === 0) {
+      return;
+    }
+
+    const selectedIdSet = new Set(selectedModelIds);
+    const modelsToTrash = models.filter((model) => selectedIdSet.has(model.id));
+
+    if (modelsToTrash.length === 0) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Mover ${modelsToTrash.length} arquivo${modelsToTrash.length === 1 ? "" : "s"} para a Lixeira?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    await runLibraryOperation(async () => {
+      const result = await window.modelLibrary.trashModels(
+        modelsToTrash.map((model) => model.absolutePath)
+      );
+
+      return {
+        message: result.message,
+        selectedPaths: [],
+        action: createActionLogEntry(
+          "Arquivos na Lixeira",
+          `${modelsToTrash.length} arquivo${modelsToTrash.length === 1 ? "" : "s"}`
         )
       };
     });
   }
 
+  async function undoLastAction() {
+    if (!settings?.libraryPath) {
+      return;
+    }
+
+    const undoableAction = actionLogEntries.find(
+      (entry) => entry.undoable && !entry.undone && entry.restorePairs?.length
+    );
+
+    if (!undoableAction?.restorePairs?.length) {
+      return;
+    }
+
+    try {
+      const result = await window.modelLibrary.restoreLibraryPaths(undoableAction.restorePairs);
+      setActionLogEntries((entries) => markActionUndone(entries, undoableAction.id));
+      setOperationMessage(result.message);
+      await scanLibrary(settings.libraryPath, result.paths ?? []);
+    } catch (error) {
+      setOperationMessage(readErrorMessage(error));
+    }
+  }
+
   async function runLibraryOperation(
-    operation: () => Promise<{ message: string; selectedPaths: string[] }>
+    operation: () => Promise<{
+      message: string;
+      selectedPaths: string[];
+      action?: LocalActionLogEntry;
+    }>
   ) {
     if (!settings?.libraryPath) {
       return;
@@ -469,6 +580,9 @@ function App() {
     try {
       const result = await operation();
       setOperationMessage(result.message);
+      if (result.action) {
+        setActionLogEntries((entries) => appendActionLogEntry(entries, result.action!));
+      }
       await scanLibrary(settings.libraryPath, result.selectedPaths);
     } catch (error) {
       setOperationMessage(readErrorMessage(error));
@@ -565,6 +679,7 @@ function App() {
         isScanning={isScanning}
         canMoveModels={draggedModelIds.length > 0}
         operationMessage={operationMessage}
+        actionLogEntries={actionLogEntries}
         selectedFolder={selectedFolder}
         canNavigateBack={folderHistory.back.length > 0}
         canNavigateForward={folderHistory.forward.length > 0}
@@ -580,6 +695,8 @@ function App() {
         onOpenFolder={selectFolder}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
+        onTrashSelectedModels={trashSelectedModels}
+        onUndoLastAction={undoLastAction}
         onOpenModel={openModel}
         onToggleModelSelection={toggleModelSelection}
         onDragStartModel={startDraggingModel}
@@ -644,6 +761,33 @@ function buildMovedModelPath(libraryPath: string, destinationFolder: string, mod
   return normalizedFolder
     ? `${normalizedRoot}\\${normalizedFolder}\\${modelName}`
     : `${normalizedRoot}\\${modelName}`;
+}
+
+function buildFolderPath(libraryPath: string, folderId: string): string {
+  const normalizedRoot = libraryPath.replace(/[\\/]+$/g, "");
+  const normalizedFolder = folderId.replaceAll("/", "\\").replace(/^[\\/]+|[\\/]+$/g, "");
+
+  return normalizedFolder ? `${normalizedRoot}\\${normalizedFolder}` : normalizedRoot;
+}
+
+function createActionLogEntry(
+  label: string,
+  detail: string,
+  restorePairs?: FileRestorePair[]
+): LocalActionLogEntry {
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    label,
+    detail,
+    createdAt: new Date().toISOString(),
+    undoable: Boolean(restorePairs?.length),
+    undone: false,
+    restorePairs
+  };
+}
+
+function samePath(left: string, right: string): boolean {
+  return left.replaceAll("\\", "/").toLowerCase() === right.replaceAll("\\", "/").toLowerCase();
 }
 
 function readErrorMessage(error: unknown): string {

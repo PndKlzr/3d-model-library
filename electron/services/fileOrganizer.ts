@@ -1,6 +1,6 @@
 import { mkdir, rename, stat } from "node:fs/promises";
 import path from "node:path";
-import type { FileOperationResult } from "../../src/shared/types.js";
+import type { FileOperationResult, FileRestorePair } from "../../src/shared/types.js";
 
 const MODEL_EXTENSIONS = new Set([".stl", ".3mf"]);
 const INVALID_WINDOWS_NAME_CHARS = /[<>:"/\\|?*\u0000-\u001f]/;
@@ -90,6 +90,36 @@ export async function moveModelFiles(
   return { ok: true, message: count === 0 ? "Arquivo ja estava nessa pasta." : `${count} ${noun}.` };
 }
 
+export async function trashModelFiles(
+  rootPath: string,
+  sourcePaths: string[],
+  trashItem: (absolutePath: string) => Promise<void>
+): Promise<FileOperationResult> {
+  if (sourcePaths.length === 0) {
+    return { ok: true, message: "Nenhum arquivo selecionado.", paths: [] };
+  }
+
+  const safeSourcePaths: string[] = [];
+
+  for (const sourcePath of sourcePaths) {
+    const safeSourcePath = resolveExistingAbsolutePath(rootPath, sourcePath);
+    await assertModelFile(safeSourcePath);
+    safeSourcePaths.push(safeSourcePath);
+  }
+
+  for (const safeSourcePath of safeSourcePaths) {
+    await trashItem(safeSourcePath);
+  }
+
+  const count = safeSourcePaths.length;
+  const noun = count === 1 ? "arquivo movido" : "arquivos movidos";
+  return {
+    ok: true,
+    message: `${count} ${noun} para a Lixeira.`,
+    paths: safeSourcePaths
+  };
+}
+
 export async function renameLibraryFolder(
   rootPath: string,
   folderRelativePath: string,
@@ -134,11 +164,59 @@ export async function renameModelFile(
   return { ok: true, message: "Arquivo renomeado.", path: destinationPath };
 }
 
+export async function restoreLibraryPaths(
+  rootPath: string,
+  pathPairs: FileRestorePair[]
+): Promise<FileOperationResult> {
+  if (pathPairs.length === 0) {
+    return { ok: true, message: "Nada para desfazer.", paths: [] };
+  }
+
+  const safePairs: FileRestorePair[] = [];
+  const destinationPaths = new Set<string>();
+
+  for (const pair of pathPairs) {
+    const safeSourcePath = resolveExistingAbsolutePath(rootPath, pair.sourcePath);
+    const safeDestinationPath = resolveAbsolutePathInsideLibrary(rootPath, pair.destinationPath);
+
+    await assertAvailable(
+      safeDestinationPath,
+      "Ja existe um arquivo ou pasta no caminho de restauracao."
+    );
+
+    const destinationKey = path.resolve(safeDestinationPath).toLowerCase();
+
+    if (destinationPaths.has(destinationKey)) {
+      throw new Error("Mais de um item seria restaurado para o mesmo caminho.");
+    }
+
+    destinationPaths.add(destinationKey);
+    safePairs.push({ sourcePath: safeSourcePath, destinationPath: safeDestinationPath });
+  }
+
+  for (const pair of safePairs) {
+    await rename(pair.sourcePath, pair.destinationPath);
+  }
+
+  return {
+    ok: true,
+    message: "Acao desfeita.",
+    paths: safePairs.map((pair) => pair.destinationPath)
+  };
+}
+
 function resolveLibraryPath(rootPath: string, relativePath: string): string {
   const normalizedRoot = path.resolve(rootPath);
   const destinationPath = path.resolve(normalizedRoot, normalizeRelativeFolder(relativePath));
   assertInsideRoot(normalizedRoot, destinationPath, true);
   return destinationPath;
+}
+
+function resolveAbsolutePathInsideLibrary(rootPath: string, absolutePath: string): string {
+  const normalizedRoot = path.resolve(rootPath);
+  const normalizedPath = path.resolve(absolutePath);
+  assertInsideRoot(normalizedRoot, normalizedPath, false);
+  return normalizedPath;
 }
 
 function resolveExistingAbsolutePath(rootPath: string, absolutePath: string): string {

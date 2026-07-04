@@ -7,8 +7,11 @@ import {
   createLibraryFolder,
   moveModelFiles,
   renameLibraryFolder,
-  renameModelFile
+  renameModelFile,
+  restoreLibraryPaths,
+  trashModelFiles
 } from "./services/fileOrganizer.js";
+import type { FileRestorePair } from "../src/shared/types.js";
 import { scanLibrary } from "./services/libraryScanner.js";
 import { readModelMetadata } from "./services/modelMetadata.js";
 import { readEmbeddedThumbnail } from "./services/modelThumbnail.js";
@@ -62,6 +65,14 @@ function registerIpcHandlers() {
 
   ipcMain.handle("library:rename-model-file", (_event, sourcePath: string, newName: string) =>
     renameModelFile(requireLibraryPath(), sourcePath, newName)
+  );
+
+  ipcMain.handle("library:trash-models", (_event, sourcePaths: string[]) =>
+    trashModelFiles(requireLibraryPath(), sourcePaths, (modelPath) => shell.trashItem(modelPath))
+  );
+
+  ipcMain.handle("library:restore-paths", (_event, pathPairs: FileRestorePair[]) =>
+    restoreLibraryPaths(requireLibraryPath(), pathPairs)
   );
 
   ipcMain.handle("metadata:get", () => libraryMetadataStore.getMetadata());

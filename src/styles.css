@@ -318,6 +318,8 @@ button {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .breadcrumb-row {
@@ -373,7 +375,11 @@ button {
 
 .secondary-button,
 .primary-button {
+  display: inline-flex;
   min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   padding: 0 13px;
   font-weight: 800;
 }
@@ -392,6 +398,15 @@ button {
 .secondary-button:disabled {
   cursor: default;
   opacity: 0.7;
+}
+
+.danger-button {
+  border-color: #ddb8a2;
+  color: #8b4226;
+}
+
+.danger-button:not(:disabled):hover {
+  background: #fff4ed;
 }
 
 .search-box {
@@ -895,6 +910,43 @@ button {
   padding: 10px;
   font-size: 13px;
   font-weight: 700;
+}
+
+.action-log {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+  border: 1px solid #d2dcdf;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 8px;
+}
+
+.action-log div {
+  display: grid;
+  grid-template-columns: minmax(100px, auto) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  color: #405056;
+  font-size: 12px;
+}
+
+.action-log strong,
+.action-log span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.action-log em {
+  color: var(--accent-strong);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.action-log .undone {
+  opacity: 0.64;
 }
 
 .details-title-row {

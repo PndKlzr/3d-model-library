@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
     ipcRenderer.invoke("library:rename-folder", folderRelativePath, newName),
   renameModelFile: (sourcePath, newName) =>
     ipcRenderer.invoke("library:rename-model-file", sourcePath, newName),
+  trashModels: (sourcePaths) => ipcRenderer.invoke("library:trash-models", sourcePaths),
+  restoreLibraryPaths: (pathPairs) => ipcRenderer.invoke("library:restore-paths", pathPairs),
   getLibraryMetadata: () => ipcRenderer.invoke("metadata:get"),
   toggleFavorite: (modelPath) => ipcRenderer.invoke("metadata:toggle-favorite", modelPath),
   setModelTags: (modelPath, tags) => ipcRenderer.invoke("metadata:set-tags", modelPath, tags),

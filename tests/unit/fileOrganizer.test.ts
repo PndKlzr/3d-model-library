@@ -5,8 +5,10 @@ import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import {
   createLibraryFolder,
   moveModelFiles,
+  trashModelFiles,
   renameLibraryFolder,
-  renameModelFile
+  renameModelFile,
+  restoreLibraryPaths
 } from "../../electron/services/fileOrganizer";
 
 let tempRoot: string;
@@ -77,6 +79,39 @@ describe("file organizer", () => {
     await expect(readFile(secondPath, "utf8")).resolves.toBe("second");
   });
 
+  it("sends valid model files to the configured trash handler", async () => {
+    const sourcePath = path.join(tempRoot, "bench.stl");
+    await writeFile(sourcePath, "solid bench");
+    const trashedPaths: string[] = [];
+
+    const result = await trashModelFiles(tempRoot, [sourcePath], async (modelPath) => {
+      trashedPaths.push(modelPath);
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "1 arquivo movido para a Lixeira.",
+      paths: [sourcePath]
+    });
+    expect(trashedPaths).toEqual([sourcePath]);
+  });
+
+  it("validates every trashed model before calling the trash handler", async () => {
+    const validPath = path.join(tempRoot, "bench.stl");
+    const invalidPath = path.join(tempRoot, "notes.txt");
+    await writeFile(validPath, "solid bench");
+    await writeFile(invalidPath, "notes");
+    const trashedPaths: string[] = [];
+
+    await expect(
+      trashModelFiles(tempRoot, [validPath, invalidPath], async (modelPath) => {
+        trashedPaths.push(modelPath);
+      })
+    ).rejects.toThrow("Arquivo de modelo invalido");
+
+    expect(trashedPaths).toEqual([]);
+  });
+
   it("renames folders without leaving the library root", async () => {
     await mkdir(path.join(tempRoot, "old-name"));
 
@@ -103,6 +138,40 @@ describe("file organizer", () => {
       path: path.join(tempRoot, "better clip.3mf")
     });
     await expect(readFile(path.join(tempRoot, "better clip.3mf"), "utf8")).resolves.toBe("model");
+  });
+
+  it("restores file operations from current paths back to previous paths", async () => {
+    await mkdir(path.join(tempRoot, "sorted"));
+    const sourcePath = path.join(tempRoot, "bench.stl");
+    const movedPath = path.join(tempRoot, "sorted", "bench.stl");
+    await writeFile(movedPath, "solid bench");
+
+    const result = await restoreLibraryPaths(tempRoot, [
+      { sourcePath: movedPath, destinationPath: sourcePath }
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Acao desfeita.",
+      paths: [sourcePath]
+    });
+    await expect(readFile(sourcePath, "utf8")).resolves.toBe("solid bench");
+    await expect(stat(movedPath)).rejects.toThrow("ENOENT");
+  });
+
+  it("refuses to restore over an existing destination", async () => {
+    await mkdir(path.join(tempRoot, "sorted"));
+    const sourcePath = path.join(tempRoot, "bench.stl");
+    const movedPath = path.join(tempRoot, "sorted", "bench.stl");
+    await writeFile(sourcePath, "existing");
+    await writeFile(movedPath, "moved");
+
+    await expect(
+      restoreLibraryPaths(tempRoot, [{ sourcePath: movedPath, destinationPath: sourcePath }])
+    ).rejects.toThrow("Ja existe um arquivo ou pasta no caminho de restauracao");
+
+    await expect(readFile(sourcePath, "utf8")).resolves.toBe("existing");
+    await expect(readFile(movedPath, "utf8")).resolves.toBe("moved");
   });
 
   it("rejects names with Windows-invalid characters", async () => {

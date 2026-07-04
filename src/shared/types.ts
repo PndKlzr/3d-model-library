@@ -57,4 +57,19 @@ export type FileOperationResult = {
   ok: boolean;
   message: string;
   path?: string;
+  paths?: string[];
+};
+
+export type FileRestorePair = {
+  sourcePath: string;
+  destinationPath: string;
+};
+
+export type LibraryActionLogEntry = {
+  id: string;
+  label: string;
+  detail: string;
+  createdAt: string;
+  undoable: boolean;
+  undone: boolean;
 };

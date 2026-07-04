@@ -1,6 +1,7 @@
 import type {
   AppSettings,
   FileOperationResult,
+  FileRestorePair,
   LibraryMetadata,
   LibraryScanResult,
   ModelFile,
@@ -23,6 +24,8 @@ export type ModelLibraryApi = {
   ) => Promise<FileOperationResult>;
   renameFolder: (folderRelativePath: string, newName: string) => Promise<FileOperationResult>;
   renameModelFile: (sourcePath: string, newName: string) => Promise<FileOperationResult>;
+  trashModels: (sourcePaths: string[]) => Promise<FileOperationResult>;
+  restoreLibraryPaths: (pathPairs: FileRestorePair[]) => Promise<FileOperationResult>;
   getLibraryMetadata: () => Promise<LibraryMetadata>;
   toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
   setModelTags: (modelPath: string, tags: string[]) => Promise<LibraryMetadata>;
