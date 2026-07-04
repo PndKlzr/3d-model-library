@@ -198,6 +198,12 @@ button {
   margin-bottom: 16px;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .eyebrow {
   margin: 0 0 6px;
   color: var(--accent-strong);
@@ -463,6 +469,22 @@ button {
 .empty-state span {
   max-width: 320px;
   margin-top: 4px;
+}
+
+.scan-errors {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 14px;
+  border: 1px solid #d8b49e;
+  border-radius: var(--radius);
+  background: #fff4ed;
+  color: #7a3f24;
+  padding: 10px;
+  font-size: 13px;
+}
+
+.scan-errors span {
+  overflow-wrap: anywhere;
 }
 
 .dialog-backdrop {

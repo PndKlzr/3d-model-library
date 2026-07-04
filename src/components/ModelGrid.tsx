@@ -1,24 +1,28 @@
-import { Box, Search } from "lucide-react";
+import { Box, Search, Settings } from "lucide-react";
 import type { ModelFile } from "../shared/types";
 
 type ModelGridProps = {
   models: ModelFile[];
+  scanErrors: Array<{ path: string; message: string }>;
   selectedModelId: string | null;
   searchQuery: string;
   isScanning: boolean;
   onSearchChange: (query: string) => void;
   onSelectModel: (model: ModelFile) => void;
   onRefresh: () => void;
+  onOpenSettings: () => void;
 };
 
 export function ModelGrid({
   models,
+  scanErrors,
   selectedModelId,
   searchQuery,
   isScanning,
   onSearchChange,
   onSelectModel,
-  onRefresh
+  onRefresh,
+  onOpenSettings
 }: ModelGridProps) {
   return (
     <section className="library-panel" aria-label="Modelos encontrados">
@@ -27,9 +31,14 @@ export function ModelGrid({
           <p className="eyebrow">STL / 3MF</p>
           <h2>Sua biblioteca visual</h2>
         </div>
-        <button className="secondary-button" type="button" onClick={onRefresh} disabled={isScanning}>
-          {isScanning ? "Escaneando" : "Atualizar"}
-        </button>
+        <div className="toolbar-actions">
+          <button className="icon-only" type="button" onClick={onOpenSettings} aria-label="Configurações">
+            <Settings size={17} />
+          </button>
+          <button className="secondary-button" type="button" onClick={onRefresh} disabled={isScanning}>
+            {isScanning ? "Escaneando" : "Atualizar"}
+          </button>
+        </div>
       </header>
 
       <label className="search-box">
@@ -40,6 +49,15 @@ export function ModelGrid({
           placeholder="Buscar por nome ou pasta"
         />
       </label>
+
+      {scanErrors.length > 0 ? (
+        <div className="scan-errors" role="status">
+          <strong>Alguns itens não puderam ser lidos</strong>
+          {scanErrors.slice(0, 4).map((error) => (
+            <span key={`${error.path}-${error.message}`}>{error.path}: {error.message}</span>
+          ))}
+        </div>
+      ) : null}
 
       {models.length === 0 ? (
         <div className="empty-state">

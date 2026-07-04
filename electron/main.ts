@@ -4,14 +4,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AppSettings } from "../src/shared/types.js";
 import { scanLibrary } from "./services/libraryScanner.js";
-import { createElectronSettingsStore } from "./services/settingsStore.js";
+import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isDev = !app.isPackaged;
-const settingsStore = createElectronSettingsStore();
+let settingsStore: SettingsStore;
 
 function registerIpcHandlers() {
   ipcMain.handle("settings:get", () => settingsStore.getSettings());
@@ -95,6 +95,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  settingsStore = await createElectronSettingsStore();
   registerIpcHandlers();
   await createWindow();
 

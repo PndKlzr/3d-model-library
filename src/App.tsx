@@ -159,12 +159,14 @@ function App() {
       />
       <ModelGrid
         models={filteredModels}
+        scanErrors={scanResult?.errors ?? []}
         selectedModelId={selectedModel?.id ?? null}
         searchQuery={searchQuery}
         isScanning={isScanning}
         onSearchChange={setSearchQuery}
         onSelectModel={setSelectedModel}
         onRefresh={() => scanLibrary(settings.libraryPath ?? "")}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
       <DetailsPanel
         model={selectedModel}

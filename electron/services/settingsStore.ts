@@ -1,4 +1,3 @@
-import { createRequire } from "node:module";
 import type { AppSettings, SlicerConfig } from "../../src/shared/types.js";
 
 export type SettingsBackend = {
@@ -49,14 +48,15 @@ export function createSettingsStore(backend?: SettingsBackend): SettingsStore {
   };
 }
 
-export function createElectronSettingsStore(): SettingsStore {
-  const require = createRequire(import.meta.url);
-  const Store = require("electron-store").default as new (options: {
+export async function createElectronSettingsStore(): Promise<SettingsStore> {
+  const { default: Store } = await import("electron-store") as {
+    default: new (options: {
     name: string;
     defaults: { settings: AppSettings };
   }) => {
     get: (key: "settings") => AppSettings;
     set: (key: "settings", value: AppSettings) => void;
+  };
   };
   const store = new Store({
     name: "settings",
