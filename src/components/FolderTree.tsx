@@ -11,7 +11,9 @@ type FolderTreeProps = {
   modelCount: number;
   selectedModelCount: number;
   canMoveModels: boolean;
+  expandedFolderIds: Set<string>;
   onSelectFolder: (folderId: string) => void;
+  onToggleFolder: (folderId: string) => void;
   onToggleIncludeSubfolders: (value: boolean) => void;
   onCreateFolder: () => void;
   onRenameFolder: () => void;
@@ -25,7 +27,9 @@ export function FolderTree({
   modelCount,
   selectedModelCount,
   canMoveModels,
+  expandedFolderIds,
   onSelectFolder,
+  onToggleFolder,
   onToggleIncludeSubfolders,
   onCreateFolder,
   onRenameFolder,
@@ -116,7 +120,9 @@ export function FolderTree({
             selectedFolder={selectedFolder}
             dragOverFolder={dragOverFolder}
             canMoveModels={canMoveModels}
+            expandedFolderIds={expandedFolderIds}
             onSelectFolder={onSelectFolder}
+            onToggleFolder={onToggleFolder}
             onDragOverFolder={allowFolderDrop}
             onDragLeaveFolder={() => setDragOverFolder(null)}
             onDropOnFolder={dropOnFolder}
@@ -132,7 +138,9 @@ function FolderNodeButton({
   selectedFolder,
   dragOverFolder,
   canMoveModels,
+  expandedFolderIds,
   onSelectFolder,
+  onToggleFolder,
   onDragOverFolder,
   onDragLeaveFolder,
   onDropOnFolder,
@@ -142,43 +150,64 @@ function FolderNodeButton({
   selectedFolder: string;
   dragOverFolder: string | null;
   canMoveModels: boolean;
+  expandedFolderIds: Set<string>;
   onSelectFolder: (folderId: string) => void;
+  onToggleFolder: (folderId: string) => void;
   onDragOverFolder: (event: DragEvent, folderId: string) => void;
   onDragLeaveFolder: () => void;
   onDropOnFolder: (event: DragEvent, folderId: string) => void;
   depth?: number;
 }) {
+  const isExpanded = expandedFolderIds.has(folder.id);
+  const hasChildren = folder.children.length > 0;
+
   return (
     <div>
-      <button
-        className={`folder-row ${selectedFolder === folder.id ? "selected" : ""} ${
+      <div
+        className={`folder-row folder-tree-row ${selectedFolder === folder.id ? "selected" : ""} ${
           dragOverFolder === folder.id ? "drop-target" : ""
         }`}
         style={{ paddingLeft: 10 + depth * 14 }}
-        type="button"
-        onClick={() => onSelectFolder(folder.id)}
         onDragOver={(event) => onDragOverFolder(event, folder.id)}
         onDragLeave={onDragLeaveFolder}
         onDrop={(event) => onDropOnFolder(event, folder.id)}
       >
-        {folder.children.length > 0 ? <ChevronRight size={14} /> : <Folder size={14} />}
-        <span>{folder.name}</span>
+        {hasChildren ? (
+          <button
+            className={`folder-disclosure ${isExpanded ? "expanded" : ""}`}
+            type="button"
+            onClick={() => onToggleFolder(folder.id)}
+            aria-label={isExpanded ? `Recolher ${folder.name}` : `Expandir ${folder.name}`}
+            aria-expanded={isExpanded}
+          >
+            <ChevronRight size={14} />
+          </button>
+        ) : (
+          <span className="folder-disclosure-placeholder">
+            <Folder size={14} />
+          </span>
+        )}
+        <button className="folder-name-button" type="button" onClick={() => onSelectFolder(folder.id)}>
+          <span>{folder.name}</span>
+        </button>
         {canMoveModels ? <span className="drop-cue">Soltar</span> : null}
-      </button>
-      {folder.children.map((child) => (
+      </div>
+      {isExpanded ? folder.children.map((child) => (
         <FolderNodeButton
           key={child.id}
           folder={child}
           selectedFolder={selectedFolder}
           dragOverFolder={dragOverFolder}
           canMoveModels={canMoveModels}
+          expandedFolderIds={expandedFolderIds}
           onSelectFolder={onSelectFolder}
+          onToggleFolder={onToggleFolder}
           onDragOverFolder={onDragOverFolder}
           onDragLeaveFolder={onDragLeaveFolder}
           onDropOnFolder={onDropOnFolder}
           depth={depth + 1}
         />
-      ))}
+      )) : null}
     </div>
   );
 }

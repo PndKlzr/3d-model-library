@@ -163,6 +163,54 @@ button {
   text-align: left;
 }
 
+.folder-tree-row {
+  padding-right: 6px;
+}
+
+.folder-disclosure,
+.folder-name-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.folder-disclosure {
+  display: grid;
+  width: 20px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+}
+
+.folder-disclosure svg {
+  transition: transform 140ms ease;
+}
+
+.folder-disclosure.expanded svg {
+  transform: rotate(90deg);
+}
+
+.folder-disclosure-placeholder {
+  display: grid;
+  width: 20px;
+  flex: 0 0 auto;
+  place-items: center;
+}
+
+.folder-name-button {
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  text-align: left;
+}
+
+.folder-name-button span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .folder-row.selected {
   border-color: #a7bfbc;
   background: #e0ecea;
@@ -325,13 +373,51 @@ button {
   box-shadow: 0 0 0 3px rgba(40, 124, 120, 0.18);
 }
 
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -6px 0 18px;
+}
+
+.filter-bar label {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0 9px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.filter-bar select {
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: #253033;
+  font-weight: 700;
+  outline: none;
+}
+
+.filter-check input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+}
+
 .model-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 14px;
 }
 
-.model-card {
+.model-card,
+.folder-card {
   position: relative;
   display: grid;
   width: 100%;
@@ -365,6 +451,27 @@ button {
   padding: 0;
   color: inherit;
   text-align: left;
+}
+
+.folder-card {
+  grid-template-rows: 130px minmax(64px, auto);
+  border-style: dashed;
+}
+
+.folder-card.drop-target {
+  border-color: var(--accent);
+  background: #e7f2f0;
+  box-shadow: 0 0 0 2px rgba(40, 124, 120, 0.2);
+}
+
+.folder-card-icon {
+  display: grid;
+  height: 130px;
+  place-items: center;
+  background:
+    linear-gradient(135deg, rgba(40, 124, 120, 0.12), transparent),
+    #e7ecee;
+  color: var(--accent-strong);
 }
 
 .card-check {

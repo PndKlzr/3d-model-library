@@ -3,10 +3,10 @@ import type { ModelFile } from "../../src/shared/types";
 import { ALL_FOLDERS_ID, filterModels } from "../../src/lib/folderFilters";
 
 const models: ModelFile[] = [
-  model("root.stl", ""),
-  model("helmet.stl", "cosplay"),
-  model("visor.3mf", "cosplay/helmet"),
-  model("tree.stl", "terrain/forest")
+  model("root.stl", "", 100, "2026-07-01T00:00:00.000Z"),
+  model("helmet.stl", "cosplay", 300, "2026-07-02T00:00:00.000Z"),
+  model("visor.3mf", "cosplay/helmet", 200, "2026-07-04T00:00:00.000Z"),
+  model("tree.stl", "terrain/forest", 400, "2026-07-03T00:00:00.000Z")
 ];
 
 describe("filterModels", () => {
@@ -37,17 +37,48 @@ describe("filterModels", () => {
 
     expect(result.map((modelFile) => modelFile.name)).toEqual(["tree.stl"]);
   });
+
+  it("filters models by file type", () => {
+    const result = filterModels(models, ALL_FOLDERS_ID, true, "", { type: ".3mf" });
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual(["visor.3mf"]);
+  });
+
+  it("sorts models by newest modification date first", () => {
+    const result = filterModels(models, ALL_FOLDERS_ID, true, "", { sort: "modified" });
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual([
+      "visor.3mf",
+      "tree.stl",
+      "helmet.stl",
+      "root.stl"
+    ]);
+  });
+
+  it("can show only selected models", () => {
+    const result = filterModels(models, ALL_FOLDERS_ID, true, "", {
+      onlySelected: true,
+      selectedIds: new Set(["/root.stl", "cosplay/helmet/visor.3mf"])
+    });
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual(["root.stl", "visor.3mf"]);
+  });
 });
 
-function model(name: string, relativeFolder: string): ModelFile {
+function model(
+  name: string,
+  relativeFolder: string,
+  sizeBytes: number,
+  modifiedAt: string
+): ModelFile {
   return {
     id: `${relativeFolder}/${name}`,
     name,
     extension: name.endsWith(".3mf") ? ".3mf" : ".stl",
     absolutePath: `C:/library/${relativeFolder}/${name}`,
     relativeFolder,
-    sizeBytes: 100,
-    modifiedAt: "2026-07-04T00:00:00.000Z",
+    sizeBytes,
+    modifiedAt,
     dimensionsMm: null,
     objectCount: null,
     previewError: null

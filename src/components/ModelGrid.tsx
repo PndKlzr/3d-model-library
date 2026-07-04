@@ -1,17 +1,30 @@
-import { Box, Search, Settings } from "lucide-react";
+import { Box, Folder, Search, Settings } from "lucide-react";
+import { useState, type DragEvent } from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
+import type { ModelSortMode, ModelTypeFilter } from "../lib/folderFilters";
+import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelFile } from "../shared/types";
 
 type ModelGridProps = {
   models: ModelFile[];
+  folderCards: GridFolderCard[];
   scanErrors: Array<{ path: string; message: string }>;
   selectedModelId: string | null;
   selectedModelIds: Set<string>;
   searchQuery: string;
+  typeFilter: ModelTypeFilter;
+  sortMode: ModelSortMode;
+  onlySelected: boolean;
   isScanning: boolean;
+  canMoveModels: boolean;
   operationMessage: string | null;
   onSearchChange: (query: string) => void;
-  onOpenModel: (model: ModelFile) => void;
+  onTypeFilterChange: (type: ModelTypeFilter) => void;
+  onSortModeChange: (sortMode: ModelSortMode) => void;
+  onOnlySelectedChange: (onlySelected: boolean) => void;
+  onOpenFolder: (folderId: string) => void;
+  onMoveModelsToFolder: (folderId: string) => void;
+  onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
   onDragEndModel: () => void;
@@ -21,13 +34,23 @@ type ModelGridProps = {
 
 export function ModelGrid({
   models,
+  folderCards,
   scanErrors,
   selectedModelId,
   selectedModelIds,
   searchQuery,
+  typeFilter,
+  sortMode,
+  onlySelected,
   isScanning,
+  canMoveModels,
   operationMessage,
   onSearchChange,
+  onTypeFilterChange,
+  onSortModeChange,
+  onOnlySelectedChange,
+  onOpenFolder,
+  onMoveModelsToFolder,
   onOpenModel,
   onToggleModelSelection,
   onDragStartModel,
@@ -35,6 +58,29 @@ export function ModelGrid({
   onRefresh,
   onOpenSettings
 }: ModelGridProps) {
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const hasGridContent = folderCards.length > 0 || models.length > 0;
+
+  function allowFolderDrop(event: DragEvent, folderId: string) {
+    if (!canMoveModels) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverFolder(folderId);
+  }
+
+  function dropOnFolder(event: DragEvent, folderId: string) {
+    if (!canMoveModels) {
+      return;
+    }
+
+    event.preventDefault();
+    setDragOverFolder(null);
+    onMoveModelsToFolder(folderId);
+  }
+
   return (
     <section className="library-panel" aria-label="Modelos encontrados">
       <header className="toolbar">
@@ -66,6 +112,39 @@ export function ModelGrid({
         />
       </label>
 
+      <div className="filter-bar" aria-label="Filtros da biblioteca">
+        <label>
+          Tipo
+          <select
+            value={typeFilter}
+            onChange={(event) => onTypeFilterChange(event.currentTarget.value as ModelTypeFilter)}
+          >
+            <option value="all">Todos</option>
+            <option value=".stl">STL</option>
+            <option value=".3mf">3MF</option>
+          </select>
+        </label>
+        <label>
+          Ordenar
+          <select
+            value={sortMode}
+            onChange={(event) => onSortModeChange(event.currentTarget.value as ModelSortMode)}
+          >
+            <option value="name">Nome</option>
+            <option value="modified">Mais recentes</option>
+            <option value="size">Tamanho</option>
+          </select>
+        </label>
+        <label className="filter-check">
+          <input
+            type="checkbox"
+            checked={onlySelected}
+            onChange={(event) => onOnlySelectedChange(event.currentTarget.checked)}
+          />
+          So selecionados
+        </label>
+      </div>
+
       {scanErrors.length > 0 ? (
         <div className="scan-errors" role="status">
           <strong>Alguns itens nao puderam ser lidos</strong>
@@ -83,14 +162,39 @@ export function ModelGrid({
         </div>
       ) : null}
 
-      {models.length === 0 ? (
+      {!hasGridContent ? (
         <div className="empty-state">
           <Box size={28} />
-          <strong>Nenhum modelo nesta visao</strong>
+          <strong>Nenhum item nesta visao</strong>
           <span>Tente outra pasta, limpe a busca ou atualize a biblioteca.</span>
         </div>
       ) : (
         <div className="model-grid">
+          {folderCards.map((folderCard) => (
+            <button
+              className={`folder-card ${dragOverFolder === folderCard.id ? "drop-target" : ""}`}
+              key={folderCard.id}
+              type="button"
+              onClick={() => onOpenFolder(folderCard.id)}
+              onDragOver={(event) => allowFolderDrop(event, folderCard.id)}
+              onDragLeave={() => setDragOverFolder(null)}
+              onDrop={(event) => dropOnFolder(event, folderCard.id)}
+            >
+              <div className="folder-card-icon">
+                <Folder size={34} />
+              </div>
+              <div className="model-card-meta">
+                <strong title={folderCard.name}>{folderCard.name}</strong>
+                <span>
+                  {folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}
+                  {folderCard.childCount > 0
+                    ? ` - ${folderCard.childCount} pasta${folderCard.childCount === 1 ? "" : "s"}`
+                    : ""}
+                </span>
+              </div>
+            </button>
+          ))}
+
           {models.map((model) => (
             <div
               className={`model-card ${selectedModelId === model.id ? "selected" : ""} ${
@@ -113,7 +217,16 @@ export function ModelGrid({
                   aria-label={`Selecionar ${model.name}`}
                 />
               </label>
-              <button className="model-card-main" type="button" onClick={() => onOpenModel(model)}>
+              <button
+                className="model-card-main"
+                type="button"
+                onClick={(event) =>
+                  onOpenModel(model, {
+                    ctrlKey: event.ctrlKey || event.metaKey,
+                    shiftKey: event.shiftKey
+                  })
+                }
+              >
                 <div className="model-thumb">
                   <ModelCardThumbnail model={model} />
                 </div>

@@ -5,8 +5,12 @@ import { FolderTree } from "./components/FolderTree";
 import { ModelGrid } from "./components/ModelGrid";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { buildFolderTree } from "./lib/folderTree";
-import { ALL_FOLDERS_ID, filterModels } from "./lib/folderFilters";
+import { ALL_FOLDERS_ID, filterModels, type ModelSortMode, type ModelTypeFilter } from "./lib/folderFilters";
+import { getGridFolderCards } from "./lib/gridFolders";
+import { updateSelectionForGesture } from "./lib/modelSelection";
 import type { AppSettings, LibraryScanResult, ModelFile } from "./shared/types";
+
+const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
 
 function App() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -14,7 +18,14 @@ function App() {
   const [selectedFolder, setSelectedFolder] = useState(ALL_FOLDERS_ID);
   const [selectedModel, setSelectedModel] = useState<ModelFile | null>(null);
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(() => new Set());
+  const [lastSelectedModelId, setLastSelectedModelId] = useState<string | null>(null);
   const [draggedModelIds, setDraggedModelIds] = useState<string[]>([]);
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() =>
+    readExpandedFolders()
+  );
+  const [typeFilter, setTypeFilter] = useState<ModelTypeFilter>("all");
+  const [sortMode, setSortMode] = useState<ModelSortMode>("name");
+  const [onlySelected, setOnlySelected] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
@@ -49,6 +60,13 @@ function App() {
     }
   }, [settings?.libraryPath]);
 
+  useEffect(() => {
+    window.localStorage.setItem(
+      EXPANDED_FOLDERS_STORAGE_KEY,
+      JSON.stringify([...expandedFolderIds])
+    );
+  }, [expandedFolderIds]);
+
   async function chooseFolder() {
     const libraryPath = await window.modelLibrary.chooseLibraryFolder();
 
@@ -65,6 +83,7 @@ function App() {
     setSelectedFolder(ALL_FOLDERS_ID);
     setSelectedModel(null);
     setSelectedModelIds(new Set());
+    setLastSelectedModelId(null);
   }
 
   async function saveSettings(nextSettings: AppSettings) {
@@ -113,6 +132,7 @@ function App() {
 
         setSelectedModelIds(new Set(preferredModels.map((model) => model.id)));
         setSelectedModel(preferredModels[0] ?? null);
+        setLastSelectedModelId(preferredModels[0]?.id ?? null);
       } else {
         setSelectedModelIds((currentIds) => {
           const nextIds = new Set<string>();
@@ -141,16 +161,52 @@ function App() {
     }
   }
 
-  function openModel(model: ModelFile) {
-    setSelectedModel(model);
+  function selectFolder(folderId: string) {
+    setSelectedFolder(folderId);
+    expandFolderAncestors(folderId);
+  }
 
-    if (!selectedModelIds.has(model.id)) {
-      setSelectedModelIds(new Set([model.id]));
+  function toggleExpandedFolder(folderId: string) {
+    setExpandedFolderIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+
+      if (nextIds.has(folderId)) {
+        nextIds.delete(folderId);
+      } else {
+        nextIds.add(folderId);
+      }
+
+      return nextIds;
+    });
+  }
+
+  function expandFolderAncestors(folderId: string) {
+    if (folderId === ALL_FOLDERS_ID) {
+      return;
     }
+
+    const ancestorIds = getAncestorFolderIds(folderId);
+    setExpandedFolderIds((currentIds) => new Set([...currentIds, ...ancestorIds]));
+  }
+
+  function openModel(model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) {
+    const result = updateSelectionForGesture({
+      orderedIds: filteredModels.map((item) => item.id),
+      selectedIds: selectedModelIds,
+      clickedId: model.id,
+      lastSelectedId: lastSelectedModelId,
+      ctrlKey: modifiers.ctrlKey,
+      shiftKey: modifiers.shiftKey
+    });
+
+    setSelectedModel(model);
+    setSelectedModelIds(result.selectedIds);
+    setLastSelectedModelId(result.lastSelectedId);
   }
 
   function toggleModelSelection(model: ModelFile, selected: boolean) {
     setSelectedModel(model);
+    setLastSelectedModelId(model.id);
     setSelectedModelIds((currentIds) => {
       const nextIds = new Set(currentIds);
 
@@ -171,6 +227,7 @@ function App() {
     if (!selectedModelIds.has(model.id)) {
       setSelectedModelIds(new Set([model.id]));
       setSelectedModel(model);
+      setLastSelectedModelId(model.id);
     }
   }
 
@@ -194,7 +251,7 @@ function App() {
 
     await runLibraryOperation(async () => {
       const result = await window.modelLibrary.createFolder(parentFolder, folderName);
-      setSelectedFolder(joinFolder(parentFolder, folderName.trim()));
+      selectFolder(joinFolder(parentFolder, folderName.trim()));
       return { message: result.message, selectedPaths: [] };
     });
   }
@@ -216,7 +273,7 @@ function App() {
 
     await runLibraryOperation(async () => {
       const result = await window.modelLibrary.renameFolder(selectedFolder, nextName);
-      setSelectedFolder(joinFolder(parentFolder, nextName.trim()));
+      selectFolder(joinFolder(parentFolder, nextName.trim()));
       return { message: result.message, selectedPaths: [] };
     });
   }
@@ -317,11 +374,18 @@ function App() {
 
   const models = scanResult?.models ?? [];
   const folders = buildFolderTree(models);
+  const folderCards = getGridFolderCards(folders, models, selectedFolder);
   const filteredModels = filterModels(
     models,
     selectedFolder,
     settings.includeSubfolders,
-    searchQuery
+    searchQuery,
+    {
+      type: typeFilter,
+      sort: sortMode,
+      onlySelected,
+      selectedIds: selectedModelIds
+    }
   );
 
   return (
@@ -333,7 +397,9 @@ function App() {
         modelCount={models.length}
         selectedModelCount={selectedModelIds.size}
         canMoveModels={draggedModelIds.length > 0}
-        onSelectFolder={setSelectedFolder}
+        expandedFolderIds={expandedFolderIds}
+        onSelectFolder={selectFolder}
+        onToggleFolder={toggleExpandedFolder}
         onToggleIncludeSubfolders={updateIncludeSubfolders}
         onCreateFolder={createFolder}
         onRenameFolder={renameFolder}
@@ -341,13 +407,23 @@ function App() {
       />
       <ModelGrid
         models={filteredModels}
+        folderCards={folderCards}
         scanErrors={scanResult?.errors ?? []}
         selectedModelId={selectedModel?.id ?? null}
         selectedModelIds={selectedModelIds}
         searchQuery={searchQuery}
+        typeFilter={typeFilter}
+        sortMode={sortMode}
+        onlySelected={onlySelected}
         isScanning={isScanning}
+        canMoveModels={draggedModelIds.length > 0}
         operationMessage={operationMessage}
         onSearchChange={setSearchQuery}
+        onTypeFilterChange={setTypeFilter}
+        onSortModeChange={setSortMode}
+        onOnlySelectedChange={setOnlySelected}
+        onOpenFolder={selectFolder}
+        onMoveModelsToFolder={moveDraggedModels}
         onOpenModel={openModel}
         onToggleModelSelection={toggleModelSelection}
         onDragStartModel={startDraggingModel}
@@ -399,6 +475,34 @@ function readErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const lastError = message.split("Error: ").pop();
   return lastError || message;
+}
+
+function getAncestorFolderIds(folderId: string): string[] {
+  const parts = folderId.split("/").filter(Boolean);
+  const ancestors: string[] = [];
+
+  for (let index = 1; index < parts.length; index += 1) {
+    ancestors.push(parts.slice(0, index).join("/"));
+  }
+
+  return ancestors;
+}
+
+function readExpandedFolders(): Set<string> {
+  try {
+    const rawValue = window.localStorage.getItem(EXPANDED_FOLDERS_STORAGE_KEY);
+
+    if (!rawValue) {
+      return new Set();
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+    return Array.isArray(parsedValue)
+      ? new Set(parsedValue.filter((value): value is string => typeof value === "string"))
+      : new Set();
+  } catch {
+    return new Set();
+  }
 }
 
 export default App;
