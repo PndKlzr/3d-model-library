@@ -81,10 +81,22 @@ async function createWindow() {
     backgroundColor: "#e9edf0",
     title: "3D Model Library",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false
     }
+  });
+
+  window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
+  });
+
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    console.error(`[renderer:load-failed] ${errorCode} ${errorDescription} ${validatedURL}`);
+  });
+
+  window.webContents.on("render-process-gone", (_event, details) => {
+    console.error(`[renderer:gone] ${details.reason}`);
   });
 
   if (isDev) {
