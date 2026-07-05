@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   setModelNotes: (modelPath, notes) => ipcRenderer.invoke("metadata:set-notes", modelPath, notes),
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
+  getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),
   showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
   readModelFile: (absolutePath) => ipcRenderer.invoke("model:read-file", absolutePath),
   chooseSlicerExecutable: () => ipcRenderer.invoke("settings:choose-slicer-executable"),

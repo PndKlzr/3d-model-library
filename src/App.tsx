@@ -26,6 +26,7 @@ import type {
   LibraryActionLogEntry,
   LibraryMetadata,
   LibraryScanResult,
+  ModelHashResult,
   ModelFile
 } from "./shared/types";
 
@@ -83,6 +84,7 @@ function App() {
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [actionLogEntries, setActionLogEntries] = useState<LocalActionLogEntry[]>([]);
   const [undoToast, setUndoToast] = useState<LocalActionLogEntry | null>(null);
+  const [modelHashes, setModelHashes] = useState<ModelHashResult>({});
   const [textInputDialog, setTextInputDialog] = useState<TextInputDialogOptions | null>(null);
   const textInputResolver = useRef<((value: string | null) => void) | null>(null);
 
@@ -144,6 +146,34 @@ function App() {
     );
     return () => window.clearTimeout(timeoutId);
   }, [operationMessage]);
+
+  useEffect(() => {
+    const models = scanResult?.models ?? [];
+    const hashCandidates = getHashCandidateModels(models);
+    let isStale = false;
+
+    if (!settings?.libraryPath || hashCandidates.length === 0) {
+      setModelHashes({});
+      return;
+    }
+
+    window.modelLibrary
+      .getModelHashes(hashCandidates)
+      .then((hashes) => {
+        if (!isStale) {
+          setModelHashes(hashes);
+        }
+      })
+      .catch((error) => {
+        if (!isStale) {
+          setOperationMessage(readErrorMessage(error));
+        }
+      });
+
+    return () => {
+      isStale = true;
+    };
+  }, [scanResult?.models, settings?.libraryPath]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -819,7 +849,7 @@ function App() {
     settings.includeSubfolders
   );
   const availableTags = getAvailableTags(models, libraryMetadata);
-  const duplicateModelIds = getDuplicateModelIds(models);
+  const duplicateModelIds = getDuplicateModelIds(models, modelHashes);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const filteredModels = filterModels(
     models,
@@ -1184,6 +1214,19 @@ function getAvailableTags(models: ModelFile[], libraryMetadata: LibraryMetadata)
   }
 
   return [...tags].sort((left, right) => left.localeCompare(right));
+}
+
+function getHashCandidateModels(models: ModelFile[]) {
+  const modelsBySize = new Map<number, ModelFile[]>();
+
+  for (const model of models) {
+    modelsBySize.set(model.sizeBytes, [...(modelsBySize.get(model.sizeBytes) ?? []), model]);
+  }
+
+  return [...modelsBySize.values()]
+    .filter((modelsWithSameSize) => modelsWithSameSize.length > 1)
+    .flat()
+    .map(({ absolutePath, sizeBytes, modifiedAt }) => ({ absolutePath, sizeBytes, modifiedAt }));
 }
 
 function isTextInputTarget(target: EventTarget | null): boolean {

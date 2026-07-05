@@ -31,6 +31,10 @@ export type LibraryScanResult = {
   errors: Array<{ path: string; message: string }>;
 };
 
+export type ModelHashInput = Pick<ModelFile, "absolutePath" | "sizeBytes" | "modifiedAt">;
+
+export type ModelHashResult = Record<string, string>;
+
 export type ModelUserMetadata = {
   favorite: boolean;
   tags: string[];

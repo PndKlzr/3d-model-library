@@ -4,6 +4,8 @@ import type {
   FileRestorePair,
   LibraryMetadata,
   LibraryScanResult,
+  ModelHashInput,
+  ModelHashResult,
   ModelFile,
   SlicerLaunchResult
 } from "./types";
@@ -38,6 +40,7 @@ export type ModelLibraryApi = {
     previewError: string | null;
   }>;
   readModelThumbnail: (absolutePath: string) => Promise<string | null>;
+  getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   chooseSlicerExecutable: () => Promise<string | null>;

@@ -13,6 +13,32 @@ describe("getDuplicateModelIds", () => {
 
     expect([...duplicateIds].sort()).toEqual(["a/benchy.stl", "b/BENCHY.3mf"]);
   });
+
+  it("marks models with the same content hash as duplicates even when names differ", () => {
+    const alpha = model("helmet-left.stl", "cosplay", 100);
+    const beta = model("scan-copy.3mf", "imports", 100);
+    const cube = model("cube.stl", "parts", 100);
+
+    const duplicateIds = getDuplicateModelIds([alpha, beta, cube], {
+      [alpha.absolutePath]: "same-content",
+      [beta.absolutePath]: "same-content",
+      [cube.absolutePath]: "different-content"
+    });
+
+    expect([...duplicateIds].sort()).toEqual([alpha.id, beta.id].sort());
+  });
+
+  it("does not fall back to name and size when compared models have different hashes", () => {
+    const original = model("benchy.stl", "a", 100);
+    const unrelated = model("BENCHY.3mf", "b", 100);
+
+    const duplicateIds = getDuplicateModelIds([original, unrelated], {
+      [original.absolutePath]: "content-a",
+      [unrelated.absolutePath]: "content-b"
+    });
+
+    expect([...duplicateIds]).toEqual([]);
+  });
 });
 
 function model(name: string, relativeFolder: string, sizeBytes: number): ModelFile {

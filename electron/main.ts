@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AppSettings } from "../src/shared/types.js";
+import type { AppSettings, ModelHashInput } from "../src/shared/types.js";
 import {
   createLibraryFolder,
   moveModelFiles,
@@ -21,6 +21,7 @@ import {
 } from "./services/libraryMetadataStore.js";
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
+import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -28,6 +29,7 @@ const __dirname = path.dirname(__filename);
 const isDev = !app.isPackaged;
 let settingsStore: SettingsStore;
 let libraryMetadataStore: LibraryMetadataStore;
+let modelHashStore: ModelHashStore;
 
 function registerIpcHandlers() {
   ipcMain.handle("settings:get", () => settingsStore.getSettings());
@@ -108,6 +110,14 @@ function registerIpcHandlers() {
   ipcMain.handle("model:thumbnail", async (_event, absolutePath: string) => {
     assertPathInsideLibrary(absolutePath);
     return readEmbeddedThumbnail(absolutePath);
+  });
+
+  ipcMain.handle("model:hashes", async (_event, models: ModelHashInput[]) => {
+    for (const model of models) {
+      assertPathInsideLibrary(model.absolutePath);
+    }
+
+    return modelHashStore.getHashes(models);
   });
 
   ipcMain.handle("model:show-in-folder", (_event, absolutePath: string) => {
@@ -209,6 +219,7 @@ async function createWindow() {
 app.whenReady().then(async () => {
   settingsStore = await createElectronSettingsStore();
   libraryMetadataStore = await createElectronLibraryMetadataStore();
+  modelHashStore = await createElectronModelHashStore();
   registerIpcHandlers();
   await createWindow();
 
