@@ -7,7 +7,7 @@ type SpawnProcess = typeof spawn;
 
 export async function launchSlicer(
   slicer: SlicerConfig,
-  modelPath: string,
+  modelPaths: string | string[],
   spawnProcess: SpawnProcess = spawn
 ): Promise<SlicerLaunchResult> {
   if (!slicer.enabled) {
@@ -33,16 +33,25 @@ export async function launchSlicer(
     };
   }
 
-  const modelExists = await pathExists(modelPath);
+  const launchPaths = Array.isArray(modelPaths) ? modelPaths : [modelPaths];
 
-  if (!modelExists) {
+  if (launchPaths.length === 0) {
+    return {
+      ok: false,
+      message: "Selecione pelo menos um modelo para abrir no slicer."
+    };
+  }
+
+  const modelExists = await Promise.all(launchPaths.map((modelPath) => pathExists(modelPath)));
+
+  if (modelExists.some((exists) => !exists)) {
     return {
       ok: false,
       message: "O modelo selecionado não foi encontrado."
     };
   }
 
-  const child = spawnProcess(slicer.executablePath, [modelPath], {
+  const child = spawnProcess(slicer.executablePath, launchPaths, {
     detached: true,
     stdio: "ignore"
   });
@@ -51,7 +60,10 @@ export async function launchSlicer(
 
   return {
     ok: true,
-    message: `Abrindo ${path.basename(modelPath)} no ${slicer.name}.`
+    message:
+      launchPaths.length === 1
+        ? `Abrindo ${path.basename(launchPaths[0])} no ${slicer.name}.`
+        : `Abrindo ${launchPaths.length} modelos no ${slicer.name}.`
   };
 }
 

@@ -198,18 +198,25 @@ function registerIpcHandlers() {
     return result.canceled ? null : result.filePaths[0];
   });
 
-  ipcMain.handle("slicer:launch", async (_event, slicerId: string, modelPath: string) => {
+  ipcMain.handle("slicer:launch", async (_event, slicerId: string, modelPaths: string | string[]) => {
     const settings = settingsStore.getSettings();
     const slicer = settings.slicers.find((item) => item.id === slicerId);
+    const launchPaths = Array.isArray(modelPaths) ? modelPaths : [modelPaths];
 
     if (!slicer) {
       return { ok: false, message: "Slicer não configurado." };
     }
 
-    const result = await launchSlicer(slicer, modelPath);
+    for (const modelPath of launchPaths) {
+      assertPathInsideLibrary(modelPath);
+    }
+
+    const result = await launchSlicer(slicer, launchPaths);
 
     if (result.ok) {
-      libraryMetadataStore.recordSlicerOpen(modelPath, slicerId);
+      for (const modelPath of launchPaths) {
+        libraryMetadataStore.recordSlicerOpen(modelPath, slicerId);
+      }
     }
 
     return result;

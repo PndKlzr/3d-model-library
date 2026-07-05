@@ -38,5 +38,5 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   startFileDrag: (filePaths) => ipcRenderer.send("model:start-file-drag", filePaths),
   readModelFile: (absolutePath) => ipcRenderer.invoke("model:read-file", absolutePath),
   chooseSlicerExecutable: () => ipcRenderer.invoke("settings:choose-slicer-executable"),
-  launchSlicer: (slicerId, modelPath) => ipcRenderer.invoke("slicer:launch", slicerId, modelPath)
+  launchSlicer: (slicerId, modelPaths) => ipcRenderer.invoke("slicer:launch", slicerId, modelPaths)
 });

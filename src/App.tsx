@@ -357,13 +357,41 @@ function App() {
     });
   }
 
-  async function launchSlicer(slicerId: string, modelPath: string) {
-    const result = await window.modelLibrary.launchSlicer(slicerId, modelPath);
+  async function launchSlicer(slicerId: string, modelPaths: string | string[]) {
+    const result = await window.modelLibrary.launchSlicer(slicerId, modelPaths);
     setLaunchMessage(result.message);
 
     if (result.ok) {
       setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
     }
+  }
+
+  function getSlicerLaunchModelPaths(contextModel: ModelFile): string[] {
+    const selectedPrintableModels = (scanResult?.models ?? []).filter(
+      (model) => selectedModelIds.has(model.id) && isPrintableModel(model)
+    );
+
+    if (selectedModelIds.has(contextModel.id) && selectedPrintableModels.length > 0) {
+      return selectedPrintableModels.map((model) => model.absolutePath);
+    }
+
+    return isPrintableModel(contextModel) ? [contextModel.absolutePath] : [];
+  }
+
+  function getSlicerLaunchModelCount(contextModel: ModelFile): number {
+    return getSlicerLaunchModelPaths(contextModel).length;
+  }
+
+  async function launchSelectedModelsInSlicer(slicerId: string, contextModel: ModelFile) {
+    const modelPaths = getSlicerLaunchModelPaths(contextModel);
+    setModelContextMenu(null);
+
+    if (modelPaths.length === 0) {
+      setLaunchMessage("Selecione pelo menos um STL ou 3MF para abrir no slicer.");
+      return;
+    }
+
+    await launchSlicer(slicerId, modelPaths);
   }
 
   async function toggleFavorite(modelPath: string) {
@@ -1322,20 +1350,24 @@ function App() {
             <>
               <div className="context-menu-separator" />
               <div className="context-menu-section-title">Slicer</div>
-              {enabledSlicers.map((slicer) => (
-                <button
-                  type="button"
-                  role="menuitem"
-                  key={slicer.id}
-                  onClick={() => {
-                    const model = modelContextMenu.model;
-                    setModelContextMenu(null);
-                    void launchSlicer(slicer.id, model.absolutePath);
-                  }}
-                >
-                  Abrir no {slicer.name}
-                </button>
-              ))}
+              {enabledSlicers.map((slicer) => {
+                const launchCount = getSlicerLaunchModelCount(modelContextMenu.model);
+
+                return (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    key={slicer.id}
+                    onClick={() =>
+                      void launchSelectedModelsInSlicer(slicer.id, modelContextMenu.model)
+                    }
+                  >
+                    {launchCount > 1
+                      ? `Abrir selecionados no ${slicer.name}`
+                      : `Abrir no ${slicer.name}`}
+                  </button>
+                );
+              })}
             </>
           ) : null}
           <div className="context-menu-separator" />
@@ -1504,6 +1536,10 @@ function getHashCandidateModels(models: ModelFile[]) {
     .filter((modelsWithSameSize) => modelsWithSameSize.length > 1)
     .flat()
     .map(({ absolutePath, sizeBytes, modifiedAt }) => ({ absolutePath, sizeBytes, modifiedAt }));
+}
+
+function isPrintableModel(model: ModelFile): boolean {
+  return model.extension === ".stl" || model.extension === ".3mf";
 }
 
 function isTextInputTarget(target: EventTarget | null): boolean {

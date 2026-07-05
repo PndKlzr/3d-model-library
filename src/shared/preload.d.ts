@@ -59,7 +59,7 @@ export type ModelLibraryApi = {
   startFileDrag: (filePaths: string[]) => void;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   chooseSlicerExecutable: () => Promise<string | null>;
-  launchSlicer: (slicerId: string, modelPath: string) => Promise<SlicerLaunchResult>;
+  launchSlicer: (slicerId: string, modelPaths: string | string[]) => Promise<SlicerLaunchResult>;
 };
 
 declare global {

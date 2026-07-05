@@ -58,6 +58,29 @@ describe("launchSlicer", () => {
       stdio: "ignore"
     });
   });
+
+  it("spawns the slicer executable with multiple model paths in one process", async () => {
+    const executablePath = path.join(tempRoot, "fake-slicer.exe");
+    const secondModelPath = path.join(tempRoot, "second.3mf");
+    await writeFile(executablePath, "fake executable");
+    await writeFile(secondModelPath, "3mf");
+    const spawnProcess = vi.fn();
+
+    const result = await launchSlicer(
+      slicer({ executablePath, enabled: true }),
+      [modelPath, secondModelPath],
+      spawnProcess
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Abrindo 2 modelos no Cura."
+    });
+    expect(spawnProcess).toHaveBeenCalledWith(executablePath, [modelPath, secondModelPath], {
+      detached: true,
+      stdio: "ignore"
+    });
+  });
 });
 
 function slicer(overrides: Partial<SlicerConfig>): SlicerConfig {

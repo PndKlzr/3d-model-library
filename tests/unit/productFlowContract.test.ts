@@ -46,4 +46,12 @@ describe("product flow contract", () => {
     expect(mainSource).not.toContain('ipcMain.on("model:start-file-drag", async');
     expect(mainSource).toContain("resolveDraggableFilePathsSync");
   });
+
+  it("offers a reliable context action to open selected models in a slicer", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("launchSelectedModelsInSlicer");
+    expect(appSource).toContain("Abrir selecionados no");
+    expect(appSource).toContain("getSlicerLaunchModelPaths");
+  });
 });
