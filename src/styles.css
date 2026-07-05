@@ -322,6 +322,34 @@ button {
   justify-content: flex-end;
 }
 
+.view-mode-toggle {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+}
+
+.view-mode-toggle button {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: #536268;
+}
+
+.view-mode-toggle button:last-child {
+  border-right: 0;
+}
+
+.view-mode-toggle button.active {
+  background: #dcecea;
+  color: var(--accent-strong);
+}
+
 .breadcrumb-row {
   display: flex;
   min-width: 0;
@@ -542,6 +570,146 @@ button {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 14px;
+}
+
+.model-list {
+  display: grid;
+  gap: 7px;
+}
+
+.folder-list-row,
+.model-list-row {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.folder-list-row {
+  display: grid;
+  grid-template-columns: 24px minmax(160px, 1fr) 110px 90px;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 0 12px;
+  color: #273033;
+  text-align: left;
+}
+
+.folder-list-row strong,
+.folder-list-row span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-list-row span {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.folder-list-row.drop-target {
+  border-color: var(--accent);
+  background: #e7f2f0;
+}
+
+.model-list-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  min-height: 64px;
+}
+
+.model-list-row.selected,
+.model-list-row.checked {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(40, 124, 120, 0.18);
+}
+
+.model-list-row.checked {
+  background: rgba(240, 250, 248, 0.96);
+}
+
+.list-check {
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--line);
+}
+
+.list-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.model-list-main {
+  display: grid;
+  grid-template-columns: 46px minmax(120px, 2fr) minmax(90px, 1.2fr) 50px 76px 82px minmax(70px, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 7px 10px;
+  color: inherit;
+  text-align: left;
+}
+
+.list-thumb {
+  width: 46px;
+  height: 46px;
+  overflow: hidden;
+  border: 1px solid #d3dde0;
+  border-radius: 6px;
+  background: #dfe6e8;
+}
+
+.list-thumb .thumb-fallback {
+  gap: 2px;
+  font-size: 10px;
+}
+
+.list-thumb .thumb-fallback svg {
+  width: 17px;
+  height: 17px;
+}
+
+.model-list-main strong,
+.model-list-main span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-list-main span {
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.list-flags {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.list-flags svg {
+  flex: 0 0 auto;
+  color: #9a6a12;
+}
+
+.list-flags em {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8f2f0;
+  padding: 2px 6px;
+  color: var(--accent-strong);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .model-card,
@@ -990,6 +1158,43 @@ button {
   display: grid;
   gap: 12px;
   margin: 16px 0 18px;
+}
+
+.details-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin-top: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+
+.details-tabs button {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.details-tabs button.active {
+  border-color: #a7bfbc;
+  background: #e0ecea;
+  color: var(--accent-strong);
+}
+
+.details-actions-tab {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.quick-actions {
+  display: grid;
+  gap: 8px;
 }
 
 .organization-panel label {

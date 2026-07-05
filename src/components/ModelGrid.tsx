@@ -3,6 +3,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Folder,
+  LayoutGrid,
+  List,
   Search,
   Settings,
   Star
@@ -11,6 +13,7 @@ import { useState, type DragEvent } from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
+import type { ModelViewMode } from "../lib/viewPreferences";
 import type { LibraryActionLogEntry, ModelFile, ModelUserMetadata } from "../shared/types";
 
 type ModelGridProps = {
@@ -34,6 +37,7 @@ type ModelGridProps = {
   operationMessage: string | null;
   actionLogEntries: LibraryActionLogEntry[];
   selectedFolder: string;
+  viewMode: ModelViewMode;
   canNavigateBack: boolean;
   canNavigateForward: boolean;
   onSearchChange: (query: string) => void;
@@ -43,12 +47,14 @@ type ModelGridProps = {
   onOnlyFavoritesChange: (onlyFavorites: boolean) => void;
   onOnlyDuplicatesChange: (onlyDuplicates: boolean) => void;
   onToggleTagFilter: (tag: string) => void;
+  onViewModeChange: (viewMode: ModelViewMode) => void;
   onNavigateBack: () => void;
   onNavigateForward: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
+  onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
   onDragEndModel: () => void;
@@ -77,6 +83,7 @@ export function ModelGrid({
   operationMessage,
   actionLogEntries,
   selectedFolder,
+  viewMode,
   canNavigateBack,
   canNavigateForward,
   onSearchChange,
@@ -86,12 +93,14 @@ export function ModelGrid({
   onOnlyFavoritesChange,
   onOnlyDuplicatesChange,
   onToggleTagFilter,
+  onViewModeChange,
   onNavigateBack,
   onNavigateForward,
   onOpenFolder,
   onOpenFolderContextMenu,
   onMoveModelsToFolder,
   onOpenModel,
+  onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
   onDragEndModel,
@@ -152,6 +161,26 @@ export function ModelGrid({
           </div>
         </div>
         <div className="toolbar-actions">
+          <div className="view-mode-toggle" role="group" aria-label="Modo de visualizacao">
+            <button
+              className={viewMode === "grid" ? "active" : ""}
+              type="button"
+              onClick={() => onViewModeChange("grid")}
+              aria-label="Ver em grade"
+              title="Grade"
+            >
+              <LayoutGrid size={16} />
+            </button>
+            <button
+              className={viewMode === "list" ? "active" : ""}
+              type="button"
+              onClick={() => onViewModeChange("list")}
+              aria-label="Ver em lista"
+              title="Lista"
+            >
+              <List size={16} />
+            </button>
+          </div>
           <button
             className="icon-only"
             type="button"
@@ -275,6 +304,49 @@ export function ModelGrid({
           <strong>Nenhum item nesta visao</strong>
           <span>Tente outra pasta, limpe a busca ou atualize a biblioteca.</span>
         </div>
+      ) : viewMode === "list" ? (
+        <div className="model-list">
+          {folderCards.map((folderCard) => (
+            <button
+              className={`folder-list-row ${dragOverFolder === folderCard.id ? "drop-target" : ""}`}
+              key={folderCard.id}
+              type="button"
+              onClick={() => onOpenFolder(folderCard.id)}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                onOpenFolderContextMenu(folderCard.id, event.clientX, event.clientY);
+              }}
+              onDragOver={(event) => allowFolderDrop(event, folderCard.id)}
+              onDragLeave={() => setDragOverFolder(null)}
+              onDrop={(event) => dropOnFolder(event, folderCard.id)}
+            >
+              <Folder size={20} />
+              <strong title={folderCard.name}>{folderCard.name}</strong>
+              <span>
+                {folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}
+              </span>
+              <span>
+                {folderCard.childCount} pasta{folderCard.childCount === 1 ? "" : "s"}
+              </span>
+            </button>
+          ))}
+
+          {models.map((model) => (
+            <ModelListRow
+              key={model.id}
+              model={model}
+              metadata={metadataByPath[model.absolutePath]}
+              isDuplicate={duplicateModelIds.has(model.id)}
+              isSelected={selectedModelId === model.id}
+              isChecked={selectedModelIds.has(model.id)}
+              onOpenModel={onOpenModel}
+              onOpenModelContextMenu={onOpenModelContextMenu}
+              onToggleModelSelection={onToggleModelSelection}
+              onDragStartModel={onDragStartModel}
+              onDragEndModel={onDragEndModel}
+            />
+          ))}
+        </div>
       ) : (
         <div className="model-grid">
           {folderCards.map((folderCard) => (
@@ -315,6 +387,7 @@ export function ModelGrid({
               isSelected={selectedModelId === model.id}
               isChecked={selectedModelIds.has(model.id)}
               onOpenModel={onOpenModel}
+              onOpenModelContextMenu={onOpenModelContextMenu}
               onToggleModelSelection={onToggleModelSelection}
               onDragStartModel={onDragStartModel}
               onDragEndModel={onDragEndModel}
@@ -362,6 +435,7 @@ type ModelCardProps = {
   isSelected: boolean;
   isChecked: boolean;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
+  onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
   onDragEndModel: () => void;
@@ -374,6 +448,7 @@ function ModelCard({
   isSelected,
   isChecked,
   onOpenModel,
+  onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
   onDragEndModel
@@ -388,6 +463,10 @@ function ModelCard({
         onDragStartModel(model);
       }}
       onDragEnd={onDragEndModel}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onOpenModelContextMenu(model, event.clientX, event.clientY);
+      }}
     >
       <label className="card-check" onClick={(event) => event.stopPropagation()}>
         <input
@@ -429,6 +508,71 @@ function ModelCard({
             </div>
           ) : null}
         </div>
+      </button>
+    </div>
+  );
+}
+
+function ModelListRow({
+  model,
+  metadata,
+  isDuplicate,
+  isSelected,
+  isChecked,
+  onOpenModel,
+  onOpenModelContextMenu,
+  onToggleModelSelection,
+  onDragStartModel,
+  onDragEndModel
+}: ModelCardProps) {
+  return (
+    <div
+      className={`model-list-row ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
+      draggable
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", model.absolutePath);
+        onDragStartModel(model);
+      }}
+      onDragEnd={onDragEndModel}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onOpenModelContextMenu(model, event.clientX, event.clientY);
+      }}
+    >
+      <label className="list-check" onClick={(event) => event.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={(event) => onToggleModelSelection(model, event.currentTarget.checked)}
+          aria-label={`Selecionar ${model.name}`}
+        />
+      </label>
+      <button
+        className="model-list-main"
+        type="button"
+        onClick={(event) =>
+          onOpenModel(model, {
+            ctrlKey: event.ctrlKey || event.metaKey,
+            shiftKey: event.shiftKey
+          })
+        }
+      >
+        <div className="list-thumb">
+          <ModelCardThumbnail model={model} />
+        </div>
+        <strong title={model.name}>{model.name}</strong>
+        <span title={model.relativeFolder || "Raiz"}>{model.relativeFolder || "Raiz"}</span>
+        <span>{model.extension.toUpperCase()}</span>
+        <span>{formatBytes(model.sizeBytes)}</span>
+        <span>{new Date(model.modifiedAt).toLocaleDateString()}</span>
+        <span className="list-flags">
+          {metadata?.favorite ? <Star size={15} fill="currentColor" aria-label="Favorito" /> : null}
+          {isDuplicate ? <em>Duplicado</em> : null}
+          {metadata?.tags.slice(0, 2).map((tag) => (
+            <em key={tag}>{tag}</em>
+          ))}
+        </span>
       </button>
     </div>
   );

@@ -18,6 +18,7 @@ import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
+import { parseModelViewMode, type ModelViewMode } from "./lib/viewPreferences";
 import type {
   AppSettings,
   FileRestorePair,
@@ -28,6 +29,7 @@ import type {
 } from "./shared/types";
 
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
+const MODEL_VIEW_MODE_STORAGE_KEY = "model-library-view-mode";
 
 type LocalActionLogEntry = LibraryActionLogEntry & {
   restorePairs?: FileRestorePair[];
@@ -48,8 +50,16 @@ function App() {
     x: number;
     y: number;
   } | null>(null);
+  const [modelContextMenu, setModelContextMenu] = useState<{
+    model: ModelFile;
+    x: number;
+    y: number;
+  } | null>(null);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() =>
     readExpandedFolders()
+  );
+  const [modelViewMode, setModelViewMode] = useState<ModelViewMode>(() =>
+    parseModelViewMode(window.localStorage.getItem(MODEL_VIEW_MODE_STORAGE_KEY))
   );
   const [typeFilter, setTypeFilter] = useState<ModelTypeFilter>("all");
   const [sortMode, setSortMode] = useState<ModelSortMode>("name");
@@ -104,9 +114,14 @@ function App() {
   }, [expandedFolderIds]);
 
   useEffect(() => {
+    window.localStorage.setItem(MODEL_VIEW_MODE_STORAGE_KEY, modelViewMode);
+  }, [modelViewMode]);
+
+  useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setFolderContextMenu(null);
+        setModelContextMenu(null);
         return;
       }
 
@@ -233,6 +248,21 @@ function App() {
     setLibraryMetadata(await window.modelLibrary.setModelNotes(modelPath, notes));
   }
 
+  async function editModelTagsFromPrompt(model: ModelFile) {
+    setModelContextMenu(null);
+    const currentTags = libraryMetadata.models[model.absolutePath]?.tags.join(", ") ?? "";
+    const nextTags = window.prompt("Tags separadas por virgula", currentTags);
+
+    if (nextTags === null) {
+      return;
+    }
+
+    await setModelTags(
+      model.absolutePath,
+      nextTags.split(",").map((tag) => tag.trim())
+    );
+  }
+
   function toggleTagFilter(tag: string) {
     setSelectedTagFilters((currentTags) => {
       const nextTags = new Set(currentTags);
@@ -303,6 +333,7 @@ function App() {
   function navigateToFolder(folderId: string) {
     setLastFocusedItem("folder");
     setFolderContextMenu(null);
+    setModelContextMenu(null);
     setSelectedFolder(folderId);
     expandFolderAncestors(folderId);
   }
@@ -331,6 +362,7 @@ function App() {
 
   function openFolderContextMenu(folderId: string, x: number, y: number) {
     setLastFocusedItem("folder");
+    setModelContextMenu(null);
     expandFolderAncestors(folderId);
     setFolderContextMenu({ folderId, x, y });
   }
@@ -361,6 +393,7 @@ function App() {
   function openModel(model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) {
     setLastFocusedItem("model");
     setFolderContextMenu(null);
+    setModelContextMenu(null);
     const result = updateSelectionForGesture({
       orderedIds: filteredModels.map((item) => item.id),
       selectedIds: selectedModelIds,
@@ -375,9 +408,22 @@ function App() {
     setLastSelectedModelId(result.lastSelectedId);
   }
 
+  function openModelContextMenu(model: ModelFile, x: number, y: number) {
+    setLastFocusedItem("model");
+    setFolderContextMenu(null);
+    setModelContextMenu({ model, x, y });
+
+    if (!selectedModelIds.has(model.id)) {
+      setSelectedModel(model);
+      setSelectedModelIds(new Set([model.id]));
+      setLastSelectedModelId(model.id);
+    }
+  }
+
   function toggleModelSelection(model: ModelFile, selected: boolean) {
     setLastFocusedItem("model");
     setFolderContextMenu(null);
+    setModelContextMenu(null);
     setSelectedModel(model);
     setLastSelectedModelId(model.id);
     setSelectedModelIds((currentIds) => {
@@ -396,6 +442,7 @@ function App() {
   function startDraggingModel(model: ModelFile) {
     setLastFocusedItem("model");
     setFolderContextMenu(null);
+    setModelContextMenu(null);
     const ids = selectedModelIds.has(model.id) ? [...selectedModelIds] : [model.id];
     setDraggedModelIds(ids);
 
@@ -412,6 +459,7 @@ function App() {
 
   async function createFolder(parentFolderOverride?: string) {
     setFolderContextMenu(null);
+    setModelContextMenu(null);
 
     if (!settings?.libraryPath) {
       return;
@@ -440,6 +488,7 @@ function App() {
 
   async function renameFolder(folderId = selectedFolder) {
     setFolderContextMenu(null);
+    setModelContextMenu(null);
 
     if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
       setOperationMessage("Selecione uma pasta para renomear.");
@@ -475,6 +524,8 @@ function App() {
   }
 
   async function renameSelectedModel() {
+    setModelContextMenu(null);
+
     if (!selectedModel || !settings?.libraryPath) {
       return;
     }
@@ -511,6 +562,7 @@ function App() {
 
   async function moveSelectedModelsToFolder(destinationFolder: string) {
     setFolderContextMenu(null);
+    setModelContextMenu(null);
 
     if (selectedModelIds.size === 0) {
       return;
@@ -561,6 +613,7 @@ function App() {
 
   async function trashSelectedModels() {
     setFolderContextMenu(null);
+    setModelContextMenu(null);
 
     if (!settings?.libraryPath || selectedModelIds.size === 0) {
       return;
@@ -599,6 +652,7 @@ function App() {
 
   async function undoLastAction() {
     setFolderContextMenu(null);
+    setModelContextMenu(null);
 
     if (!settings?.libraryPath) {
       return;
@@ -680,6 +734,7 @@ function App() {
   const folderCards = getGridFolderCards(folders, models, selectedFolder);
   const availableTags = getAvailableTags(models, libraryMetadata);
   const duplicateModelIds = getDuplicateModelIds(models);
+  const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const filteredModels = filterModels(
     models,
     selectedFolder,
@@ -735,6 +790,7 @@ function App() {
         operationMessage={operationMessage}
         actionLogEntries={actionLogEntries}
         selectedFolder={selectedFolder}
+        viewMode={modelViewMode}
         canNavigateBack={folderHistory.back.length > 0}
         canNavigateForward={folderHistory.forward.length > 0}
         onSearchChange={setSearchQuery}
@@ -744,12 +800,14 @@ function App() {
         onOnlyFavoritesChange={setOnlyFavorites}
         onOnlyDuplicatesChange={setOnlyDuplicates}
         onToggleTagFilter={toggleTagFilter}
+        onViewModeChange={setModelViewMode}
         onNavigateBack={goBackFolder}
         onNavigateForward={goForwardFolder}
         onOpenFolder={selectFolder}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
         onOpenModel={openModel}
+        onOpenModelContextMenu={openModelContextMenu}
         onToggleModelSelection={toggleModelSelection}
         onDragStartModel={startDraggingModel}
         onDragEndModel={clearDraggedModels}
@@ -841,6 +899,79 @@ function App() {
             }}
           >
             Configuracoes
+          </button>
+        </div>
+      ) : null}
+      {modelContextMenu ? (
+        <div
+          className="context-menu"
+          style={{ left: modelContextMenu.x, top: modelContextMenu.y }}
+          role="menu"
+          onMouseLeave={() => setModelContextMenu(null)}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => openModel(modelContextMenu.model, { ctrlKey: false, shiftKey: false })}
+          >
+            Carregar no painel
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              const model = modelContextMenu.model;
+              setModelContextMenu(null);
+              void toggleFavorite(model.absolutePath);
+            }}
+          >
+            {libraryMetadata.models[modelContextMenu.model.absolutePath]?.favorite
+              ? "Remover dos favoritos"
+              : "Adicionar aos favoritos"}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void editModelTagsFromPrompt(modelContextMenu.model)}
+          >
+            Editar tags
+          </button>
+          {enabledSlicers.length > 0 ? (
+            <>
+              <div className="context-menu-separator" />
+              {enabledSlicers.map((slicer) => (
+                <button
+                  type="button"
+                  role="menuitem"
+                  key={slicer.id}
+                  onClick={() => {
+                    const model = modelContextMenu.model;
+                    setModelContextMenu(null);
+                    void launchSlicer(slicer.id, model.absolutePath);
+                  }}
+                >
+                  Abrir no {slicer.name}
+                </button>
+              ))}
+            </>
+          ) : null}
+          <div className="context-menu-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              const model = modelContextMenu.model;
+              setModelContextMenu(null);
+              void window.modelLibrary.showModelInFolder(model.absolutePath);
+            }}
+          >
+            Mostrar no Explorer
+          </button>
+          <button type="button" role="menuitem" onClick={renameSelectedModel}>
+            Renomear arquivo
+          </button>
+          <button className="danger-menu-item" type="button" role="menuitem" onClick={trashSelectedModels}>
+            Mover selecionados para Lixeira
           </button>
         </div>
       ) : null}

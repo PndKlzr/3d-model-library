@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { ModelViewer } from "./ModelViewer";
 import type { AppSettings, ModelFile, ModelUserMetadata } from "../shared/types";
 
+type DetailsTab = "info" | "notes" | "actions";
+
 type DetailsPanelProps = {
   model: ModelFile | null;
   settings: AppSettings;
@@ -31,6 +33,7 @@ export function DetailsPanel({
   onSetModelNotes
 }: DetailsPanelProps) {
   const [showPreview, setShowPreview] = useState(false);
+  const [activeTab, setActiveTab] = useState<DetailsTab>("info");
   const [tagDraft, setTagDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
@@ -38,6 +41,7 @@ export function DetailsPanel({
 
   useEffect(() => {
     setShowPreview(false);
+    setActiveTab("info");
   }, [model?.id]);
 
   useEffect(() => {
@@ -73,7 +77,7 @@ export function DetailsPanel({
           <div className="preview-placeholder">
             <Eye size={28} />
             <strong>Preview pausado</strong>
-            <span>Para manter a biblioteca leve, o 3D só carrega quando você pedir.</span>
+            <span>Para manter a biblioteca leve, o 3D so carrega quando voce pedir.</span>
             <button className="primary-button" type="button" onClick={() => setShowPreview(true)}>
               Carregar preview 3D
             </button>
@@ -98,110 +102,146 @@ export function DetailsPanel({
               >
                 <Star size={16} fill={favorite ? "currentColor" : "none"} />
               </button>
-              <button
-                className="icon-only"
-                type="button"
-                onClick={() => onShowModelInFolder(model.absolutePath)}
-                aria-label="Mostrar no Explorer"
-                title="Mostrar no Explorer"
-              >
-                <FolderOpen size={16} />
-              </button>
-              <button
-                className="icon-only"
-                type="button"
-                onClick={onRenameModelFile}
-                aria-label="Renomear arquivo"
-                title="Renomear arquivo"
-              >
-                <Pencil size={16} />
-              </button>
             </div>
           ) : null}
         </div>
+
         {!model ? (
-          <p>Selecione um arquivo para ver dimensões, data, pasta e abrir no slicer.</p>
+          <p>Selecione um arquivo para ver dados, notas e acoes.</p>
         ) : (
           <>
-            <dl className="metadata-list">
-              <div>
-                <dt>
-                  <FolderOpen size={15} />
-                  Pasta
-                </dt>
-                <dd>{model.relativeFolder || "Raiz"}</dd>
-              </div>
-              <div>
-                <dt>
-                  <Weight size={15} />
-                  Tamanho
-                </dt>
-                <dd>{formatBytes(model.sizeBytes)}</dd>
-              </div>
-              <div>
-                <dt>
-                  <Calendar size={15} />
-                  Modificado
-                </dt>
-                <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
-              </div>
-            </dl>
-
-            <div className="organization-panel">
-              <label>
-                <span>
-                  <Tag size={15} />
-                  Tags
-                </span>
-                <input
-                  value={tagDraft}
-                  onChange={(event) => setTagDraft(event.currentTarget.value)}
-                  onBlur={() => void saveTags()}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      void saveTags();
-                    }
-                  }}
-                  placeholder="fidget, casa, suporte"
-                />
-              </label>
-              <label>
-                <span>Notas</span>
-                <textarea
-                  value={notesDraft}
-                  onChange={(event) => setNotesDraft(event.currentTarget.value)}
-                  onBlur={() => void saveNotes()}
-                  placeholder="Config de impressão, filamento, observações..."
-                  rows={4}
-                />
-              </label>
+            <div className="details-tabs" role="tablist" aria-label="Detalhes do arquivo">
+              <button
+                className={activeTab === "info" ? "active" : ""}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "info"}
+                onClick={() => setActiveTab("info")}
+              >
+                Info
+              </button>
+              <button
+                className={activeTab === "notes" ? "active" : ""}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "notes"}
+                onClick={() => setActiveTab("notes")}
+              >
+                Notas
+              </button>
+              <button
+                className={activeTab === "actions" ? "active" : ""}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === "actions"}
+                onClick={() => setActiveTab("actions")}
+              >
+                Acoes
+              </button>
             </div>
 
-            <div className="slicer-actions">
-              <p className="eyebrow">Slicers</p>
-              {enabledSlicers.length === 0 ? (
-                <div className="notice">
-                  <Scissors size={16} />
-                  <span>Configure Cura ou Creality Print para abrir este modelo.</span>
-                  <button type="button" onClick={onOpenSettings}>
-                    Configurar
+            {activeTab === "info" ? (
+              <dl className="metadata-list">
+                <div>
+                  <dt>
+                    <FolderOpen size={15} />
+                    Pasta
+                  </dt>
+                  <dd>{model.relativeFolder || "Raiz"}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <Weight size={15} />
+                    Tamanho
+                  </dt>
+                  <dd>{formatBytes(model.sizeBytes)}</dd>
+                </div>
+                <div>
+                  <dt>
+                    <Calendar size={15} />
+                    Modificado
+                  </dt>
+                  <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
+                </div>
+              </dl>
+            ) : null}
+
+            {activeTab === "notes" ? (
+              <div className="organization-panel">
+                <label>
+                  <span>
+                    <Tag size={15} />
+                    Tags
+                  </span>
+                  <input
+                    value={tagDraft}
+                    onChange={(event) => setTagDraft(event.currentTarget.value)}
+                    onBlur={() => void saveTags()}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void saveTags();
+                      }
+                    }}
+                    placeholder="fidget, casa, suporte"
+                  />
+                </label>
+                <label>
+                  <span>Notas</span>
+                  <textarea
+                    value={notesDraft}
+                    onChange={(event) => setNotesDraft(event.currentTarget.value)}
+                    onBlur={() => void saveNotes()}
+                    placeholder="Config de impressao, filamento, observacoes..."
+                    rows={4}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {activeTab === "actions" ? (
+              <div className="details-actions-tab">
+                <div className="quick-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => onShowModelInFolder(model.absolutePath)}
+                  >
+                    <FolderOpen size={16} />
+                    Mostrar no Explorer
+                  </button>
+                  <button className="secondary-button" type="button" onClick={onRenameModelFile}>
+                    <Pencil size={16} />
+                    Renomear arquivo
                   </button>
                 </div>
-              ) : (
-                enabledSlicers.map((slicer) => (
-                  <button
-                    className="primary-button"
-                    type="button"
-                    key={slicer.id}
-                    onClick={() => onLaunchSlicer(slicer.id, model.absolutePath)}
-                  >
-                    Abrir no {slicer.name}
-                  </button>
-                ))
-              )}
-              {launchMessage ? <div className="notice">{launchMessage}</div> : null}
-            </div>
+
+                <div className="slicer-actions">
+                  <p className="eyebrow">Slicers</p>
+                  {enabledSlicers.length === 0 ? (
+                    <div className="notice">
+                      <Scissors size={16} />
+                      <span>Configure Cura ou Creality Print para abrir este modelo.</span>
+                      <button type="button" onClick={onOpenSettings}>
+                        Configurar
+                      </button>
+                    </div>
+                  ) : (
+                    enabledSlicers.map((slicer) => (
+                      <button
+                        className="primary-button"
+                        type="button"
+                        key={slicer.id}
+                        onClick={() => onLaunchSlicer(slicer.id, model.absolutePath)}
+                      >
+                        Abrir no {slicer.name}
+                      </button>
+                    ))
+                  )}
+                  {launchMessage ? <div className="notice">{launchMessage}</div> : null}
+                </div>
+              </div>
+            ) : null}
           </>
         )}
       </div>
