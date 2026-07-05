@@ -13,7 +13,7 @@ const models = [
 
 describe("getGridFolderCards", () => {
   it("returns top-level folder cards for the All view", () => {
-    const cards = getGridFolderCards(buildFolderTree(models), models, ALL_FOLDERS_ID);
+    const cards = getGridFolderCards(buildFolderTree(models), models, ALL_FOLDERS_ID, false);
 
     expect(cards).toEqual([
       { id: "cosplay", name: "cosplay", modelCount: 2, childCount: 1 },
@@ -22,11 +22,17 @@ describe("getGridFolderCards", () => {
   });
 
   it("returns direct child folders for the selected folder", () => {
-    const cards = getGridFolderCards(buildFolderTree(models), models, "cosplay");
+    const cards = getGridFolderCards(buildFolderTree(models), models, "cosplay", false);
 
     expect(cards).toEqual([
       { id: "cosplay/helmet", name: "helmet", modelCount: 1, childCount: 0 }
     ]);
+  });
+
+  it("hides folder cards when subfolders are included", () => {
+    const cards = getGridFolderCards(buildFolderTree(models), models, ALL_FOLDERS_ID, true);
+
+    expect(cards).toEqual([]);
   });
 });
 

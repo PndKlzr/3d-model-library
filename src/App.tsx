@@ -812,7 +812,12 @@ function App() {
 
   const models = scanResult?.models ?? [];
   const folders = buildFolderTree(models, scanResult?.folders ?? []);
-  const folderCards = getGridFolderCards(folders, models, selectedFolder);
+  const folderCards = getGridFolderCards(
+    folders,
+    models,
+    selectedFolder,
+    settings.includeSubfolders
+  );
   const availableTags = getAvailableTags(models, libraryMetadata);
   const duplicateModelIds = getDuplicateModelIds(models);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
