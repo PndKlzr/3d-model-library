@@ -481,8 +481,7 @@ function ModelCard({
       className={`model-card ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
       draggable
       onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "copyMove";
-        event.dataTransfer.setData("text/plain", model.absolutePath);
+        event.preventDefault();
         onDragStartModel(model);
         onStartFileDrag(model);
       }}
@@ -555,8 +554,7 @@ function ModelListRow({
       className={`model-list-row ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
       draggable
       onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "copyMove";
-        event.dataTransfer.setData("text/plain", model.absolutePath);
+        event.preventDefault();
         onDragStartModel(model);
         onStartFileDrag(model);
       }}

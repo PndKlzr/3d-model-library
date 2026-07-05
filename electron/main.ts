@@ -165,13 +165,17 @@ function registerIpcHandlers() {
     shell.showItemInFolder(absolutePath);
   });
 
-  ipcMain.handle("model:start-file-drag", async (event, filePaths: string[]) => {
-    const resolvedPaths = await resolveDraggableFilePaths(requireLibraryPath(), filePaths);
-    event.sender.startDrag({
-      file: resolvedPaths[0],
-      files: resolvedPaths,
-      icon: dragIcon
-    });
+  ipcMain.on("model:start-file-drag", async (event, filePaths: string[]) => {
+    try {
+      const resolvedPaths = await resolveDraggableFilePaths(requireLibraryPath(), filePaths);
+      event.sender.startDrag({
+        file: resolvedPaths[0],
+        files: resolvedPaths,
+        icon: dragIcon
+      });
+    } catch (error) {
+      console.error("[file-drag]", error);
+    }
   });
 
   ipcMain.handle("settings:choose-slicer-executable", async () => {

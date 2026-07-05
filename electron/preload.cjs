@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
     ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),
   showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
-  startFileDrag: (filePaths) => ipcRenderer.invoke("model:start-file-drag", filePaths),
+  startFileDrag: (filePaths) => ipcRenderer.send("model:start-file-drag", filePaths),
   readModelFile: (absolutePath) => ipcRenderer.invoke("model:read-file", absolutePath),
   chooseSlicerExecutable: () => ipcRenderer.invoke("settings:choose-slicer-executable"),
   launchSlicer: (slicerId, modelPath) => ipcRenderer.invoke("slicer:launch", slicerId, modelPath)

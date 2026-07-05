@@ -31,4 +31,16 @@ describe("product flow contract", () => {
     expect(gridSource).toContain("onOpenModelContextMenu");
     expect(gridSource).toContain("onContextMenu");
   });
+
+  it("uses native Electron file drag instead of a text path payload for external slicers", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const preloadSource = await readFile("electron/preload.cjs", "utf8");
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(gridSource).toContain("event.preventDefault()");
+    expect(gridSource).not.toContain('setData("text/plain"');
+    expect(preloadSource).toContain('ipcRenderer.send("model:start-file-drag"');
+    expect(preloadSource).not.toContain('ipcRenderer.invoke("model:start-file-drag"');
+    expect(mainSource).toContain('ipcMain.on("model:start-file-drag"');
+  });
 });
