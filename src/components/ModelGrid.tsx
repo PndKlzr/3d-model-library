@@ -3,11 +3,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Folder,
-  RotateCcw,
   Search,
   Settings,
-  Star,
-  Trash2
+  Star
 } from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
@@ -50,8 +48,6 @@ type ModelGridProps = {
   onOpenFolder: (folderId: string) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
-  onTrashSelectedModels: () => void;
-  onUndoLastAction: () => void;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
@@ -95,8 +91,6 @@ export function ModelGrid({
   onOpenFolder,
   onOpenFolderContextMenu,
   onMoveModelsToFolder,
-  onTrashSelectedModels,
-  onUndoLastAction,
   onOpenModel,
   onToggleModelSelection,
   onDragStartModel,
@@ -106,7 +100,6 @@ export function ModelGrid({
 }: ModelGridProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const hasGridContent = folderCards.length > 0 || models.length > 0;
-  const undoableAction = actionLogEntries.find((entry) => entry.undoable && !entry.undone);
 
   function allowFolderDrop(event: DragEvent, folderId: string) {
     if (!canMoveModels) {
@@ -159,26 +152,6 @@ export function ModelGrid({
           </div>
         </div>
         <div className="toolbar-actions">
-          <button
-            className="secondary-button danger-button"
-            type="button"
-            onClick={onTrashSelectedModels}
-            disabled={selectedModelIds.size === 0}
-            title="Mover selecionados para a Lixeira"
-          >
-            <Trash2 size={16} />
-            Lixeira
-          </button>
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={onUndoLastAction}
-            disabled={!undoableAction}
-            title={undoableAction ? `Desfazer: ${undoableAction.label}` : "Nada para desfazer"}
-          >
-            <RotateCcw size={16} />
-            Desfazer
-          </button>
           <button
             className="icon-only"
             type="button"

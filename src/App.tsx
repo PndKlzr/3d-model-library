@@ -16,6 +16,7 @@ import {
 import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
+import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
 import type {
   AppSettings,
@@ -135,6 +136,37 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [lastFocusedItem, selectedFolder, selectedModel]);
+
+  useEffect(() => {
+    function handleMouseDown(event: MouseEvent) {
+      const intent = getMouseNavigationIntent(event.button);
+
+      if (!intent) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (intent === "back") {
+        goBackFolder();
+      } else {
+        goForwardFolder();
+      }
+    }
+
+    function preventAuxClickNavigation(event: MouseEvent) {
+      if (getMouseNavigationIntent(event.button)) {
+        event.preventDefault();
+      }
+    }
+
+    window.addEventListener("mousedown", handleMouseDown);
+    window.addEventListener("auxclick", preventAuxClickNavigation);
+    return () => {
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("auxclick", preventAuxClickNavigation);
+    };
+  }, [folderHistory, selectedFolder]);
 
   async function chooseFolder() {
     const libraryPath = await window.modelLibrary.chooseLibraryFolder();
@@ -299,7 +331,6 @@ function App() {
 
   function openFolderContextMenu(folderId: string, x: number, y: number) {
     setLastFocusedItem("folder");
-    setSelectedFolder(folderId);
     expandFolderAncestors(folderId);
     setFolderContextMenu({ folderId, x, y });
   }
@@ -379,12 +410,15 @@ function App() {
     setDraggedModelIds([]);
   }
 
-  async function createFolder() {
+  async function createFolder(parentFolderOverride?: string) {
+    setFolderContextMenu(null);
+
     if (!settings?.libraryPath) {
       return;
     }
 
-    const parentFolder = selectedFolder === ALL_FOLDERS_ID ? "" : selectedFolder;
+    const parentFolderId = parentFolderOverride ?? selectedFolder;
+    const parentFolder = parentFolderId === ALL_FOLDERS_ID ? "" : parentFolderId;
     const folderName = window.prompt(
       parentFolder ? `Nova pasta dentro de ${parentFolder}` : "Nova pasta na raiz"
     );
@@ -472,8 +506,26 @@ function App() {
       return;
     }
 
-    const draggedIdSet = new Set(draggedModelIds);
-    const modelsToMove = models.filter((model) => draggedIdSet.has(model.id));
+    await moveModelsToFolderByIds(draggedModelIds, destinationFolder);
+  }
+
+  async function moveSelectedModelsToFolder(destinationFolder: string) {
+    setFolderContextMenu(null);
+
+    if (selectedModelIds.size === 0) {
+      return;
+    }
+
+    await moveModelsToFolderByIds([...selectedModelIds], destinationFolder);
+  }
+
+  async function moveModelsToFolderByIds(modelIds: string[], destinationFolder: string) {
+    if (!settings?.libraryPath || modelIds.length === 0) {
+      return;
+    }
+
+    const modelIdSet = new Set(modelIds);
+    const modelsToMove = models.filter((model) => modelIdSet.has(model.id));
 
     if (modelsToMove.length === 0) {
       return;
@@ -508,6 +560,8 @@ function App() {
   }
 
   async function trashSelectedModels() {
+    setFolderContextMenu(null);
+
     if (!settings?.libraryPath || selectedModelIds.size === 0) {
       return;
     }
@@ -544,6 +598,8 @@ function App() {
   }
 
   async function undoLastAction() {
+    setFolderContextMenu(null);
+
     if (!settings?.libraryPath) {
       return;
     }
@@ -655,8 +711,6 @@ function App() {
         onSelectFolder={selectFolder}
         onToggleFolder={toggleExpandedFolder}
         onToggleIncludeSubfolders={updateIncludeSubfolders}
-        onCreateFolder={createFolder}
-        onRenameFolder={renameFolder}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
       />
@@ -695,8 +749,6 @@ function App() {
         onOpenFolder={selectFolder}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
-        onTrashSelectedModels={trashSelectedModels}
-        onUndoLastAction={undoLastAction}
         onOpenModel={openModel}
         onToggleModelSelection={toggleModelSelection}
         onDragStartModel={startDraggingModel}
@@ -735,8 +787,60 @@ function App() {
           role="menu"
           onMouseLeave={() => setFolderContextMenu(null)}
         >
-          <button type="button" role="menuitem" onClick={() => renameFolder(folderContextMenu.folderId)}>
-            Renomear
+          <button type="button" role="menuitem" onClick={() => selectFolder(folderContextMenu.folderId)}>
+            Abrir pasta
+          </button>
+          <button type="button" role="menuitem" onClick={() => createFolder(folderContextMenu.folderId)}>
+            Nova pasta aqui
+          </button>
+          {folderContextMenu.folderId !== ALL_FOLDERS_ID ? (
+            <button type="button" role="menuitem" onClick={() => renameFolder(folderContextMenu.folderId)}>
+              Renomear
+            </button>
+          ) : null}
+          {selectedModelIds.size > 0 ? (
+            <>
+              <div className="context-menu-separator" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => moveSelectedModelsToFolder(folderContextMenu.folderId)}
+              >
+                Mover selecionados aqui
+              </button>
+              <button className="danger-menu-item" type="button" role="menuitem" onClick={trashSelectedModels}>
+                Mover selecionados para Lixeira
+              </button>
+            </>
+          ) : null}
+          {actionLogEntries.some((entry) => entry.undoable && !entry.undone) ? (
+            <>
+              <div className="context-menu-separator" />
+              <button type="button" role="menuitem" onClick={undoLastAction}>
+                Desfazer ultima acao
+              </button>
+            </>
+          ) : null}
+          <div className="context-menu-separator" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setFolderContextMenu(null);
+              void scanLibrary(settings.libraryPath ?? "");
+            }}
+          >
+            Atualizar biblioteca
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setFolderContextMenu(null);
+              setIsSettingsOpen(true);
+            }}
+          >
+            Configuracoes
           </button>
         </div>
       ) : null}

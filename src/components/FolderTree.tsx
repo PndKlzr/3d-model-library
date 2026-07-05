@@ -1,4 +1,4 @@
-import { ChevronRight, Folder, FolderPen, FolderPlus, Layers3 } from "lucide-react";
+import { ChevronRight, Folder, Layers3 } from "lucide-react";
 import type { DragEvent, MouseEvent } from "react";
 import { useState } from "react";
 import type { FolderNode } from "../lib/folderTree";
@@ -15,8 +15,6 @@ type FolderTreeProps = {
   onSelectFolder: (folderId: string) => void;
   onToggleFolder: (folderId: string) => void;
   onToggleIncludeSubfolders: (value: boolean) => void;
-  onCreateFolder: () => void;
-  onRenameFolder: () => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
 };
@@ -32,8 +30,6 @@ export function FolderTree({
   onSelectFolder,
   onToggleFolder,
   onToggleIncludeSubfolders,
-  onCreateFolder,
-  onRenameFolder,
   onOpenFolderContextMenu,
   onMoveModelsToFolder
 }: FolderTreeProps) {
@@ -75,6 +71,10 @@ export function FolderTree({
         }`}
         type="button"
         onClick={() => onSelectFolder(ALL_FOLDERS_ID)}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          onOpenFolderContextMenu(ALL_FOLDERS_ID, event.clientX, event.clientY);
+        }}
         onDragOver={(event) => allowFolderDrop(event, ALL_FOLDERS_ID)}
         onDragLeave={() => setDragOverFolder(null)}
         onDrop={(event) => dropOnFolder(event, ALL_FOLDERS_ID)}
@@ -91,22 +91,6 @@ export function FolderTree({
         />
         <span>Incluir subpastas</span>
       </label>
-
-      <div className="folder-tools" aria-label="Organizar pastas">
-        <button type="button" onClick={onCreateFolder} title="Criar pasta">
-          <FolderPlus size={16} />
-          <span>Nova pasta</span>
-        </button>
-        <button
-          type="button"
-          onClick={onRenameFolder}
-          disabled={selectedFolder === ALL_FOLDERS_ID}
-          title="Renomear pasta selecionada"
-        >
-          <FolderPen size={16} />
-          <span>Renomear</span>
-        </button>
-      </div>
 
       {selectedModelCount > 0 ? (
         <div className="selection-hint">
