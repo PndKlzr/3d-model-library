@@ -42,5 +42,7 @@ describe("product flow contract", () => {
     expect(preloadSource).toContain('ipcRenderer.send("model:start-file-drag"');
     expect(preloadSource).not.toContain('ipcRenderer.invoke("model:start-file-drag"');
     expect(mainSource).toContain('ipcMain.on("model:start-file-drag"');
+    expect(mainSource).not.toContain('ipcMain.on("model:start-file-drag", async');
+    expect(mainSource).toContain("resolveDraggableFilePathsSync");
   });
 });

@@ -2,7 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveDraggableFilePaths } from "../../electron/services/fileDrag";
+import {
+  resolveDraggableFilePaths,
+  resolveDraggableFilePathsSync
+} from "../../electron/services/fileDrag";
 
 let tempRoot: string;
 
@@ -26,6 +29,10 @@ describe("fileDrag", () => {
       stlPath,
       threeMfPath
     ]);
+    expect(resolveDraggableFilePathsSync(tempRoot, [stlPath, threeMfPath])).toEqual([
+      stlPath,
+      threeMfPath
+    ]);
   });
 
   it("rejects files outside the configured library", async () => {
@@ -35,6 +42,9 @@ describe("fileDrag", () => {
     await expect(resolveDraggableFilePaths(tempRoot, [outsidePath])).rejects.toThrow(
       "Arquivo fora da biblioteca."
     );
+    expect(() => resolveDraggableFilePathsSync(tempRoot, [outsidePath])).toThrow(
+      "Arquivo fora da biblioteca."
+    );
   });
 
   it("rejects non-printable archive files for drag-out", async () => {
@@ -42,6 +52,9 @@ describe("fileDrag", () => {
     await writeFile(archivePath, "zip");
 
     await expect(resolveDraggableFilePaths(tempRoot, [archivePath])).rejects.toThrow(
+      "Arraste para slicer aceita apenas STL e 3MF."
+    );
+    expect(() => resolveDraggableFilePathsSync(tempRoot, [archivePath])).toThrow(
       "Arraste para slicer aceita apenas STL e 3MF."
     );
   });
