@@ -1,4 +1,4 @@
-import { mkdir, rename, stat } from "node:fs/promises";
+import { mkdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { FileOperationResult, FileRestorePair } from "../../src/shared/types.js";
 
@@ -211,6 +211,38 @@ export async function renameModelFile(
   }
 
   return { ok: true, message: "Arquivo renomeado.", path: destinationPath };
+}
+
+export async function saveConvertedStlFile(
+  rootPath: string,
+  sourcePath: string,
+  stlContent: string
+): Promise<FileOperationResult> {
+  const safeSourcePath = resolveExistingAbsolutePath(rootPath, sourcePath);
+
+  if (path.extname(safeSourcePath).toLowerCase() !== ".3mf") {
+    throw new Error("Apenas arquivos 3MF podem ser convertidos para STL.");
+  }
+
+  const sourceStat = await stat(safeSourcePath);
+
+  if (!sourceStat.isFile()) {
+    throw new Error("Arquivo de origem invalido.");
+  }
+
+  const destinationPath = path.join(
+    path.dirname(safeSourcePath),
+    `${path.basename(safeSourcePath, path.extname(safeSourcePath))}.stl`
+  );
+  await assertAvailable(destinationPath, "Ja existe um STL com esse nome.");
+  await writeFile(destinationPath, stlContent);
+
+  return {
+    ok: true,
+    message: "STL convertido salvo.",
+    path: destinationPath,
+    paths: [destinationPath]
+  };
 }
 
 export async function restoreLibraryPaths(

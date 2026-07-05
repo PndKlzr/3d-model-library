@@ -1,8 +1,8 @@
-import { Calendar, Eye, FolderOpen, Pencil, Scissors, Star, Weight } from "lucide-react";
+import { Archive, Calendar, Eye, FolderOpen, Pencil, Scissors, Star, Weight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ModelViewer } from "./ModelViewer";
 import { TagSelector } from "./TagSelector";
-import type { AppSettings, ModelFile, ModelUserMetadata } from "../shared/types";
+import type { AppSettings, ArchiveEntry, ModelFile, ModelUserMetadata } from "../shared/types";
 
 type DetailsTab = "info" | "notes" | "actions";
 
@@ -19,6 +19,8 @@ type DetailsPanelProps = {
   onToggleFavorite: (modelPath: string) => Promise<void>;
   onSetModelTags: (modelPath: string, tags: string[]) => Promise<void>;
   onSetModelNotes: (modelPath: string, notes: string) => Promise<void>;
+  onExtractArchiveEntries: (archivePath: string, entryPaths: string[]) => Promise<void>;
+  onConvertThreeMfToStl: (modelPath: string) => Promise<void>;
 };
 
 export function DetailsPanel({
@@ -33,22 +35,71 @@ export function DetailsPanel({
   onShowModelInFolder,
   onToggleFavorite,
   onSetModelTags,
-  onSetModelNotes
+  onSetModelNotes,
+  onExtractArchiveEntries,
+  onConvertThreeMfToStl
 }: DetailsPanelProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailsTab>("info");
   const [notesDraft, setNotesDraft] = useState("");
+  const [archiveEntries, setArchiveEntries] = useState<ArchiveEntry[]>([]);
+  const [selectedArchiveEntryPaths, setSelectedArchiveEntryPaths] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [archiveMessage, setArchiveMessage] = useState<string | null>(null);
+  const [isArchiveLoading, setIsArchiveLoading] = useState(false);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const favorite = modelMetadata?.favorite ?? false;
+  const isArchive = Boolean(model && isArchiveExtension(model.extension));
 
   useEffect(() => {
     setShowPreview(false);
     setActiveTab("info");
+    setArchiveEntries([]);
+    setSelectedArchiveEntryPaths(new Set());
+    setArchiveMessage(null);
   }, [model?.id]);
 
   useEffect(() => {
     setNotesDraft(modelMetadata?.notes ?? "");
   }, [model?.id, modelMetadata?.notes]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!model || !isArchive) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsArchiveLoading(true);
+    setArchiveMessage(null);
+
+    window.modelLibrary
+      .listArchiveEntries(model.absolutePath)
+      .then((result) => {
+        if (isMounted) {
+          setArchiveEntries(result.entries);
+          setSelectedArchiveEntryPaths(new Set(result.entries.map((entry) => entry.path)));
+        }
+      })
+      .catch((error) => {
+        if (isMounted) {
+          setArchiveMessage(error instanceof Error ? error.message : String(error));
+          setArchiveEntries([]);
+        }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsArchiveLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isArchive, model]);
 
   async function saveNotes() {
     if (!model) {
@@ -58,10 +109,49 @@ export function DetailsPanel({
     await onSetModelNotes(model.absolutePath, notesDraft);
   }
 
+  function toggleArchiveEntry(entryPath: string, selected: boolean) {
+    setSelectedArchiveEntryPaths((currentPaths) => {
+      const nextPaths = new Set(currentPaths);
+
+      if (selected) {
+        nextPaths.add(entryPath);
+      } else {
+        nextPaths.delete(entryPath);
+      }
+
+      return nextPaths;
+    });
+  }
+
+  async function extractSelectedArchiveEntries() {
+    if (!model) {
+      return;
+    }
+
+    await onExtractArchiveEntries(model.absolutePath, [...selectedArchiveEntryPaths]);
+  }
+
+  async function extractAllArchiveEntries() {
+    if (!model) {
+      return;
+    }
+
+    await onExtractArchiveEntries(
+      model.absolutePath,
+      archiveEntries.map((entry) => entry.path)
+    );
+  }
+
   return (
     <aside className="details-panel" aria-label="Detalhes do modelo">
       <div className="preview-stage">
-        {model && showPreview ? (
+        {model && isArchive ? (
+          <div className="preview-placeholder">
+            <Archive size={30} />
+            <strong>Arquivo compactado</strong>
+            <span>Veja os modelos dentro do pacote e extraia o que precisar.</span>
+          </div>
+        ) : model && showPreview ? (
           <ModelViewer model={model} />
         ) : model ? (
           <div className="preview-placeholder">
@@ -131,29 +221,77 @@ export function DetailsPanel({
             </div>
 
             {activeTab === "info" ? (
-              <dl className="metadata-list">
-                <div>
-                  <dt>
-                    <FolderOpen size={15} />
-                    Pasta
-                  </dt>
-                  <dd>{model.relativeFolder || "Raiz"}</dd>
-                </div>
-                <div>
-                  <dt>
-                    <Weight size={15} />
-                    Tamanho
-                  </dt>
-                  <dd>{formatBytes(model.sizeBytes)}</dd>
-                </div>
-                <div>
-                  <dt>
-                    <Calendar size={15} />
-                    Modificado
-                  </dt>
-                  <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
-                </div>
-              </dl>
+              <>
+                <dl className="metadata-list">
+                  <div>
+                    <dt>
+                      <FolderOpen size={15} />
+                      Pasta
+                    </dt>
+                    <dd>{model.relativeFolder || "Raiz"}</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <Weight size={15} />
+                      Tamanho
+                    </dt>
+                    <dd>{formatBytes(model.sizeBytes)}</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      <Calendar size={15} />
+                      Modificado
+                    </dt>
+                    <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
+                  </div>
+                </dl>
+                {isArchive ? (
+                  <div className="archive-panel">
+                    <p className="eyebrow">Conteudo do pacote</p>
+                    {isArchiveLoading ? <div className="notice">Lendo arquivo compactado...</div> : null}
+                    {archiveMessage ? <div className="notice warning">{archiveMessage}</div> : null}
+                    {!isArchiveLoading && !archiveMessage && archiveEntries.length === 0 ? (
+                      <div className="notice">Nenhum STL ou 3MF encontrado neste pacote.</div>
+                    ) : null}
+                    {archiveEntries.length > 0 ? (
+                      <>
+                        <div className="archive-entry-list">
+                          {archiveEntries.map((entry) => (
+                            <label className="archive-entry-row" key={entry.path}>
+                              <input
+                                type="checkbox"
+                                checked={selectedArchiveEntryPaths.has(entry.path)}
+                                onChange={(event) =>
+                                  toggleArchiveEntry(entry.path, event.currentTarget.checked)
+                                }
+                              />
+                              <span title={entry.path}>{entry.path}</span>
+                              <em>{formatBytes(entry.sizeBytes)}</em>
+                            </label>
+                          ))}
+                        </div>
+                        <div className="archive-actions">
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() => void extractSelectedArchiveEntries()}
+                            disabled={selectedArchiveEntryPaths.size === 0}
+                          >
+                            Extrair selecionados
+                          </button>
+                          <button
+                            className="primary-button"
+                            type="button"
+                            onClick={() => void extractAllArchiveEntries()}
+                          >
+                            Extrair tudo
+                          </button>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
             ) : null}
 
             {activeTab === "notes" ? (
@@ -191,11 +329,25 @@ export function DetailsPanel({
                     <Pencil size={16} />
                     Renomear arquivo
                   </button>
+                  {model.extension === ".3mf" ? (
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => onConvertThreeMfToStl(model.absolutePath)}
+                    >
+                      <Archive size={16} />
+                      Converter para STL
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="slicer-actions">
                   <p className="eyebrow">Slicers</p>
-                  {enabledSlicers.length === 0 ? (
+                  {isArchive ? (
+                    <div className="notice">
+                      Extraia um STL ou 3MF do pacote antes de abrir no slicer.
+                    </div>
+                  ) : enabledSlicers.length === 0 ? (
                     <div className="notice">
                       <Scissors size={16} />
                       <span>Configure Cura ou Creality Print para abrir este modelo.</span>
@@ -224,6 +376,10 @@ export function DetailsPanel({
       </div>
     </aside>
   );
+}
+
+function isArchiveExtension(extension: ModelFile["extension"]): boolean {
+  return extension === ".zip" || extension === ".rar" || extension === ".7z";
 }
 
 function formatBytes(bytes: number): string {

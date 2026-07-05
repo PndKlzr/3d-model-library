@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  ArchiveListResult,
   FileOperationResult,
   FileRestorePair,
   LibraryMetadata,
@@ -16,6 +17,12 @@ export type ModelLibraryApi = {
   saveSettings: (settings: AppSettings) => Promise<AppSettings>;
   chooseLibraryFolder: () => Promise<string | null>;
   scanLibrary: (rootPath: string) => Promise<LibraryScanResult>;
+  listArchiveEntries: (archivePath: string) => Promise<ArchiveListResult>;
+  extractArchiveEntries: (
+    archivePath: string,
+    entryPaths: string[],
+    destinationRelativeFolder?: string
+  ) => Promise<FileOperationResult>;
   createFolder: (
     parentRelativeFolder: string,
     folderName: string
@@ -45,6 +52,7 @@ export type ModelLibraryApi = {
     previewError: string | null;
   }>;
   readModelThumbnail: (absolutePath: string) => Promise<string | null>;
+  saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;

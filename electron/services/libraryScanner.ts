@@ -2,7 +2,7 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryScanResult, ModelFile } from "../../src/shared/types.js";
 
-const MODEL_EXTENSIONS = new Set([".stl", ".3mf"]);
+const LIBRARY_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
 
 export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> {
   const models: ModelFile[] = [];
@@ -42,7 +42,7 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
 
       const extension = path.extname(entry.name).toLowerCase();
 
-      if (!MODEL_EXTENSIONS.has(extension)) {
+      if (!LIBRARY_FILE_EXTENSIONS.has(extension)) {
         continue;
       }
 

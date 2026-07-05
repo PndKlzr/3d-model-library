@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AppSettings, ModelHashInput } from "../src/shared/types.js";
+import { extractArchiveEntries, listArchiveEntries } from "./services/archiveManager.js";
 import {
   createLibraryFolder,
   moveLibraryFolder,
@@ -10,6 +11,7 @@ import {
   renameLibraryFolder,
   renameModelFile,
   restoreLibraryPaths,
+  saveConvertedStlFile,
   trashLibraryFolder,
   trashModelFiles
 } from "./services/fileOrganizer.js";
@@ -51,6 +53,16 @@ function registerIpcHandlers() {
 
   ipcMain.handle("library:scan", (_event, rootPath: string) => scanLibrary(rootPath));
 
+  ipcMain.handle("archive:list", (_event, archivePath: string) =>
+    listArchiveEntries(requireLibraryPath(), archivePath)
+  );
+
+  ipcMain.handle(
+    "archive:extract",
+    (_event, archivePath: string, entryPaths: string[], destinationRelativeFolder?: string) =>
+      extractArchiveEntries(requireLibraryPath(), archivePath, entryPaths, destinationRelativeFolder)
+  );
+
   ipcMain.handle(
     "library:create-folder",
     (_event, parentRelativeFolder: string, folderName: string) =>
@@ -75,6 +87,10 @@ function registerIpcHandlers() {
 
   ipcMain.handle("library:rename-model-file", (_event, sourcePath: string, newName: string) =>
     renameModelFile(requireLibraryPath(), sourcePath, newName)
+  );
+
+  ipcMain.handle("model:save-converted-stl", (_event, sourcePath: string, stlContent: string) =>
+    saveConvertedStlFile(requireLibraryPath(), sourcePath, stlContent)
   );
 
   ipcMain.handle("library:trash-models", (_event, sourcePaths: string[]) =>

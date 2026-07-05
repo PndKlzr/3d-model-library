@@ -55,6 +55,12 @@ export function ModelViewer({ model }: ModelViewerProps) {
         </mesh>;
       }
 
+      if (model.extension !== ".3mf") {
+        return {
+          error: "Extraia um STL ou 3MF antes de carregar o preview 3D."
+        };
+      }
+
       const group = parseThreeMfPreview(modelBytes);
       return <primitive object={group} />;
     } catch (error) {

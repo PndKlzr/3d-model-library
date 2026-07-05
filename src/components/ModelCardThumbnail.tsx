@@ -62,6 +62,10 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
 }
 
 async function loadThumbnail(model: ModelFile) {
+  if (model.extension === ".zip" || model.extension === ".rar" || model.extension === ".7z") {
+    return null;
+  }
+
   if (model.extension === ".3mf") {
     const embeddedThumbnail = await window.modelLibrary.readModelThumbnail(model.absolutePath);
 

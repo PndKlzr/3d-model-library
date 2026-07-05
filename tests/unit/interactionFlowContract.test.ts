@@ -67,4 +67,25 @@ describe("interaction flow contract", () => {
     expect(gridSource).toContain("breadcrumb-drop-target");
     expect(gridSource).toContain("onDropOnFolder(event, ALL_FOLDERS_ID)");
   });
+
+  it("shows archive contents and extraction actions in the details panel", async () => {
+    const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(detailsSource).toContain("listArchiveEntries");
+    expect(detailsSource).toContain("archive-entry-list");
+    expect(detailsSource).toContain("Extrair selecionados");
+    expect(detailsSource).toContain("Extrair tudo");
+    expect(appSource).toContain("extractArchiveEntries");
+  });
+
+  it("offers a 3MF to STL conversion action from details", async () => {
+    const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(detailsSource).toContain("Converter para STL");
+    expect(detailsSource).toContain("onConvertThreeMfToStl");
+    expect(appSource).toContain("convertThreeMfToStl");
+    expect(appSource).toContain("saveConvertedStl");
+  });
 });

@@ -22,6 +22,7 @@ import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
+import { convertThreeMfToStl } from "./lib/threeMfToStl";
 import {
   parseModelViewMode,
   parseThemeMode,
@@ -893,6 +894,38 @@ function App() {
     });
   }
 
+  async function extractArchiveEntries(archivePath: string, entryPaths: string[]) {
+    if (!settings?.libraryPath || entryPaths.length === 0) {
+      return;
+    }
+
+    await runLibraryOperation(async () => {
+      const result = await window.modelLibrary.extractArchiveEntries(archivePath, entryPaths);
+
+      return {
+        message: result.message,
+        selectedPaths: result.paths ?? []
+      };
+    });
+  }
+
+  async function convertSelectedThreeMfToStl(modelPath: string) {
+    if (!settings?.libraryPath) {
+      return;
+    }
+
+    await runLibraryOperation(async () => {
+      const modelBytes = await window.modelLibrary.readModelFile(modelPath);
+      const stlContent = convertThreeMfToStl(modelBytes);
+      const result = await window.modelLibrary.saveConvertedStl(modelPath, stlContent);
+
+      return {
+        message: result.message,
+        selectedPaths: result.paths ?? []
+      };
+    });
+  }
+
   async function undoLastAction() {
     setFolderContextMenu(null);
     setModelContextMenu(null);
@@ -1078,6 +1111,8 @@ function App() {
         onToggleFavorite={toggleFavorite}
         onSetModelTags={setModelTags}
         onSetModelNotes={setModelNotes}
+        onExtractArchiveEntries={extractArchiveEntries}
+        onConvertThreeMfToStl={convertSelectedThreeMfToStl}
       />
       {isSettingsOpen ? (
         <SettingsDialog

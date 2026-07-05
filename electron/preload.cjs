@@ -6,6 +6,9 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   chooseLibraryFolder: () => ipcRenderer.invoke("settings:choose-library-folder"),
   scanLibrary: (rootPath) => ipcRenderer.invoke("library:scan", rootPath),
+  listArchiveEntries: (archivePath) => ipcRenderer.invoke("archive:list", archivePath),
+  extractArchiveEntries: (archivePath, entryPaths, destinationRelativeFolder) =>
+    ipcRenderer.invoke("archive:extract", archivePath, entryPaths, destinationRelativeFolder),
   createFolder: (parentRelativeFolder, folderName) =>
     ipcRenderer.invoke("library:create-folder", parentRelativeFolder, folderName),
   moveModels: (sourcePaths, destinationRelativeFolder) =>
@@ -27,6 +30,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   setModelNotes: (modelPath, notes) => ipcRenderer.invoke("metadata:set-notes", modelPath, notes),
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
+  saveConvertedStl: (sourcePath, stlContent) =>
+    ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),
   showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
   readModelFile: (absolutePath) => ipcRenderer.invoke("model:read-file", absolutePath),

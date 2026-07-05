@@ -10,7 +10,8 @@ import {
   trashModelFiles,
   renameLibraryFolder,
   renameModelFile,
-  restoreLibraryPaths
+  restoreLibraryPaths,
+  saveConvertedStlFile
 } from "../../electron/services/fileOrganizer";
 
 let tempRoot: string;
@@ -174,6 +175,23 @@ describe("file organizer", () => {
       path: path.join(tempRoot, "better clip.3mf")
     });
     await expect(readFile(path.join(tempRoot, "better clip.3mf"), "utf8")).resolves.toBe("model");
+  });
+
+  it("saves converted STL files next to the source 3MF", async () => {
+    const sourcePath = path.join(tempRoot, "clip.3mf");
+    await writeFile(sourcePath, "model");
+
+    const result = await saveConvertedStlFile(tempRoot, sourcePath, "solid converted\nendsolid converted");
+
+    expect(result).toEqual({
+      ok: true,
+      message: "STL convertido salvo.",
+      path: path.join(tempRoot, "clip.stl"),
+      paths: [path.join(tempRoot, "clip.stl")]
+    });
+    await expect(readFile(path.join(tempRoot, "clip.stl"), "utf8")).resolves.toBe(
+      "solid converted\nendsolid converted"
+    );
   });
 
   it("restores file operations from current paths back to previous paths", async () => {

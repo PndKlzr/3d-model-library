@@ -44,6 +44,21 @@ describe("scanLibrary", () => {
     expect(result.folders).toEqual(["props", "props/terrain"]);
   });
 
+  it("includes supported archive files as library items", async () => {
+    await writeFile(path.join(tempRoot, "pack.zip"), "zip");
+    await writeFile(path.join(tempRoot, "models.rar"), "rar");
+    await writeFile(path.join(tempRoot, "parts.7z"), "7z");
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models.map((model) => model.name).sort()).toEqual([
+      "models.rar",
+      "pack.zip",
+      "parts.7z"
+    ]);
+    expect(result.models.map((model) => model.extension).sort()).toEqual([".7z", ".rar", ".zip"]);
+  });
+
   it("returns empty folders so newly created folders appear in the UI", async () => {
     await mkdir(path.join(tempRoot, "new-folder", "nested"), { recursive: true });
 

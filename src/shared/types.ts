@@ -14,7 +14,7 @@ export type AppSettings = {
 export type ModelFile = {
   id: string;
   name: string;
-  extension: ".stl" | ".3mf";
+  extension: ".stl" | ".3mf" | ".zip" | ".rar" | ".7z";
   absolutePath: string;
   relativeFolder: string;
   sizeBytes: number;
@@ -63,6 +63,19 @@ export type FileOperationResult = {
   message: string;
   path?: string;
   paths?: string[];
+};
+
+export type ArchiveEntry = {
+  path: string;
+  name: string;
+  extension: ".stl" | ".3mf";
+  sizeBytes: number;
+};
+
+export type ArchiveListResult = {
+  ok: boolean;
+  archivePath: string;
+  entries: ArchiveEntry[];
 };
 
 export type FileRestorePair = {

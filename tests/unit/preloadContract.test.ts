@@ -9,6 +9,9 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("contextBridge.exposeInMainWorld(\"modelLibrary\"");
     expect(preloadSource).toContain("readModelMetadata");
     expect(preloadSource).toContain("readModelThumbnail");
+    expect(preloadSource).toContain("saveConvertedStl");
+    expect(preloadSource).toContain("listArchiveEntries");
+    expect(preloadSource).toContain("extractArchiveEntries");
     expect(preloadSource).toContain("getModelHashes");
     expect(preloadSource).toContain("createFolder");
     expect(preloadSource).toContain("moveModels");

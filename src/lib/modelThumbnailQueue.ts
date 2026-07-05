@@ -124,7 +124,11 @@ function createThumbnailObject(extension: ModelFile["extension"], modelBytes: Ar
     );
   }
 
-  return parseThreeMfPreview(modelBytes);
+  if (extension === ".3mf") {
+    return parseThreeMfPreview(modelBytes);
+  }
+
+  throw new Error("Arquivo sem thumbnail 3D.");
 }
 
 function centerObject(object: THREE.Object3D) {

@@ -39,7 +39,10 @@ type ThreeMfBuildItem = {
   transform?: string;
 };
 
-export function parseThreeMfPreview(buffer: ArrayBuffer): THREE.Group {
+export function parseThreeMfPreview(
+  buffer: ArrayBuffer,
+  options: { center?: boolean } = {}
+): THREE.Group {
   const files = unzipSync(new Uint8Array(buffer));
   const modelFiles = Object.entries(files).filter(([filePath]) =>
     isRenderableModelPath(filePath)
@@ -85,7 +88,10 @@ export function parseThreeMfPreview(buffer: ArrayBuffer): THREE.Group {
     throw new Error("3MF sem malhas renderizáveis.");
   }
 
-  centerObject(group);
+  if (options.center ?? true) {
+    centerObject(group);
+  }
+
   return group;
 }
 
