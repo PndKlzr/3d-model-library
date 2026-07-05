@@ -37,8 +37,9 @@ describe("product flow contract", () => {
     const preloadSource = await readFile("electron/preload.cjs", "utf8");
     const mainSource = await readFile("electron/main.ts", "utf8");
 
-    expect(gridSource).toContain("event.preventDefault()");
+    expect(gridSource).toContain('setData("application/x-model-library-model"');
     expect(gridSource).not.toContain('setData("text/plain"');
+    expect(gridSource).not.toContain("event.preventDefault();\n        onDragStartModel(model);");
     expect(preloadSource).toContain('ipcRenderer.send("model:start-file-drag"');
     expect(preloadSource).not.toContain('ipcRenderer.invoke("model:start-file-drag"');
     expect(mainSource).toContain('ipcMain.on("model:start-file-drag"');
