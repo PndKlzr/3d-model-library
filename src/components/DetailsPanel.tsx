@@ -1,6 +1,7 @@
-import { Calendar, Eye, FolderOpen, Pencil, Scissors, Star, Tag, Weight } from "lucide-react";
+import { Calendar, Eye, FolderOpen, Pencil, Scissors, Star, Weight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ModelViewer } from "./ModelViewer";
+import { TagSelector } from "./TagSelector";
 import type { AppSettings, ModelFile, ModelUserMetadata } from "../shared/types";
 
 type DetailsTab = "info" | "notes" | "actions";
@@ -18,7 +19,6 @@ type DetailsPanelProps = {
   onToggleFavorite: (modelPath: string) => Promise<void>;
   onSetModelTags: (modelPath: string, tags: string[]) => Promise<void>;
   onSetModelNotes: (modelPath: string, notes: string) => Promise<void>;
-  onCreateTag: () => Promise<void>;
 };
 
 export function DetailsPanel({
@@ -33,12 +33,10 @@ export function DetailsPanel({
   onShowModelInFolder,
   onToggleFavorite,
   onSetModelTags,
-  onSetModelNotes,
-  onCreateTag
+  onSetModelNotes
 }: DetailsPanelProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailsTab>("info");
-  const [tagDraft, setTagDraft] = useState("");
   const [notesDraft, setNotesDraft] = useState("");
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const favorite = modelMetadata?.favorite ?? false;
@@ -49,20 +47,8 @@ export function DetailsPanel({
   }, [model?.id]);
 
   useEffect(() => {
-    setTagDraft(modelMetadata?.tags.join(", ") ?? "");
     setNotesDraft(modelMetadata?.notes ?? "");
-  }, [model?.id, modelMetadata?.tags, modelMetadata?.notes]);
-
-  async function saveTags() {
-    if (!model) {
-      return;
-    }
-
-    await onSetModelTags(
-      model.absolutePath,
-      tagDraft.split(",").map((tag) => tag.trim())
-    );
-  }
+  }, [model?.id, modelMetadata?.notes]);
 
   async function saveNotes() {
     if (!model) {
@@ -70,22 +56,6 @@ export function DetailsPanel({
     }
 
     await onSetModelNotes(model.absolutePath, notesDraft);
-  }
-
-  async function togglePredefinedTag(tag: string) {
-    if (!model) {
-      return;
-    }
-
-    const tags = new Set(modelMetadata?.tags ?? []);
-
-    if (tags.has(tag)) {
-      tags.delete(tag);
-    } else {
-      tags.add(tag);
-    }
-
-    await onSetModelTags(model.absolutePath, [...tags]);
   }
 
   return (
@@ -188,48 +158,11 @@ export function DetailsPanel({
 
             {activeTab === "notes" ? (
               <div className="organization-panel">
-                <div className="predefined-tag-list" aria-label="Tags pre-definidas">
-                  <div className="tag-list-header">
-                    <span>Tags pre-definidas</span>
-                    <button type="button" onClick={onCreateTag}>
-                      Nova tag
-                    </button>
-                  </div>
-                  {availableTags.length > 0 ? (
-                    <div className="tag-choice-grid">
-                      {availableTags.map((tag) => (
-                        <button
-                          className={modelMetadata?.tags.includes(tag) ? "active" : ""}
-                          type="button"
-                          key={tag}
-                          onClick={() => void togglePredefinedTag(tag)}
-                        >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p>Nenhuma tag criada ainda.</p>
-                  )}
-                </div>
-                <label>
-                  <span>
-                    <Tag size={15} />
-                    Tags
-                  </span>
-                  <input
-                    value={tagDraft}
-                    onChange={(event) => setTagDraft(event.currentTarget.value)}
-                    onBlur={() => void saveTags()}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        void saveTags();
-                      }
-                    }}
-                    placeholder="fidget, casa, suporte"
-                  />
-                </label>
+                <TagSelector
+                  selectedTags={modelMetadata?.tags ?? []}
+                  availableTags={availableTags}
+                  onChange={(tags) => onSetModelTags(model.absolutePath, tags)}
+                />
                 <label>
                   <span>Notas</span>
                   <textarea

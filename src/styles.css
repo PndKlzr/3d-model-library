@@ -528,7 +528,9 @@ button {
   position: fixed;
   z-index: 20;
   min-width: 236px;
-  max-width: 320px;
+  width: min(320px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   border: 1px solid #bcc9cd;
   border-radius: var(--radius);
   background: var(--panel-strong);
@@ -558,29 +560,6 @@ button {
   color: #273033;
   text-align: left;
   font-weight: 800;
-}
-
-.context-menu-check-item span {
-  display: grid;
-  width: 16px;
-  height: 16px;
-  place-items: center;
-  border: 1px solid #b8c7cb;
-  border-radius: 4px;
-  color: var(--accent-strong);
-  font-size: 11px;
-}
-
-.context-menu-check-item.active {
-  background: #eef7f5;
-  color: var(--accent-strong);
-}
-
-.context-menu-empty {
-  display: block;
-  padding: 6px 10px 8px;
-  color: var(--ink-muted);
-  font-size: 12px;
 }
 
 .context-menu button:hover {
@@ -1234,61 +1213,163 @@ button {
   gap: 8px;
 }
 
-.predefined-tag-list {
+.organization-panel label {
   display: grid;
-  gap: 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.72);
-  padding: 10px;
+  gap: 6px;
 }
 
-.tag-list-header {
+.tag-selector {
+  position: relative;
+  display: grid;
+  gap: 7px;
+}
+
+.tag-selector-label {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.tag-list-header span {
+  gap: 7px;
   color: var(--ink-muted);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
 }
 
-.tag-list-header button,
-.tag-choice-grid button {
+.tag-selector-trigger {
+  min-height: 42px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: white;
-  color: #273033;
+  background: rgba(255, 255, 255, 0.92);
   padding: 7px 9px;
-  font-size: 12px;
-  font-weight: 800;
+  color: #263034;
+  text-align: left;
 }
 
-.tag-choice-grid {
+.tag-selector-trigger:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(40, 124, 120, 0.18);
+  outline: none;
+}
+
+.tag-selector-chips {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.tag-choice-grid button.active {
-  border-color: var(--accent);
-  background: #dcecea;
+.tag-selector-chips em {
+  border: 1px solid #b8c9cc;
+  border-radius: 999px;
+  background: #e7f2f0;
+  padding: 4px 8px;
   color: var(--accent-strong);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 800;
 }
 
-.predefined-tag-list p {
-  margin: 0;
+.tag-selector-empty {
+  color: var(--ink-muted);
+  font-weight: 700;
+}
+
+.tag-selector-popover {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid #bcc9cd;
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+  box-shadow: 0 14px 28px rgba(30, 40, 45, 0.18);
+  padding: 8px;
+}
+
+.tag-selector-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #f7f9fa;
+  padding: 0 8px;
+  color: var(--ink-muted);
+}
+
+.tag-selector-search input {
+  width: 100%;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  outline: none;
+}
+
+.tag-selector-options {
+  display: grid;
+  gap: 4px;
+}
+
+.tag-selector-option {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  border-radius: 6px;
+  padding: 0 7px;
+  color: #2f393d;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.tag-selector-option:hover {
+  background: #e7f2f0;
+}
+
+.tag-selector-option input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent);
+}
+
+.tag-selector-create {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #eef7f5;
+  color: var(--accent-strong);
+  padding: 0 9px;
+  font-weight: 900;
+}
+
+.tag-selector-no-results {
+  padding: 8px;
   color: var(--ink-muted);
   font-size: 13px;
 }
 
-.organization-panel label {
+.tag-picker-dialog {
   display: grid;
-  gap: 6px;
+  width: min(460px, calc(100vw - 28px));
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+  padding: 18px;
+  box-shadow: 0 20px 50px rgba(20, 30, 35, 0.22);
+}
+
+.tag-picker-dialog h2 {
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .organization-panel label > span {

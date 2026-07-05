@@ -23,11 +23,17 @@ describe("interaction flow contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+    const tagSelectorSource = await readFile("src/components/TagSelector.tsx", "utf8");
 
     expect(appSource).toContain("addCatalogTag");
     expect(appSource).toContain("removeCatalogTag");
     expect(settingsSource).toContain("tag-settings-list");
-    expect(detailsSource).toContain("predefined-tag-list");
+    expect(detailsSource).toContain("TagSelector");
+    expect(detailsSource).not.toContain("predefined-tag-list");
+    expect(detailsSource).not.toContain("tagDraft");
+    expect(tagSelectorSource).toContain("Criar tag");
+    expect(tagSelectorSource).toContain("role=\"listbox\"");
+    expect(tagSelectorSource).toContain("type=\"checkbox\"");
   });
 
   it("autoscrolls the sidebar while dragging models over the folder tree edges", async () => {

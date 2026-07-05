@@ -1,11 +1,14 @@
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { FirstRun } from "./components/FirstRun";
 import { FolderTree } from "./components/FolderTree";
 import { ModelGrid } from "./components/ModelGrid";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { TagSelector } from "./components/TagSelector";
 import { TextInputDialog, type TextInputDialogOptions } from "./components/TextInputDialog";
 import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
+import { getContextMenuPosition } from "./lib/contextMenuPosition";
 import { buildFolderTree } from "./lib/folderTree";
 import { ALL_FOLDERS_ID, filterModels, type ModelSortMode, type ModelTypeFilter } from "./lib/folderFilters";
 import {
@@ -34,6 +37,9 @@ const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
 const MODEL_VIEW_MODE_STORAGE_KEY = "model-library-view-mode";
 const OPERATION_MESSAGE_TIMEOUT_MS = 6000;
 const UNDO_TOAST_TIMEOUT_MS = 8000;
+const CONTEXT_MENU_WIDTH = 320;
+const FOLDER_CONTEXT_MENU_HEIGHT = 430;
+const MODEL_CONTEXT_MENU_HEIGHT = 420;
 
 type LocalActionLogEntry = LibraryActionLogEntry & {
   restorePairs?: FileRestorePair[];
@@ -59,6 +65,7 @@ function App() {
     x: number;
     y: number;
   } | null>(null);
+  const [tagPickerDialog, setTagPickerDialog] = useState<{ model: ModelFile } | null>(null);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() =>
     readExpandedFolders()
   );
@@ -180,6 +187,7 @@ function App() {
       if (event.key === "Escape") {
         setFolderContextMenu(null);
         setModelContextMenu(null);
+        setTagPickerDialog(null);
         return;
       }
 
@@ -330,27 +338,6 @@ function App() {
     setTextInputDialog(null);
   }
 
-  async function editModelTags(model: ModelFile) {
-    setModelContextMenu(null);
-    const currentTags = libraryMetadata.models[model.absolutePath]?.tags.join(", ") ?? "";
-    const nextTags = await requestTextInput({
-      title: "Editar tags",
-      label: "Tags separadas por virgula",
-      initialValue: currentTags,
-      placeholder: "fidget, suporte, cosplay",
-      confirmLabel: "Salvar tags"
-    });
-
-    if (nextTags === null) {
-      return;
-    }
-
-    await setModelTags(
-      model.absolutePath,
-      nextTags.split(",").map((tag) => tag.trim())
-    );
-  }
-
   async function addCatalogTag() {
     const tag = await requestTextInput({
       title: "Nova tag",
@@ -364,24 +351,6 @@ function App() {
     }
 
     setLibraryMetadata(await window.modelLibrary.addCatalogTag(tag));
-  }
-
-  async function createAndApplyTagToModel(model: ModelFile) {
-    setModelContextMenu(null);
-    const tag = await requestTextInput({
-      title: "Nova tag",
-      label: "Nome da tag",
-      placeholder: "ex: suporte",
-      confirmLabel: "Criar e aplicar"
-    });
-
-    if (!tag?.trim()) {
-      return;
-    }
-
-    await window.modelLibrary.addCatalogTag(tag);
-    const currentTags = libraryMetadata.models[model.absolutePath]?.tags ?? [];
-    setLibraryMetadata(await window.modelLibrary.setModelTags(model.absolutePath, [...currentTags, tag]));
   }
 
   async function removeCatalogTag(tag: string) {
@@ -400,15 +369,6 @@ function App() {
 
       return nextTags;
     });
-  }
-
-  async function toggleModelCatalogTag(model: ModelFile, tag: string) {
-    const currentTags = libraryMetadata.models[model.absolutePath]?.tags ?? [];
-    const nextTags = currentTags.includes(tag)
-      ? currentTags.filter((currentTag) => currentTag !== tag)
-      : [...currentTags, tag];
-
-    setLibraryMetadata(await window.modelLibrary.setModelTags(model.absolutePath, nextTags));
   }
 
   async function scanLibrary(rootPath: string, preferredSelectedPaths: string[] = []) {
@@ -981,7 +941,6 @@ function App() {
         onToggleFavorite={toggleFavorite}
         onSetModelTags={setModelTags}
         onSetModelNotes={setModelNotes}
-        onCreateTag={addCatalogTag}
       />
       {isSettingsOpen ? (
         <SettingsDialog
@@ -1015,10 +974,30 @@ function App() {
           onConfirm={(value) => closeTextInputDialog(value)}
         />
       ) : null}
+      {tagPickerDialog ? (
+        <div className="dialog-backdrop" role="presentation">
+          <section className="tag-picker-dialog" role="dialog" aria-modal="true" aria-label="Tags do modelo">
+            <header className="dialog-header">
+              <div>
+                <p className="eyebrow">Tags</p>
+                <h2>{tagPickerDialog.model.name}</h2>
+              </div>
+              <button className="icon-only" type="button" onClick={() => setTagPickerDialog(null)}>
+                Fechar
+              </button>
+            </header>
+            <TagSelector
+              selectedTags={libraryMetadata.models[tagPickerDialog.model.absolutePath]?.tags ?? []}
+              availableTags={availableTags}
+              onChange={(tags) => setModelTags(tagPickerDialog.model.absolutePath, tags)}
+            />
+          </section>
+        </div>
+      ) : null}
       {folderContextMenu ? (
         <div
           className="context-menu"
-          style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
+          style={getContextMenuStyle(folderContextMenu, "folder")}
           role="menu"
           onMouseLeave={() => setFolderContextMenu(null)}
         >
@@ -1086,7 +1065,7 @@ function App() {
       {modelContextMenu ? (
         <div
           className="context-menu"
-          style={{ left: modelContextMenu.x, top: modelContextMenu.y }}
+          style={getContextMenuStyle(modelContextMenu, "model")}
           role="menu"
           onMouseLeave={() => setModelContextMenu(null)}
         >
@@ -1113,41 +1092,16 @@ function App() {
           </button>
           <div className="context-menu-separator" />
           <div className="context-menu-section-title">Tags</div>
-          {libraryMetadata.tagCatalog.length > 0 ? (
-            libraryMetadata.tagCatalog.map((tag) => {
-              const hasTag =
-                libraryMetadata.models[modelContextMenu.model.absolutePath]?.tags.includes(tag) ?? false;
-
-              return (
-                <button
-                  className={`context-menu-check-item ${hasTag ? "active" : ""}`}
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={hasTag}
-                  key={tag}
-                  onClick={() => void toggleModelCatalogTag(modelContextMenu.model, tag)}
-                >
-                  <span>{hasTag ? "x" : ""}</span>
-                  {tag}
-                </button>
-              );
-            })
-          ) : (
-            <span className="context-menu-empty">Nenhuma tag criada</span>
-          )}
           <button
             type="button"
             role="menuitem"
-            onClick={() => void createAndApplyTagToModel(modelContextMenu.model)}
+            onClick={() => {
+              const model = modelContextMenu.model;
+              setModelContextMenu(null);
+              setTagPickerDialog({ model });
+            }}
           >
-            Nova tag para este modelo
-          </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => void editModelTags(modelContextMenu.model)}
-          >
-            Editar tags
+            Tags...
           </button>
           {enabledSlicers.length > 0 ? (
             <>
@@ -1218,6 +1172,25 @@ function buildFolderPath(libraryPath: string, folderId: string): string {
   const normalizedFolder = folderId.replaceAll("/", "\\").replace(/^[\\/]+|[\\/]+$/g, "");
 
   return normalizedFolder ? `${normalizedRoot}\\${normalizedFolder}` : normalizedRoot;
+}
+
+function getContextMenuStyle(
+  menu: { x: number; y: number },
+  type: "folder" | "model"
+): CSSProperties {
+  const position = getContextMenuPosition({
+    x: menu.x,
+    y: menu.y,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    menuWidth: CONTEXT_MENU_WIDTH,
+    menuHeight: type === "model" ? MODEL_CONTEXT_MENU_HEIGHT : FOLDER_CONTEXT_MENU_HEIGHT
+  });
+
+  return {
+    left: position.left,
+    top: position.top
+  };
 }
 
 function createActionLogEntry(

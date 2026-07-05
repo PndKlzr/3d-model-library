@@ -22,6 +22,25 @@ describe("folder context menu contract", () => {
     expect(appSource).toContain("Desfazer ultima acao");
   });
 
+  it("opens model tags through the unified tag selector instead of inline tag actions", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("tagPickerDialog");
+    expect(appSource).toContain("Tags...");
+    expect(appSource).not.toContain("context-menu-check-item");
+    expect(appSource).not.toContain("Editar tags");
+  });
+
+  it("clamps context menus to the viewport", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const stylesSource = await readFile("src/styles.css", "utf8");
+
+    expect(appSource).toContain("getContextMenuPosition");
+    expect(appSource).toContain("getContextMenuStyle");
+    expect(stylesSource).toContain("max-height: calc(100vh - 24px)");
+    expect(stylesSource).toContain("overflow-y: auto");
+  });
+
   it("supports Delete as a trash shortcut without hijacking text inputs", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const keyHandler = appSource.match(/function handleKeyDown[\s\S]*?\n    }\n/)?.[0];

@@ -1,0 +1,122 @@
+import { Plus, Search, Tag } from "lucide-react";
+import { useMemo, useState } from "react";
+
+type TagSelectorProps = {
+  selectedTags: string[];
+  availableTags: string[];
+  onChange: (tags: string[]) => Promise<void> | void;
+  label?: string;
+  placeholder?: string;
+};
+
+export function TagSelector({
+  selectedTags,
+  availableTags,
+  onChange,
+  label = "Tags",
+  placeholder = "Buscar ou criar tag"
+}: TagSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const normalizedSelectedTags = useMemo(() => normalizeTags(selectedTags), [selectedTags]);
+  const selectedTagSet = new Set(normalizedSelectedTags);
+  const normalizedAvailableTags = useMemo(
+    () => normalizeTags([...availableTags, ...selectedTags]),
+    [availableTags, selectedTags]
+  );
+  const normalizedQuery = normalizeTag(query);
+  const visibleTags = normalizedAvailableTags.filter((tag) => tag.includes(normalizedQuery));
+  const canCreateTag =
+    normalizedQuery.length > 0 && !normalizedAvailableTags.includes(normalizedQuery);
+
+  async function toggleTag(tag: string) {
+    if (selectedTagSet.has(tag)) {
+      await onChange(normalizedSelectedTags.filter((selectedTag) => selectedTag !== tag));
+    } else {
+      await onChange(normalizeTags([...normalizedSelectedTags, tag]));
+    }
+  }
+
+  async function createTag() {
+    if (!canCreateTag) {
+      return;
+    }
+
+    await onChange(normalizeTags([...normalizedSelectedTags, normalizedQuery]));
+    setQuery("");
+    setIsOpen(true);
+  }
+
+  return (
+    <div className="tag-selector">
+      <span className="tag-selector-label">
+        <Tag size={15} />
+        {label}
+      </span>
+      <button
+        className="tag-selector-trigger"
+        type="button"
+        onClick={() => setIsOpen((currentValue) => !currentValue)}
+        aria-expanded={isOpen}
+      >
+        {normalizedSelectedTags.length > 0 ? (
+          <span className="tag-selector-chips">
+            {normalizedSelectedTags.map((tag) => (
+              <em key={tag}>{tag}</em>
+            ))}
+          </span>
+        ) : (
+          <span className="tag-selector-empty">Selecionar tags</span>
+        )}
+      </button>
+      {isOpen ? (
+        <div className="tag-selector-popover" role="listbox" aria-label={label}>
+          <label className="tag-selector-search">
+            <Search size={15} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void createTag();
+                }
+              }}
+              placeholder={placeholder}
+            />
+          </label>
+          <div className="tag-selector-options">
+            {visibleTags.length > 0 ? (
+              visibleTags.map((tag) => (
+                <label className="tag-selector-option" key={tag}>
+                  <input
+                    type="checkbox"
+                    checked={selectedTagSet.has(tag)}
+                    onChange={() => void toggleTag(tag)}
+                  />
+                  <span>{tag}</span>
+                </label>
+              ))
+            ) : (
+              <span className="tag-selector-no-results">Nenhuma tag encontrada.</span>
+            )}
+          </div>
+          {canCreateTag ? (
+            <button className="tag-selector-create" type="button" onClick={() => void createTag()}>
+              <Plus size={15} />
+              Criar tag "{normalizedQuery}"
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function normalizeTags(tags: string[]): string[] {
+  return [...new Set(tags.map(normalizeTag).filter(Boolean))].sort();
+}
+
+function normalizeTag(tag: string): string {
+  return tag.trim().toLowerCase();
+}
