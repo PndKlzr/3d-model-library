@@ -11,4 +11,31 @@ describe("folder context menu contract", () => {
     expect(contextMenuHandler).toBeTruthy();
     expect(contextMenuHandler).not.toContain("setSelectedFolder");
   });
+
+  it("keeps organization actions in grouped context menus", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("context-menu-section-title");
+    expect(appSource).toContain("Pasta");
+    expect(appSource).toContain("Organizar");
+    expect(appSource).toContain("Tags");
+    expect(appSource).toContain("Desfazer ultima acao");
+  });
+
+  it("supports Delete as a trash shortcut without hijacking text inputs", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const keyHandler = appSource.match(/function handleKeyDown[\s\S]*?\n    }\n/)?.[0];
+
+    expect(keyHandler).toBeTruthy();
+    expect(keyHandler).toContain('event.key === "Delete"');
+    expect(keyHandler).toContain("isTextInputTarget");
+    expect(keyHandler).toContain("trashSelectedModels");
+  });
+
+  it("autoscrolls the sidebar while dragging over its empty space", async () => {
+    const folderTreeSource = await readFile("src/components/FolderTree.tsx", "utf8");
+
+    expect(folderTreeSource).toContain("onDragOver={scrollSidebarDuringDrag}");
+    expect(folderTreeSource).toContain("onDragLeave={() => setDragOverFolder(null)}");
+  });
 });

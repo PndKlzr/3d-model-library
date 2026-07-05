@@ -183,7 +183,17 @@ function App() {
         return;
       }
 
-      if (event.key !== "F2" || isTextInputTarget(event.target)) {
+      if (isTextInputTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === "Delete" && selectedModelIds.size > 0) {
+        event.preventDefault();
+        void trashSelectedModels();
+        return;
+      }
+
+      if (event.key !== "F2") {
         return;
       }
 
@@ -208,7 +218,7 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lastFocusedItem, selectedFolder, selectedModel]);
+  }, [lastFocusedItem, selectedFolder, selectedModel, selectedModelIds]);
 
   useEffect(() => {
     function handleMouseDown(event: MouseEvent) {
@@ -356,6 +366,24 @@ function App() {
     setLibraryMetadata(await window.modelLibrary.addCatalogTag(tag));
   }
 
+  async function createAndApplyTagToModel(model: ModelFile) {
+    setModelContextMenu(null);
+    const tag = await requestTextInput({
+      title: "Nova tag",
+      label: "Nome da tag",
+      placeholder: "ex: suporte",
+      confirmLabel: "Criar e aplicar"
+    });
+
+    if (!tag?.trim()) {
+      return;
+    }
+
+    await window.modelLibrary.addCatalogTag(tag);
+    const currentTags = libraryMetadata.models[model.absolutePath]?.tags ?? [];
+    setLibraryMetadata(await window.modelLibrary.setModelTags(model.absolutePath, [...currentTags, tag]));
+  }
+
   async function removeCatalogTag(tag: string) {
     setLibraryMetadata(await window.modelLibrary.removeCatalogTag(tag));
   }
@@ -372,6 +400,15 @@ function App() {
 
       return nextTags;
     });
+  }
+
+  async function toggleModelCatalogTag(model: ModelFile, tag: string) {
+    const currentTags = libraryMetadata.models[model.absolutePath]?.tags ?? [];
+    const nextTags = currentTags.includes(tag)
+      ? currentTags.filter((currentTag) => currentTag !== tag)
+      : [...currentTags, tag];
+
+    setLibraryMetadata(await window.modelLibrary.setModelTags(model.absolutePath, nextTags));
   }
 
   async function scanLibrary(rootPath: string, preferredSelectedPaths: string[] = []) {
@@ -985,6 +1022,7 @@ function App() {
           role="menu"
           onMouseLeave={() => setFolderContextMenu(null)}
         >
+          <div className="context-menu-section-title">Pasta</div>
           <button type="button" role="menuitem" onClick={() => selectFolder(folderContextMenu.folderId)}>
             Abrir pasta
           </button>
@@ -999,6 +1037,7 @@ function App() {
           {selectedModelIds.size > 0 ? (
             <>
               <div className="context-menu-separator" />
+              <div className="context-menu-section-title">Organizar</div>
               <button
                 type="button"
                 role="menuitem"
@@ -1014,12 +1053,14 @@ function App() {
           {actionLogEntries.some((entry) => entry.undoable && !entry.undone) ? (
             <>
               <div className="context-menu-separator" />
+              <div className="context-menu-section-title">Historico</div>
               <button type="button" role="menuitem" onClick={undoLastAction}>
                 Desfazer ultima acao
               </button>
             </>
           ) : null}
           <div className="context-menu-separator" />
+          <div className="context-menu-section-title">Biblioteca</div>
           <button
             type="button"
             role="menuitem"
@@ -1049,6 +1090,7 @@ function App() {
           role="menu"
           onMouseLeave={() => setModelContextMenu(null)}
         >
+          <div className="context-menu-section-title">Modelo</div>
           <button
             type="button"
             role="menuitem"
@@ -1069,6 +1111,37 @@ function App() {
               ? "Remover dos favoritos"
               : "Adicionar aos favoritos"}
           </button>
+          <div className="context-menu-separator" />
+          <div className="context-menu-section-title">Tags</div>
+          {libraryMetadata.tagCatalog.length > 0 ? (
+            libraryMetadata.tagCatalog.map((tag) => {
+              const hasTag =
+                libraryMetadata.models[modelContextMenu.model.absolutePath]?.tags.includes(tag) ?? false;
+
+              return (
+                <button
+                  className={`context-menu-check-item ${hasTag ? "active" : ""}`}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={hasTag}
+                  key={tag}
+                  onClick={() => void toggleModelCatalogTag(modelContextMenu.model, tag)}
+                >
+                  <span>{hasTag ? "x" : ""}</span>
+                  {tag}
+                </button>
+              );
+            })
+          ) : (
+            <span className="context-menu-empty">Nenhuma tag criada</span>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void createAndApplyTagToModel(modelContextMenu.model)}
+          >
+            Nova tag para este modelo
+          </button>
           <button
             type="button"
             role="menuitem"
@@ -1079,6 +1152,7 @@ function App() {
           {enabledSlicers.length > 0 ? (
             <>
               <div className="context-menu-separator" />
+              <div className="context-menu-section-title">Slicer</div>
               {enabledSlicers.map((slicer) => (
                 <button
                   type="button"
@@ -1096,6 +1170,7 @@ function App() {
             </>
           ) : null}
           <div className="context-menu-separator" />
+          <div className="context-menu-section-title">Arquivo</div>
           <button
             type="button"
             role="menuitem"

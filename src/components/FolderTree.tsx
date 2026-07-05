@@ -58,7 +58,13 @@ export function FolderTree({
   }
 
   return (
-    <aside className="sidebar" aria-label="Pastas da biblioteca" ref={sidebarRef}>
+    <aside
+      className="sidebar"
+      aria-label="Pastas da biblioteca"
+      ref={sidebarRef}
+      onDragOver={scrollSidebarDuringDrag}
+      onDragLeave={() => setDragOverFolder(null)}
+    >
       <div className="brand-block">
         <span className="brand-mark">3D</span>
         <div>
@@ -122,12 +128,17 @@ export function FolderTree({
   );
 
   function scrollSidebarDuringDrag(event: DragEvent) {
+    if (!canMoveModels) {
+      return;
+    }
+
     const sidebar = sidebarRef.current;
 
     if (!sidebar) {
       return;
     }
 
+    event.preventDefault();
     const edgeSize = 72;
     const scrollStep = 18;
     const rect = sidebar.getBoundingClientRect();

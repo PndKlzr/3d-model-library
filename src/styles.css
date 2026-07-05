@@ -527,7 +527,8 @@ button {
 .context-menu {
   position: fixed;
   z-index: 20;
-  min-width: 220px;
+  min-width: 236px;
+  max-width: 320px;
   border: 1px solid #bcc9cd;
   border-radius: var(--radius);
   background: var(--panel-strong);
@@ -535,8 +536,21 @@ button {
   padding: 5px;
 }
 
+.context-menu-section-title {
+  padding: 7px 10px 4px;
+  color: var(--ink-muted);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
 .context-menu button {
+  display: flex;
+  min-height: 33px;
   width: 100%;
+  align-items: center;
+  gap: 8px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -544,6 +558,29 @@ button {
   color: #273033;
   text-align: left;
   font-weight: 800;
+}
+
+.context-menu-check-item span {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid #b8c7cb;
+  border-radius: 4px;
+  color: var(--accent-strong);
+  font-size: 11px;
+}
+
+.context-menu-check-item.active {
+  background: #eef7f5;
+  color: var(--accent-strong);
+}
+
+.context-menu-empty {
+  display: block;
+  padding: 6px 10px 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
 }
 
 .context-menu button:hover {
