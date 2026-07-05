@@ -11,6 +11,7 @@ describe("settingsStore", () => {
     expect(store.getSettings()).toEqual(createDefaultSettings());
     expect(store.getSettings().libraryPath).toBeNull();
     expect(store.getSettings().includeSubfolders).toBe(true);
+    expect(store.getSettings().archiveExtractorPath).toBe("");
     expect(store.getSettings().slicers).toEqual([
       { id: "cura", name: "Cura", executablePath: "", enabled: false },
       {
@@ -66,5 +67,16 @@ describe("settingsStore", () => {
       executablePath: "C:\\Program Files\\UltiMaker Cura\\Cura.exe",
       enabled: true
     });
+  });
+
+  it("saves the optional 7-Zip executable path", () => {
+    const store = createSettingsStore();
+
+    store.saveSettings({
+      ...store.getSettings(),
+      archiveExtractorPath: "C:\\Program Files\\7-Zip\\7z.exe"
+    });
+
+    expect(store.getSettings().archiveExtractorPath).toBe("C:\\Program Files\\7-Zip\\7z.exe");
   });
 });

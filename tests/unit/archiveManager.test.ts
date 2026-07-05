@@ -3,7 +3,11 @@ import os from "node:os";
 import path from "node:path";
 import { strToU8, zipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { extractArchiveEntries, listArchiveEntries } from "../../electron/services/archiveManager";
+import {
+  extractArchiveEntries,
+  listArchiveEntries,
+  parseSevenZipListOutput
+} from "../../electron/services/archiveManager";
 
 let tempRoot: string;
 
@@ -83,5 +87,93 @@ describe("archiveManager", () => {
     await expect(extractArchiveEntries(tempRoot, archivePath, ["../escape.stl"])).rejects.toThrow(
       "Entrada insegura no arquivo compactado"
     );
+  });
+
+  it("parses printable entries from 7-Zip technical list output", () => {
+    const entries = parseSevenZipListOutput(`
+Path = folder
+Folder = +
+Size = 0
+
+Path = folder/part.stl
+Size = 1024
+Folder = -
+
+Path = model.3mf
+Size = 2048
+Folder = -
+
+Path = notes/readme.txt
+Size = 12
+Folder = -
+`);
+
+    expect(entries).toEqual([
+      {
+        path: "folder/part.stl",
+        name: "part.stl",
+        extension: ".stl",
+        sizeBytes: 1024
+      },
+      {
+        path: "model.3mf",
+        name: "model.3mf",
+        extension: ".3mf",
+        sizeBytes: 2048
+      }
+    ]);
+  });
+
+  it("lists printable entries inside a rar archive through 7-Zip", async () => {
+    const archivePath = path.join(tempRoot, "pack.rar");
+    await writeFile(archivePath, "fake rar");
+
+    const result = await listArchiveEntries(tempRoot, archivePath, {
+      extractorPath: process.execPath,
+      runSevenZip: async () => ({
+        stdout: `
+Path = part.stl
+Size = 33
+Folder = -
+
+Path = ignored.txt
+Size = 9
+Folder = -
+`,
+        stderr: ""
+      })
+    });
+
+    expect(result.entries).toEqual([
+      {
+        path: "part.stl",
+        name: "part.stl",
+        extension: ".stl",
+        sizeBytes: 33
+      }
+    ]);
+  });
+
+  it("extracts selected 7z entries through 7-Zip into the library", async () => {
+    await mkdir(path.join(tempRoot, "archives"));
+    const archivePath = path.join(tempRoot, "archives", "pack.7z");
+    await writeFile(archivePath, "fake 7z");
+    const calls: string[][] = [];
+
+    const result = await extractArchiveEntries(tempRoot, archivePath, ["folder/part.stl"], undefined, {
+      extractorPath: process.execPath,
+      runSevenZip: async (args) => {
+        calls.push(args);
+        return { stdout: "Everything is Ok", stderr: "" };
+      }
+    });
+
+    const destinationRoot = path.join(tempRoot, "archives", "pack");
+    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(result).toEqual({
+      ok: true,
+      message: "1 arquivo extraido.",
+      paths: [path.join(destinationRoot, "folder", "part.stl")]
+    });
   });
 });

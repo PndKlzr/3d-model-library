@@ -14,6 +14,7 @@ export function createDefaultSettings(): AppSettings {
   return {
     libraryPath: null,
     includeSubfolders: true,
+    archiveExtractorPath: "",
     slicers: [
       { id: "cura", name: "Cura", executablePath: "", enabled: false },
       {
@@ -75,6 +76,7 @@ function normalizeSettings(settings: AppSettings): AppSettings {
   return {
     libraryPath: settings.libraryPath,
     includeSubfolders: settings.includeSubfolders,
+    archiveExtractorPath: settings.archiveExtractorPath ?? "",
     slicers: settings.slicers.map((slicer: SlicerConfig) => ({ ...slicer }))
   };
 }

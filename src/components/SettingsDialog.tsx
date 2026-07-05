@@ -1,4 +1,4 @@
-import { FolderOpen, Settings, X } from "lucide-react";
+import { Archive, FolderOpen, Settings, X } from "lucide-react";
 import type { ThemeMode } from "../lib/viewPreferences";
 import type { AppSettings, SlicerConfig } from "../shared/types";
 
@@ -8,6 +8,7 @@ type SettingsDialogProps = {
   onClose: () => void;
   onSaveSettings: (settings: AppSettings) => Promise<void>;
   onChooseLibraryFolder: () => Promise<void>;
+  onChooseArchiveExtractor: () => Promise<void>;
   onChooseSlicerExecutable: (slicer: SlicerConfig) => Promise<void>;
   onAddCatalogTag: () => Promise<void>;
   onRemoveCatalogTag: (tag: string) => Promise<void>;
@@ -21,6 +22,7 @@ export function SettingsDialog({
   onClose,
   onSaveSettings,
   onChooseLibraryFolder,
+  onChooseArchiveExtractor,
   onChooseSlicerExecutable,
   onAddCatalogTag,
   onRemoveCatalogTag,
@@ -89,6 +91,28 @@ export function SettingsDialog({
             ) : (
               <p>Nenhuma tag pre-definida.</p>
             )}
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>Arquivos compactados</h3>
+          <div className="path-row">
+            <Archive size={17} />
+            <span>
+              {settings.archiveExtractorPath ||
+                "Auto: C:\\Program Files\\7-Zip\\7z.exe ou 7-Zip no PATH"}
+            </span>
+            <button type="button" onClick={onChooseArchiveExtractor}>
+              Escolher 7z.exe
+            </button>
+            {settings.archiveExtractorPath ? (
+              <button
+                type="button"
+                onClick={() => onSaveSettings({ ...settings, archiveExtractorPath: "" })}
+              >
+                Auto
+              </button>
+            ) : null}
           </div>
         </div>
 

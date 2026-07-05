@@ -71,12 +71,16 @@ describe("interaction flow contract", () => {
   it("shows archive contents and extraction actions in the details panel", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
     const appSource = await readFile("src/App.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
 
     expect(detailsSource).toContain("listArchiveEntries");
     expect(detailsSource).toContain("archive-entry-list");
     expect(detailsSource).toContain("Extrair selecionados");
     expect(detailsSource).toContain("Extrair tudo");
     expect(appSource).toContain("extractArchiveEntries");
+    expect(appSource).toContain("chooseArchiveExtractor");
+    expect(settingsSource).toContain("Arquivos compactados");
+    expect(settingsSource).toContain("onChooseArchiveExtractor");
   });
 
   it("offers a 3MF to STL conversion action from details", async () => {

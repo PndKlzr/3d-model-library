@@ -54,13 +54,19 @@ function registerIpcHandlers() {
   ipcMain.handle("library:scan", (_event, rootPath: string) => scanLibrary(rootPath));
 
   ipcMain.handle("archive:list", (_event, archivePath: string) =>
-    listArchiveEntries(requireLibraryPath(), archivePath)
+    listArchiveEntries(requireLibraryPath(), archivePath, getArchiveToolOptions())
   );
 
   ipcMain.handle(
     "archive:extract",
     (_event, archivePath: string, entryPaths: string[], destinationRelativeFolder?: string) =>
-      extractArchiveEntries(requireLibraryPath(), archivePath, entryPaths, destinationRelativeFolder)
+      extractArchiveEntries(
+        requireLibraryPath(),
+        archivePath,
+        entryPaths,
+        destinationRelativeFolder,
+        getArchiveToolOptions()
+      )
   );
 
   ipcMain.handle(
@@ -165,6 +171,16 @@ function registerIpcHandlers() {
     return result.canceled ? null : result.filePaths[0];
   });
 
+  ipcMain.handle("settings:choose-archive-extractor", async () => {
+    const result = await dialog.showOpenDialog({
+      title: "Escolha o 7z.exe",
+      filters: [{ name: "7-Zip", extensions: ["exe"] }],
+      properties: ["openFile"]
+    });
+
+    return result.canceled ? null : result.filePaths[0];
+  });
+
   ipcMain.handle("slicer:launch", async (_event, slicerId: string, modelPath: string) => {
     const settings = settingsStore.getSettings();
     const slicer = settings.slicers.find((item) => item.id === slicerId);
@@ -210,6 +226,12 @@ function requireLibraryPath(): string {
   }
 
   return settings.libraryPath;
+}
+
+function getArchiveToolOptions() {
+  return {
+    extractorPath: settingsStore.getSettings().archiveExtractorPath
+  };
 }
 
 async function createWindow() {

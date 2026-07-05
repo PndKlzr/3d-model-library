@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   chooseLibraryFolder: () => ipcRenderer.invoke("settings:choose-library-folder"),
+  chooseArchiveExtractor: () => ipcRenderer.invoke("settings:choose-archive-extractor"),
   scanLibrary: (rootPath) => ipcRenderer.invoke("library:scan", rootPath),
   listArchiveEntries: (archivePath) => ipcRenderer.invoke("archive:list", archivePath),
   extractArchiveEntries: (archivePath, entryPaths, destinationRelativeFolder) =>

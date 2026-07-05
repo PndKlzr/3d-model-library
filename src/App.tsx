@@ -339,6 +339,23 @@ function App() {
     });
   }
 
+  async function chooseArchiveExtractor() {
+    if (!settings) {
+      return;
+    }
+
+    const archiveExtractorPath = await window.modelLibrary.chooseArchiveExtractor();
+
+    if (!archiveExtractorPath) {
+      return;
+    }
+
+    await saveSettings({
+      ...settings,
+      archiveExtractorPath
+    });
+  }
+
   async function launchSlicer(slicerId: string, modelPath: string) {
     const result = await window.modelLibrary.launchSlicer(slicerId, modelPath);
     setLaunchMessage(result.message);
@@ -1121,6 +1138,7 @@ function App() {
           onClose={() => setIsSettingsOpen(false)}
           onSaveSettings={saveSettings}
           onChooseLibraryFolder={chooseFolder}
+          onChooseArchiveExtractor={chooseArchiveExtractor}
           onChooseSlicerExecutable={chooseSlicerExecutable}
           onAddCatalogTag={addCatalogTag}
           onRemoveCatalogTag={removeCatalogTag}
