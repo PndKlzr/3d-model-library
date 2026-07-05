@@ -155,7 +155,14 @@ export function ModelGrid({
             >
               <ChevronRight size={15} />
             </button>
-            <Breadcrumb selectedFolder={selectedFolder} onOpenFolder={onOpenFolder} />
+            <Breadcrumb
+              selectedFolder={selectedFolder}
+              dragOverFolder={dragOverFolder}
+              onOpenFolder={onOpenFolder}
+              onDragOverFolder={allowFolderDrop}
+              onDropOnFolder={dropOnFolder}
+              onDragLeaveFolder={() => setDragOverFolder(null)}
+            />
           </div>
         </div>
         <div className="toolbar-actions">
@@ -386,15 +393,33 @@ export function ModelGrid({
 
 type BreadcrumbProps = {
   selectedFolder: string;
+  dragOverFolder: string | null;
   onOpenFolder: (folderId: string) => void;
+  onDragOverFolder: (event: DragEvent, folderId: string) => void;
+  onDropOnFolder: (event: DragEvent, folderId: string) => void;
+  onDragLeaveFolder: () => void;
 };
 
-function Breadcrumb({ selectedFolder, onOpenFolder }: BreadcrumbProps) {
+function Breadcrumb({
+  selectedFolder,
+  dragOverFolder,
+  onOpenFolder,
+  onDragOverFolder,
+  onDropOnFolder,
+  onDragLeaveFolder
+}: BreadcrumbProps) {
   const parts = selectedFolder === ALL_FOLDERS_ID ? [] : selectedFolder.split("/").filter(Boolean);
 
   return (
     <nav className="breadcrumbs">
-      <button type="button" onClick={() => onOpenFolder(ALL_FOLDERS_ID)}>
+      <button
+        className={dragOverFolder === ALL_FOLDERS_ID ? "breadcrumb-drop-target" : ""}
+        type="button"
+        onClick={() => onOpenFolder(ALL_FOLDERS_ID)}
+        onDragOver={(event) => onDragOverFolder(event, ALL_FOLDERS_ID)}
+        onDragLeave={onDragLeaveFolder}
+        onDrop={(event) => onDropOnFolder(event, ALL_FOLDERS_ID)}
+      >
         Todos os modelos
       </button>
       {parts.map((part, index) => {
@@ -403,7 +428,14 @@ function Breadcrumb({ selectedFolder, onOpenFolder }: BreadcrumbProps) {
         return (
           <span key={folderId}>
             <ChevronRight size={13} />
-            <button type="button" onClick={() => onOpenFolder(folderId)}>
+            <button
+              className={dragOverFolder === folderId ? "breadcrumb-drop-target" : ""}
+              type="button"
+              onClick={() => onOpenFolder(folderId)}
+              onDragOver={(event) => onDragOverFolder(event, folderId)}
+              onDragLeave={onDragLeaveFolder}
+              onDrop={(event) => onDropOnFolder(event, folderId)}
+            >
               {part}
             </button>
           </span>

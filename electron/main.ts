@@ -5,10 +5,12 @@ import { fileURLToPath } from "node:url";
 import type { AppSettings, ModelHashInput } from "../src/shared/types.js";
 import {
   createLibraryFolder,
+  moveLibraryFolder,
   moveModelFiles,
   renameLibraryFolder,
   renameModelFile,
   restoreLibraryPaths,
+  trashLibraryFolder,
   trashModelFiles
 } from "./services/fileOrganizer.js";
 import type { FileRestorePair } from "../src/shared/types.js";
@@ -61,6 +63,12 @@ function registerIpcHandlers() {
       moveModelFiles(requireLibraryPath(), sourcePaths, destinationRelativeFolder)
   );
 
+  ipcMain.handle(
+    "library:move-folder",
+    (_event, folderRelativePath: string, destinationRelativeFolder: string) =>
+      moveLibraryFolder(requireLibraryPath(), folderRelativePath, destinationRelativeFolder)
+  );
+
   ipcMain.handle("library:rename-folder", (_event, folderRelativePath: string, newName: string) =>
     renameLibraryFolder(requireLibraryPath(), folderRelativePath, newName)
   );
@@ -71,6 +79,12 @@ function registerIpcHandlers() {
 
   ipcMain.handle("library:trash-models", (_event, sourcePaths: string[]) =>
     trashModelFiles(requireLibraryPath(), sourcePaths, (modelPath) => shell.trashItem(modelPath))
+  );
+
+  ipcMain.handle("library:trash-folder", (_event, folderRelativePath: string) =>
+    trashLibraryFolder(requireLibraryPath(), folderRelativePath, (folderPath) =>
+      shell.trashItem(folderPath)
+    )
   );
 
   ipcMain.handle("library:restore-paths", (_event, pathPairs: FileRestorePair[]) =>

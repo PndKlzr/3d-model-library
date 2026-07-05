@@ -10,10 +10,13 @@ contextBridge.exposeInMainWorld("modelLibrary", {
     ipcRenderer.invoke("library:create-folder", parentRelativeFolder, folderName),
   moveModels: (sourcePaths, destinationRelativeFolder) =>
     ipcRenderer.invoke("library:move-models", sourcePaths, destinationRelativeFolder),
+  moveFolder: (folderRelativePath, destinationRelativeFolder) =>
+    ipcRenderer.invoke("library:move-folder", folderRelativePath, destinationRelativeFolder),
   renameFolder: (folderRelativePath, newName) =>
     ipcRenderer.invoke("library:rename-folder", folderRelativePath, newName),
   renameModelFile: (sourcePath, newName) =>
     ipcRenderer.invoke("library:rename-model-file", sourcePath, newName),
+  trashFolder: (folderRelativePath) => ipcRenderer.invoke("library:trash-folder", folderRelativePath),
   trashModels: (sourcePaths) => ipcRenderer.invoke("library:trash-models", sourcePaths),
   restoreLibraryPaths: (pathPairs) => ipcRenderer.invoke("library:restore-paths", pathPairs),
   getLibraryMetadata: () => ipcRenderer.invoke("metadata:get"),

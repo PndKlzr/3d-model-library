@@ -144,6 +144,55 @@ export async function renameLibraryFolder(
   return { ok: true, message: "Pasta renomeada.", path: destinationPath };
 }
 
+export async function moveLibraryFolder(
+  rootPath: string,
+  folderRelativePath: string,
+  destinationRelativeFolder: string
+): Promise<FileOperationResult> {
+  if (!folderRelativePath) {
+    throw new Error("A pasta raiz nao pode ser movida.");
+  }
+
+  const sourcePath = resolveLibraryPath(rootPath, folderRelativePath);
+  await assertDirectory(sourcePath);
+
+  const destinationFolder = resolveLibraryPath(rootPath, destinationRelativeFolder);
+  await assertDirectory(destinationFolder);
+
+  if (isSameOrInside(sourcePath, destinationFolder)) {
+    throw new Error("Nao e possivel mover uma pasta para dentro dela mesma.");
+  }
+
+  const destinationPath = path.join(destinationFolder, path.basename(sourcePath));
+
+  if (!samePath(sourcePath, destinationPath)) {
+    await assertAvailable(destinationPath, "Ja existe uma pasta com esse nome no destino.");
+    await rename(sourcePath, destinationPath);
+  }
+
+  return {
+    ok: true,
+    message: samePath(sourcePath, destinationPath) ? "Pasta ja estava nesse destino." : "Pasta movida.",
+    path: destinationPath
+  };
+}
+
+export async function trashLibraryFolder(
+  rootPath: string,
+  folderRelativePath: string,
+  trashItem: (absolutePath: string) => Promise<void>
+): Promise<FileOperationResult> {
+  if (!folderRelativePath) {
+    throw new Error("A pasta raiz nao pode ir para a Lixeira.");
+  }
+
+  const sourcePath = resolveLibraryPath(rootPath, folderRelativePath);
+  await assertDirectory(sourcePath);
+  await trashItem(sourcePath);
+
+  return { ok: true, message: "Pasta movida para a Lixeira.", path: sourcePath };
+}
+
 export async function renameModelFile(
   rootPath: string,
   sourcePath: string,
@@ -315,6 +364,11 @@ async function assertAvailable(candidatePath: string, message: string) {
 
 function samePath(left: string, right: string): boolean {
   return path.resolve(left).toLowerCase() === path.resolve(right).toLowerCase();
+}
+
+function isSameOrInside(parentPath: string, candidatePath: string): boolean {
+  const relativePath = path.relative(path.resolve(parentPath), path.resolve(candidatePath));
+  return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
 }
 
 function isNotFoundError(error: unknown): boolean {

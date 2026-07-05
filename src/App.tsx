@@ -198,10 +198,10 @@ function App() {
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setFolderContextMenu(null);
-        setModelContextMenu(null);
-        setTagPickerDialog(null);
-        return;
+        if (closeTopOverlay()) {
+          event.preventDefault();
+          return;
+        }
       }
 
       if (isTextInputTarget(event.target)) {
@@ -239,7 +239,17 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lastFocusedItem, selectedFolder, selectedModel, selectedModelIds]);
+  }, [
+    folderContextMenu,
+    isSettingsOpen,
+    lastFocusedItem,
+    modelContextMenu,
+    selectedFolder,
+    selectedModel,
+    selectedModelIds,
+    tagPickerDialog,
+    textInputDialog
+  ]);
 
   useEffect(() => {
     function handleMouseDown(event: MouseEvent) {
@@ -250,6 +260,10 @@ function App() {
       }
 
       event.preventDefault();
+
+      if (closeTopOverlay()) {
+        return;
+      }
 
       if (intent === "back") {
         goBackFolder();
@@ -270,7 +284,15 @@ function App() {
       window.removeEventListener("mousedown", handleMouseDown);
       window.removeEventListener("auxclick", preventAuxClickNavigation);
     };
-  }, [folderHistory, selectedFolder]);
+  }, [
+    folderContextMenu,
+    folderHistory,
+    isSettingsOpen,
+    modelContextMenu,
+    selectedFolder,
+    tagPickerDialog,
+    textInputDialog
+  ]);
 
   async function chooseFolder() {
     const libraryPath = await window.modelLibrary.chooseLibraryFolder();
@@ -349,6 +371,35 @@ function App() {
     textInputResolver.current?.(value);
     textInputResolver.current = null;
     setTextInputDialog(null);
+  }
+
+  function closeTopOverlay(): boolean {
+    if (textInputDialog) {
+      closeTextInputDialog(null);
+      return true;
+    }
+
+    if (tagPickerDialog) {
+      setTagPickerDialog(null);
+      return true;
+    }
+
+    if (modelContextMenu) {
+      setModelContextMenu(null);
+      return true;
+    }
+
+    if (folderContextMenu) {
+      setFolderContextMenu(null);
+      return true;
+    }
+
+    if (isSettingsOpen) {
+      setIsSettingsOpen(false);
+      return true;
+    }
+
+    return false;
   }
 
   async function addCatalogTag() {
@@ -633,6 +684,79 @@ function App() {
             destinationPath: sourcePath
           }
         ])
+      };
+    });
+  }
+
+  async function moveFolder(folderId = selectedFolder) {
+    setFolderContextMenu(null);
+    setModelContextMenu(null);
+
+    if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
+      setOperationMessage("Selecione uma pasta para mover.");
+      return;
+    }
+
+    const folderName = folderId.split("/").pop() ?? folderId;
+    const destinationFolder = await requestTextInput({
+      title: `Mover ${folderName}`,
+      label: "Pasta destino",
+      placeholder: "Vazio = Raiz; ex: Decoracao/Suportes",
+      confirmLabel: "Mover"
+    });
+
+    if (destinationFolder === null) {
+      return;
+    }
+
+    const targetFolder = normalizeFolderInput(destinationFolder);
+    const sourcePath = buildFolderPath(settings.libraryPath, folderId);
+    const destinationLabel = joinFolder(targetFolder, folderName);
+
+    await runLibraryOperation(async () => {
+      const result = await window.modelLibrary.moveFolder(folderId, targetFolder);
+      const movedPath = result.path ?? buildFolderPath(settings.libraryPath ?? "", destinationLabel);
+      const restorePairs = samePath(movedPath, sourcePath)
+        ? []
+        : [{ sourcePath: movedPath, destinationPath: sourcePath }];
+
+      selectFolder(destinationLabel);
+
+      return {
+        message: result.message,
+        selectedPaths: [],
+        action:
+          restorePairs.length > 0
+            ? createActionLogEntry("Pasta movida", `${folderId} -> ${destinationLabel}`, restorePairs)
+            : undefined
+      };
+    });
+  }
+
+  async function trashFolder(folderId = selectedFolder) {
+    setFolderContextMenu(null);
+    setModelContextMenu(null);
+
+    if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
+      setOperationMessage("Selecione uma pasta para enviar para a Lixeira.");
+      return;
+    }
+
+    const folderName = folderId.split("/").pop() ?? folderId;
+    const confirmed = window.confirm(`Mover a pasta "${folderName}" para a Lixeira?`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    await runLibraryOperation(async () => {
+      const result = await window.modelLibrary.trashFolder(folderId);
+      selectFolder(ALL_FOLDERS_ID);
+
+      return {
+        message: result.message,
+        selectedPaths: [],
+        action: createActionLogEntry("Pasta na Lixeira", folderId)
       };
     });
   }
@@ -1024,9 +1148,22 @@ function App() {
             Nova pasta aqui
           </button>
           {folderContextMenu.folderId !== ALL_FOLDERS_ID ? (
-            <button type="button" role="menuitem" onClick={() => renameFolder(folderContextMenu.folderId)}>
-              Renomear
-            </button>
+            <>
+              <button type="button" role="menuitem" onClick={() => renameFolder(folderContextMenu.folderId)}>
+                Renomear
+              </button>
+              <button type="button" role="menuitem" onClick={() => moveFolder(folderContextMenu.folderId)}>
+                Mover pasta...
+              </button>
+              <button
+                className="danger-menu-item"
+                type="button"
+                role="menuitem"
+                onClick={() => trashFolder(folderContextMenu.folderId)}
+              >
+                Mover pasta para Lixeira
+              </button>
+            </>
           ) : null}
           {selectedModelIds.size > 0 ? (
             <>
@@ -1171,6 +1308,20 @@ function joinFolder(parentFolder: string, folderName: string): string {
   }
 
   return `${parentFolder}/${trimmedName}`;
+}
+
+function normalizeFolderInput(folderPath: string): string {
+  const trimmedPath = folderPath.trim();
+
+  if (!trimmedPath || trimmedPath.toLowerCase() === "raiz") {
+    return "";
+  }
+
+  return trimmedPath
+    .split(/[\\/]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("/");
 }
 
 function buildMovedModelPath(libraryPath: string, destinationFolder: string, modelName: string): string {

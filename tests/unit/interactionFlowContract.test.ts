@@ -24,6 +24,7 @@ describe("interaction flow contract", () => {
     const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
     const tagSelectorSource = await readFile("src/components/TagSelector.tsx", "utf8");
+    const stylesSource = await readFile("src/styles.css", "utf8");
 
     expect(appSource).toContain("addCatalogTag");
     expect(appSource).toContain("removeCatalogTag");
@@ -36,6 +37,8 @@ describe("interaction flow contract", () => {
     expect(tagSelectorSource).toContain("type=\"checkbox\"");
     expect(tagSelectorSource).toContain("tag-selector-checkbox");
     expect(tagSelectorSource).toContain("onClick={() => void toggleTag(tag)}");
+    expect(stylesSource).toContain(".organization-panel .tag-selector-checkbox");
+    expect(stylesSource).toContain("overflow-x: hidden");
   });
 
   it("supports a persisted dark mode from settings", async () => {
@@ -55,5 +58,13 @@ describe("interaction flow contract", () => {
 
     expect(folderTreeSource).toContain("scrollSidebarDuringDrag");
     expect(folderTreeSource).toContain("sidebarRef");
+  });
+
+  it("lets breadcrumbs receive dragged models as folder drop targets", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+
+    expect(gridSource).toContain("onDropOnFolder");
+    expect(gridSource).toContain("breadcrumb-drop-target");
+    expect(gridSource).toContain("onDropOnFolder(event, ALL_FOLDERS_ID)");
   });
 });

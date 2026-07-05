@@ -18,6 +18,8 @@ describe("folder context menu contract", () => {
     expect(appSource).toContain("context-menu-section-title");
     expect(appSource).toContain("Pasta");
     expect(appSource).toContain("Organizar");
+    expect(appSource).toContain("Mover pasta");
+    expect(appSource).toContain("Mover pasta para Lixeira");
     expect(appSource).toContain("Tags");
     expect(appSource).toContain("Desfazer ultima acao");
   });
@@ -49,6 +51,15 @@ describe("folder context menu contract", () => {
     expect(keyHandler).toContain('event.key === "Delete"');
     expect(keyHandler).toContain("isTextInputTarget");
     expect(keyHandler).toContain("trashSelectedModels");
+  });
+
+  it("closes overlays before using keyboard or mouse back navigation", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("closeTopOverlay");
+    expect(appSource).toContain("textInputDialog");
+    expect(appSource).toContain('event.key === "Escape"');
+    expect(appSource).toContain('intent === "back"');
   });
 
   it("autoscrolls the sidebar while dragging over its empty space", async () => {

@@ -24,8 +24,13 @@ export type ModelLibraryApi = {
     sourcePaths: string[],
     destinationRelativeFolder: string
   ) => Promise<FileOperationResult>;
+  moveFolder: (
+    folderRelativePath: string,
+    destinationRelativeFolder: string
+  ) => Promise<FileOperationResult>;
   renameFolder: (folderRelativePath: string, newName: string) => Promise<FileOperationResult>;
   renameModelFile: (sourcePath: string, newName: string) => Promise<FileOperationResult>;
+  trashFolder: (folderRelativePath: string) => Promise<FileOperationResult>;
   trashModels: (sourcePaths: string[]) => Promise<FileOperationResult>;
   restoreLibraryPaths: (pathPairs: FileRestorePair[]) => Promise<FileOperationResult>;
   getLibraryMetadata: () => Promise<LibraryMetadata>;

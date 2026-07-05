@@ -4,7 +4,9 @@ import path from "node:path";
 import { beforeEach, afterEach, describe, expect, it } from "vitest";
 import {
   createLibraryFolder,
+  moveLibraryFolder,
   moveModelFiles,
+  trashLibraryFolder,
   trashModelFiles,
   renameLibraryFolder,
   renameModelFile,
@@ -124,6 +126,40 @@ describe("file organizer", () => {
     });
     await expect(stat(path.join(tempRoot, "new-name"))).resolves.toBeTruthy();
     await expect(stat(path.join(tempRoot, "old-name"))).rejects.toThrow("ENOENT");
+  });
+
+  it("moves folders into another library folder without moving into itself", async () => {
+    await mkdir(path.join(tempRoot, "props", "clips"), { recursive: true });
+    await mkdir(path.join(tempRoot, "sorted"));
+
+    const result = await moveLibraryFolder(tempRoot, "props/clips", "sorted");
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Pasta movida.",
+      path: path.join(tempRoot, "sorted", "clips")
+    });
+    await expect(stat(path.join(tempRoot, "sorted", "clips"))).resolves.toBeTruthy();
+    await expect(stat(path.join(tempRoot, "props", "clips"))).rejects.toThrow("ENOENT");
+    await expect(moveLibraryFolder(tempRoot, "sorted", "sorted/clips")).rejects.toThrow(
+      "Nao e possivel mover uma pasta para dentro dela mesma"
+    );
+  });
+
+  it("sends a library folder to the configured trash handler", async () => {
+    await mkdir(path.join(tempRoot, "old-folder"));
+    const trashedPaths: string[] = [];
+
+    const result = await trashLibraryFolder(tempRoot, "old-folder", async (folderPath) => {
+      trashedPaths.push(folderPath);
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Pasta movida para a Lixeira.",
+      path: path.join(tempRoot, "old-folder")
+    });
+    expect(trashedPaths).toEqual([path.join(tempRoot, "old-folder")]);
   });
 
   it("renames files while preserving their model extension", async () => {
