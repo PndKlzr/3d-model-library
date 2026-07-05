@@ -17,6 +17,7 @@ import {
   goForwardInFolderHistory,
   pushFolderHistory
 } from "./lib/folderNavigationHistory";
+import { getDragOutFilePaths } from "./lib/dragFiles";
 import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
@@ -633,6 +634,14 @@ function App() {
     setDraggedModelIds([]);
   }
 
+  function startFileDrag(model: ModelFile) {
+    const filePaths = getDragOutFilePaths(model, filteredModels, selectedModelIds);
+
+    if (filePaths.length > 0) {
+      void window.modelLibrary.startFileDrag(filePaths);
+    }
+  }
+
   async function createFolder(parentFolderOverride?: string) {
     setFolderContextMenu(null);
     setModelContextMenu(null);
@@ -1110,6 +1119,7 @@ function App() {
         onToggleModelSelection={toggleModelSelection}
         onDragStartModel={startDraggingModel}
         onDragEndModel={clearDraggedModels}
+        onStartFileDrag={startFileDrag}
         onRefresh={() => scanLibrary(settings.libraryPath ?? "")}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />

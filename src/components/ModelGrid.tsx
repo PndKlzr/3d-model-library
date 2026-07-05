@@ -57,6 +57,7 @@ type ModelGridProps = {
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
   onDragEndModel: () => void;
+  onStartFileDrag: (model: ModelFile) => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
 };
@@ -102,6 +103,7 @@ export function ModelGrid({
   onToggleModelSelection,
   onDragStartModel,
   onDragEndModel,
+  onStartFileDrag,
   onRefresh,
   onOpenSettings
 }: ModelGridProps) {
@@ -336,6 +338,7 @@ export function ModelGrid({
               onToggleModelSelection={onToggleModelSelection}
               onDragStartModel={onDragStartModel}
               onDragEndModel={onDragEndModel}
+              onStartFileDrag={onStartFileDrag}
             />
           ))}
         </div>
@@ -383,6 +386,7 @@ export function ModelGrid({
               onToggleModelSelection={onToggleModelSelection}
               onDragStartModel={onDragStartModel}
               onDragEndModel={onDragEndModel}
+              onStartFileDrag={onStartFileDrag}
             />
           ))}
         </div>
@@ -456,6 +460,7 @@ type ModelCardProps = {
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
   onDragEndModel: () => void;
+  onStartFileDrag: (model: ModelFile) => void;
 };
 
 function ModelCard({
@@ -468,16 +473,18 @@ function ModelCard({
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
-  onDragEndModel
+  onDragEndModel,
+  onStartFileDrag
 }: ModelCardProps) {
   return (
     <div
       className={`model-card ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
       draggable
       onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.effectAllowed = "copyMove";
         event.dataTransfer.setData("text/plain", model.absolutePath);
         onDragStartModel(model);
+        onStartFileDrag(model);
       }}
       onDragEnd={onDragEndModel}
       onContextMenu={(event) => {
@@ -540,16 +547,18 @@ function ModelListRow({
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
-  onDragEndModel
+  onDragEndModel,
+  onStartFileDrag
 }: ModelCardProps) {
   return (
     <div
       className={`model-list-row ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
       draggable
       onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.effectAllowed = "copyMove";
         event.dataTransfer.setData("text/plain", model.absolutePath);
         onDragStartModel(model);
+        onStartFileDrag(model);
       }}
       onDragEnd={onDragEndModel}
       onContextMenu={(event) => {

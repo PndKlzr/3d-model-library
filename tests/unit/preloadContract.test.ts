@@ -11,6 +11,7 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("readModelThumbnail");
     expect(preloadSource).toContain("saveConvertedStl");
     expect(preloadSource).toContain("chooseArchiveExtractor");
+    expect(preloadSource).toContain("startFileDrag");
     expect(preloadSource).toContain("listArchiveEntries");
     expect(preloadSource).toContain("extractArchiveEntries");
     expect(preloadSource).toContain("getModelHashes");

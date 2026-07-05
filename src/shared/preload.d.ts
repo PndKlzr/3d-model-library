@@ -56,6 +56,7 @@ export type ModelLibraryApi = {
   saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
+  startFileDrag: (filePaths: string[]) => Promise<void>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   chooseSlicerExecutable: () => Promise<string | null>;
   launchSlicer: (slicerId: string, modelPath: string) => Promise<SlicerLaunchResult>;

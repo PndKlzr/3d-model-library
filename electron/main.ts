@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from "electron";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +23,7 @@ import {
   createElectronLibraryMetadataStore,
   type LibraryMetadataStore
 } from "./services/libraryMetadataStore.js";
+import { resolveDraggableFilePaths } from "./services/fileDrag.js";
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
@@ -34,6 +35,9 @@ const isDev = !app.isPackaged;
 let settingsStore: SettingsStore;
 let libraryMetadataStore: LibraryMetadataStore;
 let modelHashStore: ModelHashStore;
+const dragIcon = nativeImage.createFromDataURL(
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lZp7WQAAAABJRU5ErkJggg=="
+);
 
 function registerIpcHandlers() {
   ipcMain.handle("settings:get", () => settingsStore.getSettings());
@@ -159,6 +163,15 @@ function registerIpcHandlers() {
   ipcMain.handle("model:show-in-folder", (_event, absolutePath: string) => {
     assertPathInsideLibrary(absolutePath);
     shell.showItemInFolder(absolutePath);
+  });
+
+  ipcMain.handle("model:start-file-drag", async (event, filePaths: string[]) => {
+    const resolvedPaths = await resolveDraggableFilePaths(requireLibraryPath(), filePaths);
+    event.sender.startDrag({
+      file: resolvedPaths[0],
+      files: resolvedPaths,
+      icon: dragIcon
+    });
   });
 
   ipcMain.handle("settings:choose-slicer-executable", async () => {
