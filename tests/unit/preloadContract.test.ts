@@ -18,6 +18,8 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("getLibraryMetadata");
     expect(preloadSource).toContain("toggleFavorite");
     expect(preloadSource).toContain("setModelTags");
+    expect(preloadSource).toContain("addCatalogTag");
+    expect(preloadSource).toContain("removeCatalogTag");
     expect(preloadSource).toContain("setModelNotes");
     expect(preloadSource).toContain("showModelInFolder");
     expect(preloadSource).not.toContain("import ");

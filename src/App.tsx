@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { FirstRun } from "./components/FirstRun";
 import { FolderTree } from "./components/FolderTree";
 import { ModelGrid } from "./components/ModelGrid";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { TextInputDialog, type TextInputDialogOptions } from "./components/TextInputDialog";
 import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
 import { buildFolderTree } from "./lib/folderTree";
 import { ALL_FOLDERS_ID, filterModels, type ModelSortMode, type ModelTypeFilter } from "./lib/folderFilters";
@@ -30,6 +31,8 @@ import type {
 
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
 const MODEL_VIEW_MODE_STORAGE_KEY = "model-library-view-mode";
+const OPERATION_MESSAGE_TIMEOUT_MS = 6000;
+const UNDO_TOAST_TIMEOUT_MS = 8000;
 
 type LocalActionLogEntry = LibraryActionLogEntry & {
   restorePairs?: FileRestorePair[];
@@ -70,6 +73,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState("");
   const [libraryMetadata, setLibraryMetadata] = useState<LibraryMetadata>({
     models: {},
+    tagCatalog: [],
     slicerHistory: []
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -78,6 +82,9 @@ function App() {
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [actionLogEntries, setActionLogEntries] = useState<LocalActionLogEntry[]>([]);
+  const [undoToast, setUndoToast] = useState<LocalActionLogEntry | null>(null);
+  const [textInputDialog, setTextInputDialog] = useState<TextInputDialogOptions | null>(null);
+  const textInputResolver = useRef<((value: string | null) => void) | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -116,6 +123,27 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(MODEL_VIEW_MODE_STORAGE_KEY, modelViewMode);
   }, [modelViewMode]);
+
+  useEffect(() => {
+    if (!undoToast) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setUndoToast(null), UNDO_TOAST_TIMEOUT_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [undoToast]);
+
+  useEffect(() => {
+    if (!operationMessage) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(
+      () => setOperationMessage(null),
+      OPERATION_MESSAGE_TIMEOUT_MS
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [operationMessage]);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -248,10 +276,30 @@ function App() {
     setLibraryMetadata(await window.modelLibrary.setModelNotes(modelPath, notes));
   }
 
-  async function editModelTagsFromPrompt(model: ModelFile) {
+  function requestTextInput(options: TextInputDialogOptions): Promise<string | null> {
+    setTextInputDialog(options);
+
+    return new Promise((resolve) => {
+      textInputResolver.current = resolve;
+    });
+  }
+
+  function closeTextInputDialog(value: string | null) {
+    textInputResolver.current?.(value);
+    textInputResolver.current = null;
+    setTextInputDialog(null);
+  }
+
+  async function editModelTags(model: ModelFile) {
     setModelContextMenu(null);
     const currentTags = libraryMetadata.models[model.absolutePath]?.tags.join(", ") ?? "";
-    const nextTags = window.prompt("Tags separadas por virgula", currentTags);
+    const nextTags = await requestTextInput({
+      title: "Editar tags",
+      label: "Tags separadas por virgula",
+      initialValue: currentTags,
+      placeholder: "fidget, suporte, cosplay",
+      confirmLabel: "Salvar tags"
+    });
 
     if (nextTags === null) {
       return;
@@ -261,6 +309,25 @@ function App() {
       model.absolutePath,
       nextTags.split(",").map((tag) => tag.trim())
     );
+  }
+
+  async function addCatalogTag() {
+    const tag = await requestTextInput({
+      title: "Nova tag",
+      label: "Nome da tag",
+      placeholder: "ex: cosplay",
+      confirmLabel: "Criar tag"
+    });
+
+    if (!tag?.trim()) {
+      return;
+    }
+
+    setLibraryMetadata(await window.modelLibrary.addCatalogTag(tag));
+  }
+
+  async function removeCatalogTag(tag: string) {
+    setLibraryMetadata(await window.modelLibrary.removeCatalogTag(tag));
   }
 
   function toggleTagFilter(tag: string) {
@@ -467,11 +534,13 @@ function App() {
 
     const parentFolderId = parentFolderOverride ?? selectedFolder;
     const parentFolder = parentFolderId === ALL_FOLDERS_ID ? "" : parentFolderId;
-    const folderName = window.prompt(
-      parentFolder ? `Nova pasta dentro de ${parentFolder}` : "Nova pasta na raiz"
-    );
+    const folderName = await requestTextInput({
+      title: parentFolder ? `Nova pasta em ${parentFolder}` : "Nova pasta na raiz",
+      label: "Nome da pasta",
+      confirmLabel: "Criar pasta"
+    });
 
-    if (!folderName) {
+    if (!folderName?.trim()) {
       return;
     }
 
@@ -496,9 +565,14 @@ function App() {
     }
 
     const currentName = folderId.split("/").pop() ?? folderId;
-    const nextName = window.prompt("Novo nome da pasta", currentName);
+    const nextName = await requestTextInput({
+      title: "Renomear pasta",
+      label: "Novo nome da pasta",
+      initialValue: currentName,
+      confirmLabel: "Renomear"
+    });
 
-    if (!nextName) {
+    if (!nextName?.trim()) {
       return;
     }
 
@@ -530,9 +604,14 @@ function App() {
       return;
     }
 
-    const nextName = window.prompt("Novo nome do arquivo", selectedModel.name);
+    const nextName = await requestTextInput({
+      title: "Renomear arquivo",
+      label: "Novo nome do arquivo",
+      initialValue: selectedModel.name,
+      confirmLabel: "Renomear"
+    });
 
-    if (!nextName) {
+    if (!nextName?.trim()) {
       return;
     }
 
@@ -669,6 +748,7 @@ function App() {
     try {
       const result = await window.modelLibrary.restoreLibraryPaths(undoableAction.restorePairs);
       setActionLogEntries((entries) => markActionUndone(entries, undoableAction.id));
+      setUndoToast(null);
       setOperationMessage(result.message);
       await scanLibrary(settings.libraryPath, result.paths ?? []);
     } catch (error) {
@@ -692,6 +772,7 @@ function App() {
       setOperationMessage(result.message);
       if (result.action) {
         setActionLogEntries((entries) => appendActionLogEntry(entries, result.action!));
+        setUndoToast(result.action);
       }
       await scanLibrary(settings.libraryPath, result.selectedPaths);
     } catch (error) {
@@ -788,7 +869,6 @@ function App() {
         isScanning={isScanning}
         canMoveModels={draggedModelIds.length > 0}
         operationMessage={operationMessage}
-        actionLogEntries={actionLogEntries}
         selectedFolder={selectedFolder}
         viewMode={modelViewMode}
         canNavigateBack={folderHistory.back.length > 0}
@@ -820,6 +900,7 @@ function App() {
         modelMetadata={
           selectedModel ? libraryMetadata.models[selectedModel.absolutePath] ?? null : null
         }
+        availableTags={availableTags}
         launchMessage={launchMessage}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onLaunchSlicer={launchSlicer}
@@ -828,14 +909,38 @@ function App() {
         onToggleFavorite={toggleFavorite}
         onSetModelTags={setModelTags}
         onSetModelNotes={setModelNotes}
+        onCreateTag={addCatalogTag}
       />
       {isSettingsOpen ? (
         <SettingsDialog
           settings={settings}
+          tagCatalog={libraryMetadata.tagCatalog}
           onClose={() => setIsSettingsOpen(false)}
           onSaveSettings={saveSettings}
           onChooseLibraryFolder={chooseFolder}
           onChooseSlicerExecutable={chooseSlicerExecutable}
+          onAddCatalogTag={addCatalogTag}
+          onRemoveCatalogTag={removeCatalogTag}
+        />
+      ) : null}
+      {undoToast ? (
+        <div className="undo-toast" role="status">
+          <div>
+            <strong>{undoToast.label}</strong>
+            <span>{undoToast.detail}</span>
+          </div>
+          {undoToast.undoable && !undoToast.undone ? (
+            <button type="button" onClick={undoLastAction}>
+              Desfazer
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {textInputDialog ? (
+        <TextInputDialog
+          {...textInputDialog}
+          onCancel={() => closeTextInputDialog(null)}
+          onConfirm={(value) => closeTextInputDialog(value)}
         />
       ) : null}
       {folderContextMenu ? (
@@ -932,7 +1037,7 @@ function App() {
           <button
             type="button"
             role="menuitem"
-            onClick={() => void editModelTagsFromPrompt(modelContextMenu.model)}
+            onClick={() => void editModelTags(modelContextMenu.model)}
           >
             Editar tags
           </button>
@@ -1061,7 +1166,7 @@ function readExpandedFolders(): Set<string> {
 
 function getAvailableTags(models: ModelFile[], libraryMetadata: LibraryMetadata): string[] {
   const modelPaths = new Set(models.map((model) => model.absolutePath));
-  const tags = new Set<string>();
+  const tags = new Set<string>(libraryMetadata.tagCatalog);
 
   for (const [modelPath, metadata] of Object.entries(libraryMetadata.models)) {
     if (!modelPaths.has(modelPath)) {

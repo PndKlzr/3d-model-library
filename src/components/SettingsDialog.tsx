@@ -3,18 +3,24 @@ import type { AppSettings, SlicerConfig } from "../shared/types";
 
 type SettingsDialogProps = {
   settings: AppSettings;
+  tagCatalog: string[];
   onClose: () => void;
   onSaveSettings: (settings: AppSettings) => Promise<void>;
   onChooseLibraryFolder: () => Promise<void>;
   onChooseSlicerExecutable: (slicer: SlicerConfig) => Promise<void>;
+  onAddCatalogTag: () => Promise<void>;
+  onRemoveCatalogTag: (tag: string) => Promise<void>;
 };
 
 export function SettingsDialog({
   settings,
+  tagCatalog,
   onClose,
   onSaveSettings,
   onChooseLibraryFolder,
-  onChooseSlicerExecutable
+  onChooseSlicerExecutable,
+  onAddCatalogTag,
+  onRemoveCatalogTag
 }: SettingsDialogProps) {
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -48,6 +54,29 @@ export function SettingsDialog({
             />
             <span>Incluir subpastas ao filtrar uma pasta</span>
           </label>
+        </div>
+
+        <div className="settings-section">
+          <div className="settings-section-header">
+            <h3>Tags</h3>
+            <button type="button" onClick={onAddCatalogTag}>
+              Nova tag
+            </button>
+          </div>
+          <div className="tag-settings-list">
+            {tagCatalog.length > 0 ? (
+              tagCatalog.map((tag) => (
+                <div className="tag-settings-row" key={tag}>
+                  <span>{tag}</span>
+                  <button type="button" onClick={() => onRemoveCatalogTag(tag)}>
+                    Excluir
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p>Nenhuma tag pre-definida.</p>
+            )}
+          </div>
         </div>
 
         <div className="settings-section">

@@ -29,6 +29,8 @@ export type ModelLibraryApi = {
   getLibraryMetadata: () => Promise<LibraryMetadata>;
   toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
   setModelTags: (modelPath: string, tags: string[]) => Promise<LibraryMetadata>;
+  addCatalogTag: (tag: string) => Promise<LibraryMetadata>;
+  removeCatalogTag: (tag: string) => Promise<LibraryMetadata>;
   setModelNotes: (modelPath: string, notes: string) => Promise<LibraryMetadata>;
   readModelMetadata: (absolutePath: string) => Promise<{
     dimensionsMm: ModelFile["dimensionsMm"];

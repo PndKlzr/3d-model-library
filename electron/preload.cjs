@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   getLibraryMetadata: () => ipcRenderer.invoke("metadata:get"),
   toggleFavorite: (modelPath) => ipcRenderer.invoke("metadata:toggle-favorite", modelPath),
   setModelTags: (modelPath, tags) => ipcRenderer.invoke("metadata:set-tags", modelPath, tags),
+  addCatalogTag: (tag) => ipcRenderer.invoke("metadata:add-catalog-tag", tag),
+  removeCatalogTag: (tag) => ipcRenderer.invoke("metadata:remove-catalog-tag", tag),
   setModelNotes: (modelPath, notes) => ipcRenderer.invoke("metadata:set-notes", modelPath, notes),
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),

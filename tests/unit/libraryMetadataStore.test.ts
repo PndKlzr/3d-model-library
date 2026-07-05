@@ -29,6 +29,18 @@ describe("libraryMetadataStore", () => {
     store.setTags("C:/models/bench.stl", [" Fidget ", "fidget", "", "PLA"]);
 
     expect(store.getMetadata().models["C:/models/bench.stl"].tags).toEqual(["fidget", "pla"]);
+    expect(store.getMetadata().tagCatalog).toEqual(["fidget", "pla"]);
+  });
+
+  it("manages a predefined tag catalog", () => {
+    const store = createLibraryMetadataStore();
+
+    store.addCatalogTag("  Cosplay ");
+    store.addCatalogTag("cosplay");
+    store.addCatalogTag("Fidget");
+    store.removeCatalogTag("cosplay");
+
+    expect(store.getMetadata().tagCatalog).toEqual(["fidget"]);
   });
 
   it("saves notes for a model", () => {

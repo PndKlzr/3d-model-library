@@ -11,6 +11,8 @@ export type LibraryMetadataStore = {
   toggleFavorite: (modelPath: string) => LibraryMetadata;
   setTags: (modelPath: string, tags: string[]) => LibraryMetadata;
   setNotes: (modelPath: string, notes: string) => LibraryMetadata;
+  addCatalogTag: (tag: string) => LibraryMetadata;
+  removeCatalogTag: (tag: string) => LibraryMetadata;
   recordSlicerOpen: (modelPath: string, slicerId: string, openedAt?: string) => LibraryMetadata;
 };
 
@@ -19,6 +21,7 @@ const HISTORY_LIMIT = 100;
 export function createDefaultLibraryMetadata(): LibraryMetadata {
   return {
     models: {},
+    tagCatalog: [],
     slicerHistory: []
   };
 }
@@ -69,10 +72,38 @@ export function createLibraryMetadataStore(
     },
 
     setTags(modelPath, tags) {
-      return updateModel(modelPath, (metadata) => ({
+      const normalizedTags = normalizeTags(tags);
+      const metadata = getMetadata();
+      const currentModelMetadata = metadata.models[modelPath] ?? createEmptyModelMetadata();
+
+      return saveMetadata({
         ...metadata,
-        tags: normalizeTags(tags)
-      }));
+        tagCatalog: normalizeTags([...metadata.tagCatalog, ...normalizedTags]),
+        models: {
+          ...metadata.models,
+          [modelPath]: {
+            ...currentModelMetadata,
+            tags: normalizedTags
+          }
+        }
+      });
+    },
+
+    addCatalogTag(tag) {
+      const metadata = getMetadata();
+      return saveMetadata({
+        ...metadata,
+        tagCatalog: normalizeTags([...metadata.tagCatalog, tag])
+      });
+    },
+
+    removeCatalogTag(tag) {
+      const [normalizedTag] = normalizeTags([tag]);
+      const metadata = getMetadata();
+      return saveMetadata({
+        ...metadata,
+        tagCatalog: metadata.tagCatalog.filter((catalogTag) => catalogTag !== normalizedTag)
+      });
     },
 
     setNotes(modelPath, notes) {
@@ -140,6 +171,7 @@ function normalizeMetadata(metadata: LibraryMetadata): LibraryMetadata {
         }
       ])
     ),
+    tagCatalog: normalizeTags(metadata.tagCatalog ?? []),
     slicerHistory: (metadata.slicerHistory ?? []).slice(0, HISTORY_LIMIT).map((entry) => ({
       modelPath: entry.modelPath,
       slicerId: entry.slicerId,

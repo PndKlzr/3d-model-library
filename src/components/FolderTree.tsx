@@ -1,6 +1,6 @@
 import { ChevronRight, Folder, Layers3 } from "lucide-react";
 import type { DragEvent, MouseEvent } from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FolderNode } from "../lib/folderTree";
 import { ALL_FOLDERS_ID } from "../lib/folderFilters";
 
@@ -34,6 +34,7 @@ export function FolderTree({
   onMoveModelsToFolder
 }: FolderTreeProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const sidebarRef = useRef<HTMLElement | null>(null);
 
   function allowFolderDrop(event: DragEvent, folderId: string) {
     if (!canMoveModels) {
@@ -42,6 +43,7 @@ export function FolderTree({
 
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
+    scrollSidebarDuringDrag(event);
     setDragOverFolder(folderId);
   }
 
@@ -56,7 +58,7 @@ export function FolderTree({
   }
 
   return (
-    <aside className="sidebar" aria-label="Pastas da biblioteca">
+    <aside className="sidebar" aria-label="Pastas da biblioteca" ref={sidebarRef}>
       <div className="brand-block">
         <span className="brand-mark">3D</span>
         <div>
@@ -118,6 +120,24 @@ export function FolderTree({
       </div>
     </aside>
   );
+
+  function scrollSidebarDuringDrag(event: DragEvent) {
+    const sidebar = sidebarRef.current;
+
+    if (!sidebar) {
+      return;
+    }
+
+    const edgeSize = 72;
+    const scrollStep = 18;
+    const rect = sidebar.getBoundingClientRect();
+
+    if (event.clientY < rect.top + edgeSize) {
+      sidebar.scrollTop -= scrollStep;
+    } else if (event.clientY > rect.bottom - edgeSize) {
+      sidebar.scrollTop += scrollStep;
+    }
+  }
 }
 
 function FolderNodeButton({

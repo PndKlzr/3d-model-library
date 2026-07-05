@@ -9,6 +9,7 @@ type DetailsPanelProps = {
   model: ModelFile | null;
   settings: AppSettings;
   modelMetadata: ModelUserMetadata | null;
+  availableTags: string[];
   launchMessage: string | null;
   onOpenSettings: () => void;
   onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
@@ -17,12 +18,14 @@ type DetailsPanelProps = {
   onToggleFavorite: (modelPath: string) => Promise<void>;
   onSetModelTags: (modelPath: string, tags: string[]) => Promise<void>;
   onSetModelNotes: (modelPath: string, notes: string) => Promise<void>;
+  onCreateTag: () => Promise<void>;
 };
 
 export function DetailsPanel({
   model,
   settings,
   modelMetadata,
+  availableTags,
   launchMessage,
   onOpenSettings,
   onLaunchSlicer,
@@ -30,7 +33,8 @@ export function DetailsPanel({
   onShowModelInFolder,
   onToggleFavorite,
   onSetModelTags,
-  onSetModelNotes
+  onSetModelNotes,
+  onCreateTag
 }: DetailsPanelProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailsTab>("info");
@@ -66,6 +70,22 @@ export function DetailsPanel({
     }
 
     await onSetModelNotes(model.absolutePath, notesDraft);
+  }
+
+  async function togglePredefinedTag(tag: string) {
+    if (!model) {
+      return;
+    }
+
+    const tags = new Set(modelMetadata?.tags ?? []);
+
+    if (tags.has(tag)) {
+      tags.delete(tag);
+    } else {
+      tags.add(tag);
+    }
+
+    await onSetModelTags(model.absolutePath, [...tags]);
   }
 
   return (
@@ -168,6 +188,30 @@ export function DetailsPanel({
 
             {activeTab === "notes" ? (
               <div className="organization-panel">
+                <div className="predefined-tag-list" aria-label="Tags pre-definidas">
+                  <div className="tag-list-header">
+                    <span>Tags pre-definidas</span>
+                    <button type="button" onClick={onCreateTag}>
+                      Nova tag
+                    </button>
+                  </div>
+                  {availableTags.length > 0 ? (
+                    <div className="tag-choice-grid">
+                      {availableTags.map((tag) => (
+                        <button
+                          className={modelMetadata?.tags.includes(tag) ? "active" : ""}
+                          type="button"
+                          key={tag}
+                          onClick={() => void togglePredefinedTag(tag)}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>Nenhuma tag criada ainda.</p>
+                  )}
+                </div>
                 <label>
                   <span>
                     <Tag size={15} />

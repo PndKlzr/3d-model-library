@@ -14,7 +14,7 @@ import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
-import type { LibraryActionLogEntry, ModelFile, ModelUserMetadata } from "../shared/types";
+import type { ModelFile, ModelUserMetadata } from "../shared/types";
 
 type ModelGridProps = {
   models: ModelFile[];
@@ -35,7 +35,6 @@ type ModelGridProps = {
   isScanning: boolean;
   canMoveModels: boolean;
   operationMessage: string | null;
-  actionLogEntries: LibraryActionLogEntry[];
   selectedFolder: string;
   viewMode: ModelViewMode;
   canNavigateBack: boolean;
@@ -81,7 +80,6 @@ export function ModelGrid({
   isScanning,
   canMoveModels,
   operationMessage,
-  actionLogEntries,
   selectedFolder,
   viewMode,
   canNavigateBack,
@@ -282,19 +280,6 @@ export function ModelGrid({
       {operationMessage ? (
         <div className="operation-message" role="status">
           {operationMessage}
-        </div>
-      ) : null}
-
-      {actionLogEntries.length > 0 ? (
-        <div className="action-log" aria-label="Log de acoes recentes">
-          {actionLogEntries.slice(0, 4).map((entry) => (
-            <div className={entry.undone ? "undone" : ""} key={entry.id}>
-              <strong>{entry.label}</strong>
-              <span>{entry.detail}</span>
-              {entry.undoable ? <em>desfazer disponivel</em> : null}
-              {entry.undone ? <em>desfeito</em> : null}
-            </div>
-          ))}
         </div>
       ) : null}
 

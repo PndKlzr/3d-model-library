@@ -87,6 +87,14 @@ function registerIpcHandlers() {
     return libraryMetadataStore.setTags(modelPath, tags);
   });
 
+  ipcMain.handle("metadata:add-catalog-tag", (_event, tag: string) =>
+    libraryMetadataStore.addCatalogTag(tag)
+  );
+
+  ipcMain.handle("metadata:remove-catalog-tag", (_event, tag: string) =>
+    libraryMetadataStore.removeCatalogTag(tag)
+  );
+
   ipcMain.handle("metadata:set-notes", (_event, modelPath: string, notes: string) => {
     assertPathInsideLibrary(modelPath);
     return libraryMetadataStore.setNotes(modelPath, notes);

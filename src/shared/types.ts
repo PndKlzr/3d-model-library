@@ -45,6 +45,7 @@ export type SlicerHistoryEntry = {
 
 export type LibraryMetadata = {
   models: Record<string, ModelUserMetadata>;
+  tagCatalog: string[];
   slicerHistory: SlicerHistoryEntry[];
 };
 
