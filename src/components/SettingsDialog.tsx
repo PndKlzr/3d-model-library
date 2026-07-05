@@ -1,4 +1,5 @@
 import { FolderOpen, Settings, X } from "lucide-react";
+import type { ThemeMode } from "../lib/viewPreferences";
 import type { AppSettings, SlicerConfig } from "../shared/types";
 
 type SettingsDialogProps = {
@@ -10,6 +11,8 @@ type SettingsDialogProps = {
   onChooseSlicerExecutable: (slicer: SlicerConfig) => Promise<void>;
   onAddCatalogTag: () => Promise<void>;
   onRemoveCatalogTag: (tag: string) => Promise<void>;
+  themeMode: ThemeMode;
+  onThemeModeChange: (themeMode: ThemeMode) => void;
 };
 
 export function SettingsDialog({
@@ -20,7 +23,9 @@ export function SettingsDialog({
   onChooseLibraryFolder,
   onChooseSlicerExecutable,
   onAddCatalogTag,
-  onRemoveCatalogTag
+  onRemoveCatalogTag,
+  themeMode,
+  onThemeModeChange
 }: SettingsDialogProps) {
   return (
     <div className="dialog-backdrop" role="presentation">
@@ -53,6 +58,14 @@ export function SettingsDialog({
               }
             />
             <span>Incluir subpastas ao filtrar uma pasta</span>
+          </label>
+          <label className="toggle-row settings-toggle">
+            <input
+              type="checkbox"
+              checked={themeMode === "dark"}
+              onChange={(event) => onThemeModeChange(event.currentTarget.checked ? "dark" : "light")}
+            />
+            <span>Modo escuro</span>
           </label>
         </div>
 

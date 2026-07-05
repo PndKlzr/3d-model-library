@@ -70,7 +70,12 @@ export function TagSelector({
         )}
       </button>
       {isOpen ? (
-        <div className="tag-selector-popover" role="listbox" aria-label={label}>
+        <div
+          className="tag-selector-popover"
+          role="listbox"
+          aria-label={label}
+          aria-multiselectable="true"
+        >
           <label className="tag-selector-search">
             <Search size={15} />
             <input
@@ -88,14 +93,29 @@ export function TagSelector({
           <div className="tag-selector-options">
             {visibleTags.length > 0 ? (
               visibleTags.map((tag) => (
-                <label className="tag-selector-option" key={tag}>
+                <div
+                  className="tag-selector-option"
+                  key={tag}
+                  role="option"
+                  aria-selected={selectedTagSet.has(tag)}
+                  tabIndex={0}
+                  onClick={() => void toggleTag(tag)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      void toggleTag(tag);
+                    }
+                  }}
+                >
                   <input
+                    className="tag-selector-checkbox"
                     type="checkbox"
                     checked={selectedTagSet.has(tag)}
-                    onChange={() => void toggleTag(tag)}
+                    readOnly
+                    tabIndex={-1}
                   />
                   <span>{tag}</span>
-                </label>
+                </div>
               ))
             ) : (
               <span className="tag-selector-no-results">Nenhuma tag encontrada.</span>

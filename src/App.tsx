@@ -22,7 +22,12 @@ import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
-import { parseModelViewMode, type ModelViewMode } from "./lib/viewPreferences";
+import {
+  parseModelViewMode,
+  parseThemeMode,
+  type ModelViewMode,
+  type ThemeMode
+} from "./lib/viewPreferences";
 import type {
   AppSettings,
   FileRestorePair,
@@ -35,6 +40,7 @@ import type {
 
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
 const MODEL_VIEW_MODE_STORAGE_KEY = "model-library-view-mode";
+const THEME_MODE_STORAGE_KEY = "model-library-theme-mode";
 const OPERATION_MESSAGE_TIMEOUT_MS = 6000;
 const UNDO_TOAST_TIMEOUT_MS = 8000;
 const CONTEXT_MENU_WIDTH = 320;
@@ -71,6 +77,9 @@ function App() {
   );
   const [modelViewMode, setModelViewMode] = useState<ModelViewMode>(() =>
     parseModelViewMode(window.localStorage.getItem(MODEL_VIEW_MODE_STORAGE_KEY))
+  );
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
+    parseThemeMode(window.localStorage.getItem(THEME_MODE_STORAGE_KEY))
   );
   const [typeFilter, setTypeFilter] = useState<ModelTypeFilter>("all");
   const [sortMode, setSortMode] = useState<ModelSortMode>("name");
@@ -132,6 +141,10 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(MODEL_VIEW_MODE_STORAGE_KEY, modelViewMode);
   }, [modelViewMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     if (!undoToast) {
@@ -824,7 +837,7 @@ function App() {
 
   if (isLoading) {
     return (
-      <main className="first-run">
+      <main className="first-run" data-theme={themeMode}>
         <div>
           <p className="eyebrow">Carregando</p>
           <h1>Preparando biblioteca</h1>
@@ -834,7 +847,7 @@ function App() {
   }
 
   if (!settings?.libraryPath) {
-    return <FirstRun onChooseFolder={chooseFolder} />;
+    return <FirstRun onChooseFolder={chooseFolder} themeMode={themeMode} />;
   }
 
   const models = scanResult?.models ?? [];
@@ -867,7 +880,7 @@ function App() {
   );
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={themeMode}>
       <FolderTree
         folders={folders}
         selectedFolder={selectedFolder}
@@ -952,6 +965,8 @@ function App() {
           onChooseSlicerExecutable={chooseSlicerExecutable}
           onAddCatalogTag={addCatalogTag}
           onRemoveCatalogTag={removeCatalogTag}
+          themeMode={themeMode}
+          onThemeModeChange={setThemeMode}
         />
       ) : null}
       {undoToast ? (

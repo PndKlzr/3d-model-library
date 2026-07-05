@@ -34,6 +34,20 @@ describe("interaction flow contract", () => {
     expect(tagSelectorSource).toContain("Criar tag");
     expect(tagSelectorSource).toContain("role=\"listbox\"");
     expect(tagSelectorSource).toContain("type=\"checkbox\"");
+    expect(tagSelectorSource).toContain("tag-selector-checkbox");
+    expect(tagSelectorSource).toContain("onClick={() => void toggleTag(tag)}");
+  });
+
+  it("supports a persisted dark mode from settings", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+    const stylesSource = await readFile("src/styles.css", "utf8");
+
+    expect(appSource).toContain("THEME_MODE_STORAGE_KEY");
+    expect(appSource).toContain("data-theme");
+    expect(settingsSource).toContain("Modo escuro");
+    expect(settingsSource).toContain("onThemeModeChange");
+    expect(stylesSource).toContain('[data-theme="dark"]');
   });
 
   it("autoscrolls the sidebar while dragging models over the folder tree edges", async () => {
