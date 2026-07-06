@@ -4,6 +4,12 @@ import path from "node:path";
 
 const PRINTABLE_FILE_EXTENSIONS = new Set([".stl", ".3mf"]);
 
+export type NativeFileDragPayload<Icon> = {
+  file: string;
+  files?: string[];
+  icon: Icon;
+};
+
 export async function resolveDraggableFilePaths(
   rootPath: string,
   filePaths: string[]
@@ -18,6 +24,26 @@ export function resolveDraggableFilePathsSync(rootPath: string, filePaths: strin
   return resolveDraggableFilePathsWithStat(rootPath, filePaths, (filePath) =>
     statSync(filePath).isFile()
   );
+}
+
+export function createNativeFileDragPayload<Icon>(
+  filePaths: string[],
+  icon: Icon
+): NativeFileDragPayload<Icon> {
+  if (filePaths.length === 0) {
+    throw new Error("Nenhum STL ou 3MF selecionado para arrastar.");
+  }
+
+  return filePaths.length === 1
+    ? {
+        file: filePaths[0],
+        icon
+      }
+    : {
+        file: filePaths[0],
+        files: filePaths,
+        icon
+      };
 }
 
 function resolveDraggableFilePathsWithStat(

@@ -3,6 +3,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Folder,
+  GripVertical,
   LayoutGrid,
   List,
   Search,
@@ -484,7 +485,6 @@ function ModelCard({
         event.dataTransfer.effectAllowed = "copyMove";
         event.dataTransfer.setData("application/x-model-library-model", model.id);
         onDragStartModel(model);
-        onStartFileDrag(model);
       }}
       onDragEnd={onDragEndModel}
       onContextMenu={(event) => {
@@ -504,6 +504,23 @@ function ModelCard({
         <div className="favorite-badge" title="Favorito" aria-label="Favorito">
           <Star size={15} fill="currentColor" />
         </div>
+      ) : null}
+      {isNativeDraggableModel(model) ? (
+        <button
+          className="native-file-drag-handle"
+          type="button"
+          draggable
+          title="Arrastar arquivo para Cura ou Creality Print"
+          aria-label={`Arrastar ${model.name} para outro programa`}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.preventDefault()}
+          onDragStart={(event) =>
+            startNativeFileDrag(event, model, onDragStartModel, onStartFileDrag)
+          }
+          onDragEnd={onDragEndModel}
+        >
+          <GripVertical size={16} />
+        </button>
       ) : null}
       <button
         className="model-card-main"
@@ -558,7 +575,6 @@ function ModelListRow({
         event.dataTransfer.effectAllowed = "copyMove";
         event.dataTransfer.setData("application/x-model-library-model", model.id);
         onDragStartModel(model);
-        onStartFileDrag(model);
       }}
       onDragEnd={onDragEndModel}
       onContextMenu={(event) => {
@@ -600,8 +616,42 @@ function ModelListRow({
           ))}
         </span>
       </button>
+      {isNativeDraggableModel(model) ? (
+        <button
+          className="native-file-drag-handle list-native-file-drag-handle"
+          type="button"
+          draggable
+          title="Arrastar arquivo para Cura ou Creality Print"
+          aria-label={`Arrastar ${model.name} para outro programa`}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.preventDefault()}
+          onDragStart={(event) =>
+            startNativeFileDrag(event, model, onDragStartModel, onStartFileDrag)
+          }
+          onDragEnd={onDragEndModel}
+        >
+          <GripVertical size={16} />
+        </button>
+      ) : null}
     </div>
   );
+}
+
+function startNativeFileDrag(
+  event: DragEvent<HTMLElement>,
+  model: ModelFile,
+  onDragStartModel: (model: ModelFile) => void,
+  onStartFileDrag: (model: ModelFile) => void
+) {
+  event.preventDefault();
+  event.stopPropagation();
+  event.dataTransfer.effectAllowed = "copy";
+  onDragStartModel(model);
+  onStartFileDrag(model);
+}
+
+function isNativeDraggableModel(model: ModelFile): boolean {
+  return model.extension === ".stl" || model.extension === ".3mf";
 }
 
 function formatBytes(bytes: number): string {

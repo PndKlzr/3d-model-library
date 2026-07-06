@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  createNativeFileDragPayload,
   resolveDraggableFilePaths,
   resolveDraggableFilePathsSync
 } from "../../electron/services/fileDrag";
@@ -57,5 +58,27 @@ describe("fileDrag", () => {
     expect(() => resolveDraggableFilePathsSync(tempRoot, [archivePath])).toThrow(
       "Arraste para slicer aceita apenas STL e 3MF."
     );
+  });
+
+  it("uses a single file payload when dragging one model out", () => {
+    const icon = {};
+    const filePath = path.join(tempRoot, "part.stl");
+
+    expect(createNativeFileDragPayload([filePath], icon)).toEqual({
+      file: filePath,
+      icon
+    });
+  });
+
+  it("uses a files payload only when dragging multiple models out", () => {
+    const icon = {};
+    const filePath = path.join(tempRoot, "part.stl");
+    const secondFilePath = path.join(tempRoot, "part.3mf");
+
+    expect(createNativeFileDragPayload([filePath, secondFilePath], icon)).toEqual({
+      file: filePath,
+      files: [filePath, secondFilePath],
+      icon
+    });
   });
 });

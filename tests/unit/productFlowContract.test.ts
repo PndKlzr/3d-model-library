@@ -54,4 +54,14 @@ describe("product flow contract", () => {
     expect(appSource).toContain("Abrir selecionados no");
     expect(appSource).toContain("getSlicerLaunchModelPaths");
   });
+
+  it("separates native file drag from internal folder organization drag", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+
+    expect(gridSource).toContain("native-file-drag-handle");
+    expect(gridSource).toContain("startNativeFileDrag");
+    expect(gridSource).toContain("event.preventDefault()");
+    expect(gridSource).toContain("onStartFileDrag(model)");
+    expect(gridSource).toContain('setData("application/x-model-library-model"');
+  });
 });

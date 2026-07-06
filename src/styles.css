@@ -661,7 +661,7 @@ button {
 
 .model-list-row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr) 38px;
   min-height: 64px;
 }
 
@@ -698,6 +698,39 @@ button {
   padding: 7px 10px;
   color: inherit;
   text-align: left;
+}
+
+.native-file-drag-handle {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid rgba(40, 124, 120, 0.28);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent-strong);
+  box-shadow: 0 6px 14px rgba(30, 40, 45, 0.12);
+  cursor: grab;
+}
+
+.native-file-drag-handle:active {
+  cursor: grabbing;
+}
+
+.list-native-file-drag-handle {
+  position: static;
+  align-self: stretch;
+  width: 100%;
+  height: auto;
+  border-width: 0 0 0 1px;
+  border-color: var(--line);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .list-thumb {
@@ -840,7 +873,7 @@ button {
   position: absolute;
   z-index: 3;
   top: 8px;
-  right: 8px;
+  right: 44px;
   display: grid;
   width: 28px;
   height: 28px;

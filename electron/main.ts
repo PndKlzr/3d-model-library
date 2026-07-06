@@ -23,7 +23,7 @@ import {
   createElectronLibraryMetadataStore,
   type LibraryMetadataStore
 } from "./services/libraryMetadataStore.js";
-import { resolveDraggableFilePathsSync } from "./services/fileDrag.js";
+import { createNativeFileDragPayload, resolveDraggableFilePathsSync } from "./services/fileDrag.js";
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
@@ -168,11 +168,7 @@ function registerIpcHandlers() {
   ipcMain.on("model:start-file-drag", (event, filePaths: string[]) => {
     try {
       const resolvedPaths = resolveDraggableFilePathsSync(requireLibraryPath(), filePaths);
-      event.sender.startDrag({
-        file: resolvedPaths[0],
-        files: resolvedPaths,
-        icon: dragIcon
-      });
+      event.sender.startDrag(createNativeFileDragPayload(resolvedPaths, dragIcon));
     } catch (error) {
       console.error("[file-drag]", error);
     }
