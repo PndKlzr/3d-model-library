@@ -134,6 +134,14 @@ function App() {
   }, [settings?.libraryPath]);
 
   useEffect(() => {
+    const unsubscribe = window.modelLibrary.onFileDragStatus?.((status) => {
+      setOperationMessage(status.message);
+    });
+
+    return () => unsubscribe?.();
+  }, []);
+
+  useEffect(() => {
     window.localStorage.setItem(
       EXPANDED_FOLDERS_STORAGE_KEY,
       JSON.stringify([...expandedFolderIds])
@@ -174,7 +182,11 @@ function App() {
     const hashCandidates = getHashCandidateModels(models);
     let isStale = false;
 
-    if (!settings?.libraryPath || hashCandidates.length === 0) {
+    if (
+      !settings?.libraryPath ||
+      hashCandidates.length === 0 ||
+      typeof window.modelLibrary.getModelHashes !== "function"
+    ) {
       setModelHashes({});
       return;
     }

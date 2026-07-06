@@ -45,6 +45,9 @@ describe("product flow contract", () => {
     expect(mainSource).toContain('ipcMain.on("model:start-file-drag"');
     expect(mainSource).not.toContain('ipcMain.on("model:start-file-drag", async');
     expect(mainSource).toContain("resolveDraggableFilePathsSync");
+    expect(mainSource).toContain("prepareNativeFileDragHelper");
+    expect(mainSource).toContain("startNativeFileDropDrag");
+    expect(mainSource).toContain("model:file-drag-status");
   });
 
   it("offers a reliable context action to open selected models in a slicer", async () => {
@@ -63,5 +66,28 @@ describe("product flow contract", () => {
     expect(gridSource).toContain("event.preventDefault()");
     expect(gridSource).toContain("onStartFileDrag(model)");
     expect(gridSource).toContain('setData("application/x-model-library-model"');
+  });
+
+  it("wraps the app in an error boundary instead of allowing a blank screen", async () => {
+    const mainSource = await readFile("src/main.tsx", "utf8");
+    const boundarySource = await readFile("src/components/AppErrorBoundary.tsx", "utf8");
+
+    expect(mainSource).toContain("AppErrorBoundary");
+    expect(boundarySource).toContain("componentDidCatch");
+    expect(boundarySource).toContain("window.location.reload");
+    expect(boundarySource).toContain("app-error-screen");
+  });
+
+  it("shows file drag diagnostics in the renderer", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("onFileDragStatus");
+    expect(appSource).toContain("setOperationMessage(status.message)");
+  });
+
+  it("guards dev-only preload API drift before computing model hashes", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain('typeof window.modelLibrary.getModelHashes !== "function"');
   });
 });

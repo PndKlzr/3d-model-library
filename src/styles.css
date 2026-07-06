@@ -63,6 +63,43 @@ button {
   background-size: 42px 42px;
 }
 
+.app-error-screen {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  background:
+    linear-gradient(90deg, rgba(40, 124, 120, 0.08) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(40, 124, 120, 0.06) 1px, transparent 1px),
+    var(--panel);
+  background-size: 42px 42px;
+}
+
+.app-error-screen section {
+  display: grid;
+  width: min(460px, 100%);
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+  padding: 26px;
+}
+
+.app-error-screen svg {
+  color: var(--warn);
+}
+
+.app-error-screen h1,
+.app-error-screen p {
+  margin: 0;
+}
+
+.app-error-screen p:not(.eyebrow) {
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
 .first-run[data-theme="dark"],
 .app-shell[data-theme="dark"] {
   background:

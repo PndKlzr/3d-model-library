@@ -14,7 +14,12 @@ export async function readEmbeddedThumbnail(filePath: string): Promise<string | 
     return null;
   }
 
-  const files = unzipSync(new Uint8Array(await readFile(filePath)));
+  const files = safeUnzip(new Uint8Array(await readFile(filePath)));
+
+  if (!files) {
+    return null;
+  }
+
   const thumbnailPath = findThumbnailPath(Object.keys(files));
 
   if (!thumbnailPath) {
@@ -29,6 +34,14 @@ export async function readEmbeddedThumbnail(filePath: string): Promise<string | 
   }
 
   return `data:${mime};base64,${Buffer.from(files[thumbnailPath]).toString("base64")}`;
+}
+
+function safeUnzip(data: Uint8Array): Record<string, Uint8Array> | null {
+  try {
+    return unzipSync(data);
+  } catch {
+    return null;
+  }
 }
 
 function findThumbnailPath(paths: string[]): string | null {

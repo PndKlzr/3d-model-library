@@ -48,4 +48,11 @@ describe("readEmbeddedThumbnail", () => {
 
     await expect(readEmbeddedThumbnail(filePath)).resolves.toBeNull();
   });
+
+  it("returns null for invalid 3MF zip data", async () => {
+    const filePath = path.join(tempRoot, "broken.3mf");
+    await writeFile(filePath, "not a zip archive");
+
+    await expect(readEmbeddedThumbnail(filePath)).resolves.toBeNull();
+  });
 });

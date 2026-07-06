@@ -36,6 +36,11 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),
   showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
   startFileDrag: (filePaths) => ipcRenderer.send("model:start-file-drag", filePaths),
+  onFileDragStatus: (callback) => {
+    const listener = (_event, status) => callback(status);
+    ipcRenderer.on("model:file-drag-status", listener);
+    return () => ipcRenderer.removeListener("model:file-drag-status", listener);
+  },
   readModelFile: (absolutePath) => ipcRenderer.invoke("model:read-file", absolutePath),
   chooseSlicerExecutable: () => ipcRenderer.invoke("settings:choose-slicer-executable"),
   launchSlicer: (slicerId, modelPaths) => ipcRenderer.invoke("slicer:launch", slicerId, modelPaths)

@@ -27,6 +27,10 @@ import { createNativeFileDragPayload, resolveDraggableFilePathsSync } from "./se
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
+import {
+  prepareNativeFileDragHelper,
+  startNativeFileDropDrag
+} from "./services/nativeFileDragHelper.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +39,7 @@ const isDev = !app.isPackaged;
 let settingsStore: SettingsStore;
 let libraryMetadataStore: LibraryMetadataStore;
 let modelHashStore: ModelHashStore;
+let nativeFileDragHelperPath: string | null = null;
 const dragIcon = nativeImage.createFromDataURL(
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lZp7WQAAAABJRU5ErkJggg=="
 );
@@ -168,8 +173,21 @@ function registerIpcHandlers() {
   ipcMain.on("model:start-file-drag", (event, filePaths: string[]) => {
     try {
       const resolvedPaths = resolveDraggableFilePathsSync(requireLibraryPath(), filePaths);
+
+      if (startNativeFileDropDrag(nativeFileDragHelperPath, resolvedPaths)) {
+        const message = `Arraste nativo iniciado para ${resolvedPaths.length} arquivo(s).`;
+        event.sender.send("model:file-drag-status", { ok: true, message });
+        console.log(`[file-drag] ${message}`);
+        return;
+      }
+
       event.sender.startDrag(createNativeFileDragPayload(resolvedPaths, dragIcon));
+      const message = `Arraste Electron iniciado para ${resolvedPaths.length} arquivo(s).`;
+      event.sender.send("model:file-drag-status", { ok: true, message });
+      console.log(`[file-drag] ${message}`);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      event.sender.send("model:file-drag-status", { ok: false, message });
       console.error("[file-drag]", error);
     }
   });
@@ -292,6 +310,12 @@ app.whenReady().then(async () => {
   settingsStore = await createElectronSettingsStore();
   libraryMetadataStore = await createElectronLibraryMetadataStore();
   modelHashStore = await createElectronModelHashStore();
+  nativeFileDragHelperPath = await prepareNativeFileDragHelper(app.getPath("userData")).catch(
+    (error) => {
+      console.error("[file-drag] native helper unavailable", error);
+      return null;
+    }
+  );
   registerIpcHandlers();
   await createWindow();
 

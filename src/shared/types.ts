@@ -59,6 +59,11 @@ export type SlicerLaunchResult = {
   message: string;
 };
 
+export type FileDragStatus = {
+  ok: boolean;
+  message: string;
+};
+
 export type FileOperationResult = {
   ok: boolean;
   message: string;
