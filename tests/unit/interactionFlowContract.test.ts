@@ -10,6 +10,30 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("requestTextInput");
   });
 
+  it("uses an in-app confirmation dialog instead of browser confirms for trash actions", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const confirmDialogSource = await readFile("src/components/ConfirmDialog.tsx", "utf8");
+
+    expect(appSource).not.toContain("window.confirm");
+    expect(appSource).toContain("ConfirmDialog");
+    expect(appSource).toContain("requestConfirmation");
+    expect(appSource).toContain("confirmationDialog");
+    expect(appSource).toContain("Mover para Lixeira");
+    expect(confirmDialogSource).toContain("danger-button");
+  });
+
+  it("confirms catalog tag removal because it affects existing model metadata", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const removeTagSource = appSource.match(
+      /async function removeCatalogTag[\s\S]*?\n  }\n/
+    )?.[0];
+
+    expect(removeTagSource).toBeTruthy();
+    expect(removeTagSource).toContain("requestConfirmation");
+    expect(removeTagSource).toContain("Excluir tag");
+    expect(removeTagSource).toContain("removeCatalogTag");
+  });
+
   it("shows temporary undo toasts instead of an infinite action log in the grid", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
@@ -129,5 +153,13 @@ describe("interaction flow contract", () => {
     expect(undoSource).toBeTruthy();
     expect(undoSource).toContain("getLibraryMetadata");
     expect(undoSource).toContain("setLibraryMetadata");
+  });
+
+  it("does not let metadata migration failures mask completed file operations", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(mainSource).toContain("movePathMetadataSafely");
+    expect(mainSource).toContain("withMetadataWarnings");
+    expect(mainSource).toContain("[metadata] failed to migrate path metadata");
   });
 });

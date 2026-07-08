@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
+import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { FirstRun } from "./components/FirstRun";
 import { FolderTree } from "./components/FolderTree";
@@ -105,6 +106,8 @@ function App() {
   const [modelHashes, setModelHashes] = useState<ModelHashResult>({});
   const [textInputDialog, setTextInputDialog] = useState<TextInputDialogOptions | null>(null);
   const textInputResolver = useRef<((value: string | null) => void) | null>(null);
+  const [confirmationDialog, setConfirmationDialog] = useState<ConfirmDialogOptions | null>(null);
+  const confirmationResolver = useRef<((value: boolean) => void) | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -255,6 +258,7 @@ function App() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
     folderContextMenu,
+    confirmationDialog,
     isSettingsOpen,
     lastFocusedItem,
     modelContextMenu,
@@ -301,6 +305,7 @@ function App() {
   }, [
     folderContextMenu,
     folderHistory,
+    confirmationDialog,
     isSettingsOpen,
     modelContextMenu,
     selectedFolder,
@@ -432,9 +437,28 @@ function App() {
     setTextInputDialog(null);
   }
 
+  function requestConfirmation(options: ConfirmDialogOptions): Promise<boolean> {
+    setConfirmationDialog(options);
+
+    return new Promise((resolve) => {
+      confirmationResolver.current = resolve;
+    });
+  }
+
+  function closeConfirmationDialog(value: boolean) {
+    confirmationResolver.current?.(value);
+    confirmationResolver.current = null;
+    setConfirmationDialog(null);
+  }
+
   function closeTopOverlay(): boolean {
     if (textInputDialog) {
       closeTextInputDialog(null);
+      return true;
+    }
+
+    if (confirmationDialog) {
+      closeConfirmationDialog(false);
       return true;
     }
 
@@ -477,6 +501,17 @@ function App() {
   }
 
   async function removeCatalogTag(tag: string) {
+    const confirmed = await requestConfirmation({
+      title: "Excluir tag",
+      message: `Remover a tag "${tag}" da lista e de todos os modelos?`,
+      confirmLabel: "Excluir tag",
+      tone: "danger"
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     setLibraryMetadata(await window.modelLibrary.removeCatalogTag(tag));
   }
 
@@ -810,7 +845,12 @@ function App() {
     }
 
     const folderName = folderId.split("/").pop() ?? folderId;
-    const confirmed = window.confirm(`Mover a pasta "${folderName}" para a Lixeira?`);
+    const confirmed = await requestConfirmation({
+      title: "Mover pasta para a Lixeira",
+      message: `Mover a pasta "${folderName}" para a Lixeira?`,
+      confirmLabel: "Mover para Lixeira",
+      tone: "danger"
+    });
 
     if (!confirmed) {
       return;
@@ -938,9 +978,12 @@ function App() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Mover ${modelsToTrash.length} arquivo${modelsToTrash.length === 1 ? "" : "s"} para a Lixeira?`
-    );
+    const confirmed = await requestConfirmation({
+      title: "Mover arquivos para a Lixeira",
+      message: `Mover ${modelsToTrash.length} arquivo${modelsToTrash.length === 1 ? "" : "s"} para a Lixeira?`,
+      confirmLabel: "Mover para Lixeira",
+      tone: "danger"
+    });
 
     if (!confirmed) {
       return;
@@ -1221,6 +1264,13 @@ function App() {
           {...textInputDialog}
           onCancel={() => closeTextInputDialog(null)}
           onConfirm={(value) => closeTextInputDialog(value)}
+        />
+      ) : null}
+      {confirmationDialog ? (
+        <ConfirmDialog
+          {...confirmationDialog}
+          onCancel={() => closeConfirmationDialog(false)}
+          onConfirm={() => closeConfirmationDialog(true)}
         />
       ) : null}
       {tagPickerDialog ? (

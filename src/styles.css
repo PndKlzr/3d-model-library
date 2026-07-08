@@ -1615,13 +1615,25 @@ button {
   padding: 20px;
 }
 
-.text-input-dialog {
+.text-input-dialog,
+.confirm-dialog {
   width: min(440px, 100%);
   border: 1px solid #c9d3d7;
   border-radius: var(--radius);
   background: var(--panel-strong);
   box-shadow: var(--shadow);
   padding: 20px;
+}
+
+.confirm-dialog {
+  display: grid;
+  gap: 16px;
+}
+
+.confirm-dialog > p {
+  margin: 0;
+  color: var(--ink-muted);
+  line-height: 1.45;
 }
 
 .text-input-form {
@@ -1706,6 +1718,19 @@ button {
   color: white;
   padding: 8px 10px;
   font-weight: 800;
+}
+
+.danger-button {
+  border: 1px solid #a53b3b;
+  border-radius: var(--radius);
+  background: #b64848;
+  color: white;
+  padding: 8px 12px;
+  font-weight: 800;
+}
+
+.danger-button:hover {
+  background: #9f3535;
 }
 
 .dialog-header {
@@ -1894,6 +1919,7 @@ button {
 [data-theme="dark"] .context-menu,
 [data-theme="dark"] .settings-dialog,
 [data-theme="dark"] .text-input-dialog,
+[data-theme="dark"] .confirm-dialog,
 [data-theme="dark"] .tag-picker-dialog,
 [data-theme="dark"] .tag-selector-trigger,
 [data-theme="dark"] .tag-selector-popover,

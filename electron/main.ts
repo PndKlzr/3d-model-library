@@ -2,7 +2,12 @@ import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from "electro
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AppSettings, ModelHashInput } from "../src/shared/types.js";
+import type {
+  AppSettings,
+  FileOperationResult,
+  FileRestorePair,
+  ModelHashInput
+} from "../src/shared/types.js";
 import { extractArchiveEntries, listArchiveEntries } from "./services/archiveManager.js";
 import {
   createLibraryFolder,
@@ -15,7 +20,6 @@ import {
   trashLibraryFolder,
   trashModelFiles
 } from "./services/fileOrganizer.js";
-import type { FileRestorePair } from "../src/shared/types.js";
 import { scanLibrary } from "./services/libraryScanner.js";
 import { readModelMetadata } from "./services/modelMetadata.js";
 import { readEmbeddedThumbnail } from "./services/modelThumbnail.js";
@@ -89,15 +93,18 @@ function registerIpcHandlers() {
     async (_event, sourcePaths: string[], destinationRelativeFolder: string) => {
       const libraryPath = requireLibraryPath();
       const result = await moveModelFiles(libraryPath, sourcePaths, destinationRelativeFolder);
+      const metadataWarnings: string[] = [];
 
       for (const sourcePath of sourcePaths) {
-        libraryMetadataStore.movePathMetadata(
-          sourcePath,
-          resolveMovedModelPath(libraryPath, sourcePath, destinationRelativeFolder)
+        metadataWarnings.push(
+          ...movePathMetadataSafely(
+            sourcePath,
+            resolveMovedModelPath(libraryPath, sourcePath, destinationRelativeFolder)
+          )
         );
       }
 
-      return result;
+      return withMetadataWarnings(result, metadataWarnings);
     }
   );
 
@@ -113,7 +120,7 @@ function registerIpcHandlers() {
       );
 
       if (result.path) {
-        libraryMetadataStore.movePathMetadata(sourcePath, result.path);
+        return withMetadataWarnings(result, movePathMetadataSafely(sourcePath, result.path));
       }
 
       return result;
@@ -128,7 +135,7 @@ function registerIpcHandlers() {
       const result = await renameLibraryFolder(libraryPath, folderRelativePath, newName);
 
       if (result.path) {
-        libraryMetadataStore.movePathMetadata(sourcePath, result.path);
+        return withMetadataWarnings(result, movePathMetadataSafely(sourcePath, result.path));
       }
 
       return result;
@@ -141,7 +148,7 @@ function registerIpcHandlers() {
       const result = await renameModelFile(requireLibraryPath(), sourcePath, newName);
 
       if (result.path) {
-        libraryMetadataStore.movePathMetadata(sourcePath, result.path);
+        return withMetadataWarnings(result, movePathMetadataSafely(sourcePath, result.path));
       }
 
       return result;
@@ -164,12 +171,13 @@ function registerIpcHandlers() {
 
   ipcMain.handle("library:restore-paths", async (_event, pathPairs: FileRestorePair[]) => {
     const result = await restoreLibraryPaths(requireLibraryPath(), pathPairs);
+    const metadataWarnings: string[] = [];
 
     for (const pair of pathPairs) {
-      libraryMetadataStore.movePathMetadata(pair.sourcePath, pair.destinationPath);
+      metadataWarnings.push(...movePathMetadataSafely(pair.sourcePath, pair.destinationPath));
     }
 
-    return result;
+    return withMetadataWarnings(result, metadataWarnings);
   });
 
   ipcMain.handle("metadata:get", () => libraryMetadataStore.getMetadata());
@@ -335,6 +343,36 @@ function resolveMovedModelPath(
     resolveLibraryRelativePath(libraryPath, destinationRelativeFolder),
     path.basename(sourcePath)
   );
+}
+
+function movePathMetadataSafely(sourcePath: string, destinationPath: string): string[] {
+  try {
+    libraryMetadataStore.movePathMetadata(sourcePath, destinationPath);
+    return [];
+  } catch (error) {
+    console.error("[metadata] failed to migrate path metadata", {
+      sourcePath,
+      destinationPath,
+      error
+    });
+    return ["Arquivos movidos, mas algumas tags/notas podem precisar ser recarregadas."];
+  }
+}
+
+function withMetadataWarnings(
+  result: FileOperationResult,
+  metadataWarnings: string[]
+): FileOperationResult {
+  const uniqueWarnings = [...new Set(metadataWarnings)];
+
+  if (uniqueWarnings.length === 0) {
+    return result;
+  }
+
+  return {
+    ...result,
+    message: `${result.message} ${uniqueWarnings.join(" ")}`
+  };
 }
 
 async function createWindow() {
