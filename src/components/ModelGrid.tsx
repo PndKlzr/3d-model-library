@@ -10,7 +10,7 @@ import {
   Settings,
   Star
 } from "lucide-react";
-import { useState, type DragEvent, type MouseEvent } from "react";
+import { useState, type DragEvent } from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
@@ -509,9 +509,10 @@ function ModelCard({
         <button
           className="native-file-drag-handle"
           type="button"
+          draggable
           title="Arrastar arquivo para Cura ou Creality Print"
           aria-label={`Arrastar ${model.name} para outro programa`}
-          onMouseDown={(event) =>
+          onDragStart={(event) =>
             startNativeFileDragFromHandle(event, model, onStartFileDrag)
           }
           onClick={(event) => event.preventDefault()}
@@ -617,9 +618,10 @@ function ModelListRow({
         <button
           className="native-file-drag-handle list-native-file-drag-handle"
           type="button"
+          draggable
           title="Arrastar arquivo para Cura ou Creality Print"
           aria-label={`Arrastar ${model.name} para outro programa`}
-          onMouseDown={(event) =>
+          onDragStart={(event) =>
             startNativeFileDragFromHandle(event, model, onStartFileDrag)
           }
           onClick={(event) => event.preventDefault()}
@@ -632,14 +634,12 @@ function ModelListRow({
 }
 
 function startNativeFileDragFromHandle(
-  event: MouseEvent<HTMLElement>,
+  event: DragEvent<HTMLElement>,
   model: ModelFile,
   onStartFileDrag: (model: ModelFile) => void
 ) {
-  if (event.button !== 0) {
-    return;
-  }
-
+  event.dataTransfer.effectAllowed = "copy";
+  event.dataTransfer.setData("application/x-model-library-file-drag", model.id);
   event.preventDefault();
   event.stopPropagation();
   onStartFileDrag(model);

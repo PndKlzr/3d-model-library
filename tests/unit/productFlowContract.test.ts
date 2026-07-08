@@ -70,10 +70,9 @@ describe("product flow contract", () => {
 
     expect(gridSource).toContain("native-file-drag-handle");
     expect(gridSource).toContain("startNativeFileDragFromHandle");
-    expect(gridSource).toContain("event.button !== 0");
+    expect(gridSource).toContain("application/x-model-library-file-drag");
     expect(gridSource).toContain("onStartFileDrag(model)");
-    expect(gridSource).toContain("onMouseDown={(event) =>");
-    expect(gridSource).not.toContain("onDragStart={(event) =>\n            startNativeFileDrag");
+    expect(gridSource).toContain("onDragStart={(event) =>");
     expect(gridSource).toContain('setData("application/x-model-library-model"');
   });
 
