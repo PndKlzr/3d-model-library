@@ -1,5 +1,5 @@
 import { Plus, Search, Tag } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 type TagSelectorProps = {
   selectedTags: string[];
@@ -18,6 +18,8 @@ export function TagSelector({
 }: TagSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const selectorRef = useRef<HTMLDivElement | null>(null);
+  const listboxId = useId();
   const normalizedSelectedTags = useMemo(() => normalizeTags(selectedTags), [selectedTags]);
   const selectedTagSet = new Set(normalizedSelectedTags);
   const normalizedAvailableTags = useMemo(
@@ -28,6 +30,36 @@ export function TagSelector({
   const visibleTags = normalizedAvailableTags.filter((tag) => tag.includes(normalizedQuery));
   const canCreateTag =
     normalizedQuery.length > 0 && !normalizedAvailableTags.includes(normalizedQuery);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handleDocumentPointerDown(event: PointerEvent) {
+      if (
+        selectorRef.current &&
+        event.target instanceof Node &&
+        !selectorRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleDocumentKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown);
+    document.addEventListener("keydown", handleDocumentKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleDocumentPointerDown);
+      document.removeEventListener("keydown", handleDocumentKeyDown);
+    };
+  }, [isOpen]);
 
   async function toggleTag(tag: string) {
     if (selectedTagSet.has(tag)) {
@@ -48,7 +80,7 @@ export function TagSelector({
   }
 
   return (
-    <div className="tag-selector">
+    <div className="tag-selector" ref={selectorRef}>
       <span className="tag-selector-label">
         <Tag size={15} />
         {label}
@@ -58,6 +90,8 @@ export function TagSelector({
         type="button"
         onClick={() => setIsOpen((currentValue) => !currentValue)}
         aria-expanded={isOpen}
+        aria-haspopup="listbox"
+        aria-controls={isOpen ? listboxId : undefined}
       >
         {normalizedSelectedTags.length > 0 ? (
           <span className="tag-selector-chips">
@@ -73,6 +107,7 @@ export function TagSelector({
         <div
           className="tag-selector-popover"
           role="listbox"
+          id={listboxId}
           aria-label={label}
           aria-multiselectable="true"
         >

@@ -1,4 +1,5 @@
 import { Archive, FolderOpen, Settings, X } from "lucide-react";
+import { DialogShell } from "./DialogShell";
 import type { ThemeMode } from "../lib/viewPreferences";
 import type { AppSettings, SlicerConfig } from "../shared/types";
 
@@ -30,8 +31,7 @@ export function SettingsDialog({
   onThemeModeChange
 }: SettingsDialogProps) {
   return (
-    <div className="dialog-backdrop" role="presentation">
-      <section className="settings-dialog" role="dialog" aria-modal="true" aria-label="Configurações">
+    <DialogShell className="settings-dialog" title="Configurações" onCancel={onClose}>
         <header className="dialog-header">
           <div>
             <p className="eyebrow">Configurações</p>
@@ -150,7 +150,6 @@ export function SettingsDialog({
             ))}
           </div>
         </div>
-      </section>
-    </div>
+    </DialogShell>
   );
 }

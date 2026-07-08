@@ -13,12 +13,17 @@ describe("interaction flow contract", () => {
   it("uses an in-app confirmation dialog instead of browser confirms for trash actions", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const confirmDialogSource = await readFile("src/components/ConfirmDialog.tsx", "utf8");
+    const dialogShellSource = await readFile("src/components/DialogShell.tsx", "utf8");
 
     expect(appSource).not.toContain("window.confirm");
     expect(appSource).toContain("ConfirmDialog");
     expect(appSource).toContain("requestConfirmation");
     expect(appSource).toContain("confirmationDialog");
     expect(appSource).toContain("Mover para Lixeira");
+    expect(confirmDialogSource).toContain("DialogShell");
+    expect(dialogShellSource).toContain("dialog-backdrop");
+    expect(dialogShellSource).toContain("onPointerDown");
+    expect(dialogShellSource).toContain("dialogRef.current?.focus()");
     expect(confirmDialogSource).toContain("danger-button");
   });
 
@@ -58,10 +63,15 @@ describe("interaction flow contract", () => {
     expect(detailsSource).not.toContain("tagDraft");
     expect(tagSelectorSource).toContain("Criar tag");
     expect(tagSelectorSource).toContain("role=\"listbox\"");
+    expect(tagSelectorSource).toContain("aria-haspopup=\"listbox\"");
     expect(tagSelectorSource).toContain("type=\"checkbox\"");
     expect(tagSelectorSource).toContain("tag-selector-checkbox");
     expect(tagSelectorSource).toContain("onClick={() => void toggleTag(tag)}");
+    expect(tagSelectorSource).toContain("selectorRef");
+    expect(tagSelectorSource).toContain('document.addEventListener("pointerdown"');
+    expect(tagSelectorSource).toContain('event.key === "Escape"');
     expect(stylesSource).toContain(".organization-panel .tag-selector-checkbox");
+    expect(stylesSource).toContain("max-width: min(360px, calc(100vw - 32px));");
     expect(stylesSource).toContain("overflow-x: hidden");
   });
 

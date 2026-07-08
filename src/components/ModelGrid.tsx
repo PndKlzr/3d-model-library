@@ -320,7 +320,7 @@ export function ModelGrid({
               <span>
                 {folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}
               </span>
-              <span>
+              <span className="optional-column">
                 {folderCard.childCount} pasta{folderCard.childCount === 1 ? "" : "s"}
               </span>
             </button>
@@ -602,11 +602,13 @@ function ModelListRow({
           <ModelCardThumbnail model={model} />
         </div>
         <strong title={model.name}>{model.name}</strong>
-        <span title={model.relativeFolder || "Raiz"}>{model.relativeFolder || "Raiz"}</span>
+        <span className="optional-column" title={model.relativeFolder || "Raiz"}>
+          {model.relativeFolder || "Raiz"}
+        </span>
         <span>{model.extension.toUpperCase()}</span>
-        <span>{formatBytes(model.sizeBytes)}</span>
-        <span>{new Date(model.modifiedAt).toLocaleDateString()}</span>
-        <span className="list-flags">
+        <span className="optional-column">{formatBytes(model.sizeBytes)}</span>
+        <span className="optional-column">{new Date(model.modifiedAt).toLocaleDateString()}</span>
+        <span className="list-flags optional-column">
           {metadata?.favorite ? <Star size={15} fill="currentColor" aria-label="Favorito" /> : null}
           {isDuplicate ? <em>Duplicado</em> : null}
           {metadata?.tags.slice(0, 2).map((tag) => (

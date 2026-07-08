@@ -37,7 +37,7 @@
 body {
   margin: 0;
   min-width: 900px;
-  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
 }
 
@@ -139,8 +139,8 @@ button {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 260px minmax(420px, 1fr) 360px;
-  height: 100vh;
+  grid-template-columns: clamp(220px, 18vw, 260px) minmax(0, 1fr) clamp(300px, 24vw, 360px);
+  height: 100dvh;
   overflow: hidden;
   background:
     linear-gradient(90deg, rgba(40, 124, 120, 0.08) 1px, transparent 1px),
@@ -153,7 +153,7 @@ button {
 .library-panel,
 .details-panel {
   min-width: 0;
-  height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
 }
 
@@ -570,7 +570,10 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 7px;
+  max-height: 72px;
   margin: -8px 0 18px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .tag-chip {
@@ -669,7 +672,7 @@ button {
 
 .folder-list-row {
   display: grid;
-  grid-template-columns: 24px minmax(160px, 1fr) 110px 90px;
+  grid-template-columns: 24px minmax(120px, 1fr) 96px 76px;
   align-items: center;
   gap: 10px;
   min-height: 58px;
@@ -1434,6 +1437,7 @@ button {
   left: 0;
   display: grid;
   gap: 8px;
+  max-width: min(360px, calc(100vw - 32px));
   max-height: 260px;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1679,7 +1683,7 @@ button {
 .undo-toast {
   position: fixed;
   z-index: 30;
-  right: 386px;
+  right: calc(clamp(300px, 24vw, 360px) + 20px);
   bottom: 20px;
   display: flex;
   max-width: 420px;
@@ -1745,6 +1749,35 @@ button {
 .dialog-header h2,
 .settings-section h3 {
   margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .library-panel {
+    padding: 18px;
+  }
+
+  .toolbar {
+    align-items: flex-start;
+  }
+
+  .model-list-main {
+    grid-template-columns: 46px minmax(120px, 1fr) 50px;
+  }
+
+  .model-list-main .optional-column,
+  .folder-list-row .optional-column {
+    display: none;
+  }
+
+  .folder-list-row {
+    grid-template-columns: 24px minmax(120px, 1fr) 96px;
+  }
+
+  .undo-toast {
+    right: 18px;
+    left: 18px;
+    max-width: none;
+  }
 }
 
 .icon-only {

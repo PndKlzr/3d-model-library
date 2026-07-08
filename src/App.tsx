@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
 import { DetailsPanel } from "./components/DetailsPanel";
+import { DialogShell } from "./components/DialogShell";
 import { FirstRun } from "./components/FirstRun";
 import { FolderTree } from "./components/FolderTree";
 import { ModelGrid } from "./components/ModelGrid";
@@ -1274,24 +1275,26 @@ function App() {
         />
       ) : null}
       {tagPickerDialog ? (
-        <div className="dialog-backdrop" role="presentation">
-          <section className="tag-picker-dialog" role="dialog" aria-modal="true" aria-label="Tags do modelo">
-            <header className="dialog-header">
-              <div>
-                <p className="eyebrow">Tags</p>
-                <h2>{tagPickerDialog.model.name}</h2>
-              </div>
-              <button className="icon-only" type="button" onClick={() => setTagPickerDialog(null)}>
-                Fechar
-              </button>
-            </header>
-            <TagSelector
-              selectedTags={libraryMetadata.models[tagPickerDialog.model.absolutePath]?.tags ?? []}
-              availableTags={availableTags}
-              onChange={(tags) => setModelTags(tagPickerDialog.model.absolutePath, tags)}
-            />
-          </section>
-        </div>
+        <DialogShell
+          className="tag-picker-dialog"
+          title="Tags do modelo"
+          onCancel={() => setTagPickerDialog(null)}
+        >
+          <header className="dialog-header">
+            <div>
+              <p className="eyebrow">Tags</p>
+              <h2>{tagPickerDialog.model.name}</h2>
+            </div>
+            <button className="icon-only" type="button" onClick={() => setTagPickerDialog(null)}>
+              Fechar
+            </button>
+          </header>
+          <TagSelector
+            selectedTags={libraryMetadata.models[tagPickerDialog.model.absolutePath]?.tags ?? []}
+            availableTags={availableTags}
+            onChange={(tags) => setModelTags(tagPickerDialog.model.absolutePath, tags)}
+          />
+        </DialogShell>
       ) : null}
       {folderContextMenu ? (
         <div
