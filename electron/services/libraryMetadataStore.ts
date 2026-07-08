@@ -104,7 +104,16 @@ export function createLibraryMetadataStore(
       const metadata = getMetadata();
       return saveMetadata({
         ...metadata,
-        tagCatalog: metadata.tagCatalog.filter((catalogTag) => catalogTag !== normalizedTag)
+        tagCatalog: metadata.tagCatalog.filter((catalogTag) => catalogTag !== normalizedTag),
+        models: Object.fromEntries(
+          Object.entries(metadata.models).map(([modelPath, modelMetadata]) => [
+            modelPath,
+            {
+              ...modelMetadata,
+              tags: modelMetadata.tags.filter((modelTag) => modelTag !== normalizedTag)
+            }
+          ])
+        )
       });
     },
 
@@ -115,19 +124,28 @@ export function createLibraryMetadataStore(
 
       const metadata = getMetadata();
       const nextModels: LibraryMetadata["models"] = {};
+      const movedModelEntries: Array<[string, ModelUserMetadata]> = [];
 
       for (const [modelPath, modelMetadata] of Object.entries(metadata.models)) {
-        nextModels[movePathIfInside(modelPath, sourcePath, destinationPath) ?? modelPath] =
-          modelMetadata;
+        const movedPath = movePathIfInside(modelPath, sourcePath, destinationPath);
+
+        if (movedPath) {
+          movedModelEntries.push([movedPath, modelMetadata]);
+          continue;
+        }
+
+        if (!isPathSameOrInside(modelPath, destinationPath)) {
+          nextModels[modelPath] = modelMetadata;
+        }
       }
 
       return saveMetadata({
         ...metadata,
-        models: nextModels,
-        slicerHistory: metadata.slicerHistory.map((entry) => ({
-          ...entry,
-          modelPath: movePathIfInside(entry.modelPath, sourcePath, destinationPath) ?? entry.modelPath
-        }))
+        models: {
+          ...nextModels,
+          ...Object.fromEntries(movedModelEntries)
+        },
+        slicerHistory: moveSlicerHistory(metadata, sourcePath, destinationPath)
       });
     },
 
@@ -231,6 +249,39 @@ function movePathIfInside(
     Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
 
   return isInside ? path.join(normalizedDestination, relativePath) : null;
+}
+
+function moveSlicerHistory(
+  metadata: LibraryMetadata,
+  sourcePath: string,
+  destinationPath: string
+): LibraryMetadata["slicerHistory"] {
+  const nextHistory: LibraryMetadata["slicerHistory"] = [];
+
+  for (const entry of metadata.slicerHistory) {
+    const movedPath = movePathIfInside(entry.modelPath, sourcePath, destinationPath);
+
+    if (movedPath) {
+      nextHistory.push({ ...entry, modelPath: movedPath });
+      continue;
+    }
+
+    if (!isPathSameOrInside(entry.modelPath, destinationPath)) {
+      nextHistory.push(entry);
+    }
+  }
+
+  return nextHistory;
+}
+
+function isPathSameOrInside(candidatePath: string, parentPath: string): boolean {
+  const normalizedCandidate = path.resolve(candidatePath);
+  const normalizedParent = path.resolve(parentPath);
+  const relativePath = path.relative(normalizedParent, normalizedCandidate);
+
+  return (
+    relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+  );
 }
 
 function samePath(left: string, right: string): boolean {

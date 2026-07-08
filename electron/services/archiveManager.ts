@@ -75,6 +75,7 @@ export async function extractArchiveEntries(
   const destinationRoot = resolveExtractionRoot(rootPath, safeArchivePath, destinationRelativeFolder);
   const extractedPaths: string[] = [];
   const pendingWrites: Array<{ destinationPath: string; bytes: Uint8Array }> = [];
+  const pendingDestinationKeys = new Set<string>();
 
   for (const [entryPath, bytes] of Object.entries(files)) {
     const normalizedEntryPath = normalizeArchiveEntryPath(entryPath);
@@ -90,6 +91,7 @@ export async function extractArchiveEntries(
     }
 
     const destinationPath = resolveEntryDestination(destinationRoot, normalizedEntryPath);
+    assertUniqueExtractionDestination(destinationPath, pendingDestinationKeys);
     await assertAvailableExtractionDestination(destinationPath);
     pendingWrites.push({ destinationPath, bytes });
   }
@@ -179,6 +181,8 @@ async function extractWithSevenZip(
   if (extractedPaths.length === 0) {
     return { ok: true, message: "Nenhum arquivo extraido.", paths: [] };
   }
+
+  assertUniqueExtractionDestinations(extractedPaths);
 
   for (const extractedPath of extractedPaths) {
     await assertAvailableExtractionDestination(extractedPath);
@@ -298,6 +302,27 @@ async function assertAvailableExtractionDestination(destinationPath: string): Pr
   throw new Error("Ja existe um arquivo extraido com esse nome.");
 }
 
+function assertUniqueExtractionDestinations(destinationPaths: string[]): void {
+  const seenDestinationKeys = new Set<string>();
+
+  for (const destinationPath of destinationPaths) {
+    assertUniqueExtractionDestination(destinationPath, seenDestinationKeys);
+  }
+}
+
+function assertUniqueExtractionDestination(
+  destinationPath: string,
+  seenDestinationKeys: Set<string>
+): void {
+  const destinationKey = path.resolve(destinationPath).toLowerCase();
+
+  if (seenDestinationKeys.has(destinationKey)) {
+    throw new Error("Mais de uma entrada extrairia para o mesmo caminho.");
+  }
+
+  seenDestinationKeys.add(destinationKey);
+}
+
 async function resolveArchivePath(rootPath: string, archivePath: string): Promise<string> {
   const normalizedRoot = path.resolve(rootPath);
   const normalizedArchivePath = path.resolve(archivePath);
@@ -365,7 +390,13 @@ function normalizeRelativeFolder(relativeFolder: string): string {
     return "";
   }
 
-  return relativeFolder.split(/[\\/]+/).filter(Boolean).join(path.sep);
+  const parts = relativeFolder.split(/[\\/]+/).filter(Boolean);
+
+  if (parts.some((part) => part === "." || part === "..")) {
+    throw new Error("Pasta de destino invalida.");
+  }
+
+  return parts.join(path.sep);
 }
 
 function assertInsideRoot(rootPath: string, candidatePath: string, allowRoot: boolean) {

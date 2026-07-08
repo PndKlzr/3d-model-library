@@ -93,6 +93,25 @@ describe("archiveManager", () => {
     await expect(readFile(existingPath, "utf8")).resolves.toBe("existing model");
   });
 
+  it("rejects zip entries that would extract to the same destination", async () => {
+    const archivePath = path.join(tempRoot, "archives", "pack.zip");
+    await mkdir(path.dirname(archivePath), { recursive: true });
+    await writeFile(
+      archivePath,
+      zipSync({
+        "folder/part.stl": strToU8("solid first\nendsolid first"),
+        "folder\\part.stl": strToU8("solid second\nendsolid second")
+      })
+    );
+
+    await expect(
+      extractArchiveEntries(tempRoot, archivePath, ["folder/part.stl", "folder\\part.stl"])
+    ).rejects.toThrow("Mais de uma entrada extrairia para o mesmo caminho");
+    await expect(stat(path.join(tempRoot, "archives", "pack", "folder", "part.stl"))).rejects.toThrow(
+      "ENOENT"
+    );
+  });
+
   it("rejects zip entries that would extract outside the library", async () => {
     const archivePath = path.join(tempRoot, "bad.zip");
     await writeFile(
@@ -105,6 +124,21 @@ describe("archiveManager", () => {
     await expect(extractArchiveEntries(tempRoot, archivePath, ["../escape.stl"])).rejects.toThrow(
       "Entrada insegura no arquivo compactado"
     );
+  });
+
+  it("rejects unsafe destination folders before extracting", async () => {
+    const archivePath = path.join(tempRoot, "pack.zip");
+    await writeFile(
+      archivePath,
+      zipSync({
+        "part.stl": strToU8("solid part\nendsolid part")
+      })
+    );
+
+    await expect(
+      extractArchiveEntries(tempRoot, archivePath, ["part.stl"], "safe/../target")
+    ).rejects.toThrow("Pasta de destino invalida");
+    await expect(stat(path.join(tempRoot, "target", "part.stl"))).rejects.toThrow("ENOENT");
   });
 
   it("parses printable entries from 7-Zip technical list output", () => {

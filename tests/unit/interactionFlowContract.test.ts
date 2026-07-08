@@ -110,4 +110,24 @@ describe("interaction flow contract", () => {
     expect(mainSource).toContain('"library:move-models"');
     expect(mainSource).toContain('"library:restore-paths"');
   });
+
+  it("refreshes renderer metadata after file operations that can move paths", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const runOperationSource = appSource.match(
+      /async function runLibraryOperation[\s\S]*?\n  }\n/
+    )?.[0];
+
+    expect(runOperationSource).toBeTruthy();
+    expect(runOperationSource).toContain("getLibraryMetadata");
+    expect(runOperationSource).toContain("setLibraryMetadata");
+  });
+
+  it("refreshes renderer metadata after undo restores paths", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const undoSource = appSource.match(/async function undoLastAction[\s\S]*?\n  }\n/)?.[0];
+
+    expect(undoSource).toBeTruthy();
+    expect(undoSource).toContain("getLibraryMetadata");
+    expect(undoSource).toContain("setLibraryMetadata");
+  });
 });

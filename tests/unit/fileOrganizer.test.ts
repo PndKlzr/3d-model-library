@@ -54,6 +54,17 @@ describe("file organizer", () => {
     await expect(stat(sourcePath)).rejects.toThrow("ENOENT");
   });
 
+  it("moves supported archive files as library items", async () => {
+    await mkdir(path.join(tempRoot, "sorted"));
+    const sourcePath = path.join(tempRoot, "parts.zip");
+    await writeFile(sourcePath, "zip");
+
+    const result = await moveModelFiles(tempRoot, [sourcePath], "sorted");
+
+    expect(result).toEqual({ ok: true, message: "1 arquivo movido." });
+    await expect(readFile(path.join(tempRoot, "sorted", "parts.zip"), "utf8")).resolves.toBe("zip");
+  });
+
   it("rejects a move when the destination already has the same filename", async () => {
     await mkdir(path.join(tempRoot, "sorted"));
     const sourcePath = path.join(tempRoot, "bench.stl");
@@ -96,6 +107,19 @@ describe("file organizer", () => {
       message: "1 arquivo movido para a Lixeira.",
       paths: [sourcePath]
     });
+    expect(trashedPaths).toEqual([sourcePath]);
+  });
+
+  it("sends supported archive files to the configured trash handler", async () => {
+    const sourcePath = path.join(tempRoot, "pack.7z");
+    await writeFile(sourcePath, "archive");
+    const trashedPaths: string[] = [];
+
+    const result = await trashModelFiles(tempRoot, [sourcePath], async (modelPath) => {
+      trashedPaths.push(modelPath);
+    });
+
+    expect(result.paths).toEqual([sourcePath]);
     expect(trashedPaths).toEqual([sourcePath]);
   });
 
@@ -175,6 +199,22 @@ describe("file organizer", () => {
       path: path.join(tempRoot, "better clip.3mf")
     });
     await expect(readFile(path.join(tempRoot, "better clip.3mf"), "utf8")).resolves.toBe("model");
+  });
+
+  it("renames archive files while preserving their archive extension", async () => {
+    const sourcePath = path.join(tempRoot, "bundle.rar");
+    await writeFile(sourcePath, "archive");
+
+    const result = await renameModelFile(tempRoot, sourcePath, "organized bundle");
+
+    expect(result).toEqual({
+      ok: true,
+      message: "Arquivo renomeado.",
+      path: path.join(tempRoot, "organized bundle.rar")
+    });
+    await expect(readFile(path.join(tempRoot, "organized bundle.rar"), "utf8")).resolves.toBe(
+      "archive"
+    );
   });
 
   it("saves converted STL files next to the source 3MF", async () => {

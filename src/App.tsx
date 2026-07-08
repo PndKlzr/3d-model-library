@@ -1015,6 +1015,7 @@ function App() {
       setActionLogEntries((entries) => markActionUndone(entries, undoableAction.id));
       setUndoToast(null);
       setOperationMessage(result.message);
+      setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
       await scanLibrary(settings.libraryPath, result.paths ?? []);
     } catch (error) {
       setOperationMessage(readErrorMessage(error));
@@ -1039,6 +1040,7 @@ function App() {
         setActionLogEntries((entries) => appendActionLogEntry(entries, result.action!));
         setUndoToast(result.action);
       }
+      setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
       await scanLibrary(settings.libraryPath, result.selectedPaths);
     } catch (error) {
       setOperationMessage(readErrorMessage(error));
@@ -1086,6 +1088,9 @@ function App() {
   const availableTags = getAvailableTags(models, libraryMetadata);
   const duplicateModelIds = getDuplicateModelIds(models, modelHashes);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
+  const canLaunchContextModelInSlicer = modelContextMenu
+    ? getSlicerLaunchModelCount(modelContextMenu.model) > 0
+    : false;
   const filteredModels = filterModels(
     models,
     selectedFolder,
@@ -1360,7 +1365,7 @@ function App() {
           >
             Tags...
           </button>
-          {enabledSlicers.length > 0 ? (
+          {enabledSlicers.length > 0 && canLaunchContextModelInSlicer ? (
             <>
               <div className="context-menu-separator" />
               <div className="context-menu-section-title">Slicer</div>

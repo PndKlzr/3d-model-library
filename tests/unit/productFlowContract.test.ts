@@ -58,6 +58,13 @@ describe("product flow contract", () => {
     expect(appSource).toContain("getSlicerLaunchModelPaths");
   });
 
+  it("hides model context slicer actions when no printable file would be launched", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("canLaunchContextModelInSlicer");
+    expect(appSource).toContain("getSlicerLaunchModelCount(modelContextMenu.model) > 0");
+  });
+
   it("separates native file drag from internal folder organization drag", async () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 

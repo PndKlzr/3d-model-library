@@ -2,7 +2,7 @@ import { mkdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { FileOperationResult, FileRestorePair } from "../../src/shared/types.js";
 
-const MODEL_EXTENSIONS = new Set([".stl", ".3mf"]);
+const LIBRARY_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
 const INVALID_WINDOWS_NAME_CHARS = /[<>:"/\\|?*\u0000-\u001f]/;
 const RESERVED_WINDOWS_NAMES = new Set([
   "con",
@@ -62,7 +62,7 @@ export async function moveModelFiles(
 
   for (const sourcePath of sourcePaths) {
     const safeSourcePath = resolveExistingAbsolutePath(rootPath, sourcePath);
-    await assertModelFile(safeSourcePath);
+    await assertLibraryFile(safeSourcePath);
 
     const destinationPath = path.join(destinationFolder, path.basename(safeSourcePath));
 
@@ -103,7 +103,7 @@ export async function trashModelFiles(
 
   for (const sourcePath of sourcePaths) {
     const safeSourcePath = resolveExistingAbsolutePath(rootPath, sourcePath);
-    await assertModelFile(safeSourcePath);
+    await assertLibraryFile(safeSourcePath);
     safeSourcePaths.push(safeSourcePath);
   }
 
@@ -199,7 +199,7 @@ export async function renameModelFile(
   newName: string
 ): Promise<FileOperationResult> {
   const safeSourcePath = resolveExistingAbsolutePath(rootPath, sourcePath);
-  await assertModelFile(safeSourcePath);
+  await assertLibraryFile(safeSourcePath);
 
   const extension = path.extname(safeSourcePath).toLowerCase();
   const safeFileName = validateModelFileName(newName, extension);
@@ -371,11 +371,11 @@ async function assertDirectory(directoryPath: string) {
   }
 }
 
-async function assertModelFile(filePath: string) {
+async function assertLibraryFile(filePath: string) {
   const fileStat = await stat(filePath);
   const extension = path.extname(filePath).toLowerCase();
 
-  if (!fileStat.isFile() || !MODEL_EXTENSIONS.has(extension)) {
+  if (!fileStat.isFile() || !LIBRARY_FILE_EXTENSIONS.has(extension)) {
     throw new Error("Arquivo de modelo invalido.");
   }
 }

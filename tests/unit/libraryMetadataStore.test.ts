@@ -44,6 +44,19 @@ describe("libraryMetadataStore", () => {
     expect(store.getMetadata().tagCatalog).toEqual(["fidget"]);
   });
 
+  it("removes a deleted catalog tag from every model", () => {
+    const store = createLibraryMetadataStore();
+
+    store.setTags("C:/models/a.stl", ["fidget", "pla"]);
+    store.setTags("C:/models/b.stl", ["fidget"]);
+    store.removeCatalogTag("fidget");
+
+    const metadata = store.getMetadata();
+    expect(metadata.tagCatalog).toEqual(["pla"]);
+    expect(metadata.models["C:/models/a.stl"].tags).toEqual(["pla"]);
+    expect(metadata.models["C:/models/b.stl"].tags).toEqual([]);
+  });
+
   it("saves notes for a model", () => {
     const store = createLibraryMetadataStore();
 
@@ -95,6 +108,29 @@ describe("libraryMetadataStore", () => {
     expect(metadata.slicerHistory[0].modelPath).toBe(resolvedNextPath);
   });
 
+  it("lets moved metadata replace stale metadata at the destination path", () => {
+    const store = createLibraryMetadataStore();
+    const oldPath = "C:/models/raw/clip.stl";
+    const nextPath = "C:/models/sorted/clip.stl";
+
+    store.setTags(oldPath, ["source"]);
+    store.setNotes(oldPath, "fresh metadata");
+    store.setTags(nextPath, ["stale"]);
+    store.setNotes(nextPath, "old metadata");
+
+    store.movePathMetadata(oldPath, nextPath);
+
+    const matchingEntries = Object.entries(store.getMetadata().models).filter(([modelPath]) =>
+      sameResolvedPath(modelPath, nextPath)
+    );
+
+    expect(matchingEntries).toHaveLength(1);
+    expect(matchingEntries[0][1]).toMatchObject({
+      tags: ["source"],
+      notes: "fresh metadata"
+    });
+  });
+
   it("moves nested model metadata when a folder path changes", () => {
     const store = createLibraryMetadataStore();
     const folderPath = "C:/models/raw";
@@ -113,3 +149,7 @@ describe("libraryMetadataStore", () => {
     expect(metadata.models[siblingPath].tags).toEqual(["keep"]);
   });
 });
+
+function sameResolvedPath(left: string, right: string): boolean {
+  return path.resolve(left).toLowerCase() === path.resolve(right).toLowerCase();
+}
