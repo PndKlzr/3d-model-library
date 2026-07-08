@@ -10,7 +10,7 @@ import {
   Settings,
   Star
 } from "lucide-react";
-import { useState, type DragEvent } from "react";
+import { useState, type DragEvent, type MouseEvent } from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
@@ -509,15 +509,12 @@ function ModelCard({
         <button
           className="native-file-drag-handle"
           type="button"
-          draggable
           title="Arrastar arquivo para Cura ou Creality Print"
           aria-label={`Arrastar ${model.name} para outro programa`}
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.preventDefault()}
-          onDragStart={(event) =>
-            startNativeFileDrag(event, model, onDragStartModel, onStartFileDrag)
+          onMouseDown={(event) =>
+            startNativeFileDragFromHandle(event, model, onStartFileDrag)
           }
-          onDragEnd={onDragEndModel}
+          onClick={(event) => event.preventDefault()}
         >
           <GripVertical size={16} />
         </button>
@@ -620,15 +617,12 @@ function ModelListRow({
         <button
           className="native-file-drag-handle list-native-file-drag-handle"
           type="button"
-          draggable
           title="Arrastar arquivo para Cura ou Creality Print"
           aria-label={`Arrastar ${model.name} para outro programa`}
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.preventDefault()}
-          onDragStart={(event) =>
-            startNativeFileDrag(event, model, onDragStartModel, onStartFileDrag)
+          onMouseDown={(event) =>
+            startNativeFileDragFromHandle(event, model, onStartFileDrag)
           }
-          onDragEnd={onDragEndModel}
+          onClick={(event) => event.preventDefault()}
         >
           <GripVertical size={16} />
         </button>
@@ -637,16 +631,17 @@ function ModelListRow({
   );
 }
 
-function startNativeFileDrag(
-  event: DragEvent<HTMLElement>,
+function startNativeFileDragFromHandle(
+  event: MouseEvent<HTMLElement>,
   model: ModelFile,
-  onDragStartModel: (model: ModelFile) => void,
   onStartFileDrag: (model: ModelFile) => void
 ) {
+  if (event.button !== 0) {
+    return;
+  }
+
   event.preventDefault();
   event.stopPropagation();
-  event.dataTransfer.effectAllowed = "copy";
-  onDragStartModel(model);
   onStartFileDrag(model);
 }
 

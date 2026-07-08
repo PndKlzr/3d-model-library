@@ -86,22 +86,66 @@ function registerIpcHandlers() {
 
   ipcMain.handle(
     "library:move-models",
-    (_event, sourcePaths: string[], destinationRelativeFolder: string) =>
-      moveModelFiles(requireLibraryPath(), sourcePaths, destinationRelativeFolder)
+    async (_event, sourcePaths: string[], destinationRelativeFolder: string) => {
+      const libraryPath = requireLibraryPath();
+      const result = await moveModelFiles(libraryPath, sourcePaths, destinationRelativeFolder);
+
+      for (const sourcePath of sourcePaths) {
+        libraryMetadataStore.movePathMetadata(
+          sourcePath,
+          resolveMovedModelPath(libraryPath, sourcePath, destinationRelativeFolder)
+        );
+      }
+
+      return result;
+    }
   );
 
   ipcMain.handle(
     "library:move-folder",
-    (_event, folderRelativePath: string, destinationRelativeFolder: string) =>
-      moveLibraryFolder(requireLibraryPath(), folderRelativePath, destinationRelativeFolder)
+    async (_event, folderRelativePath: string, destinationRelativeFolder: string) => {
+      const libraryPath = requireLibraryPath();
+      const sourcePath = resolveLibraryRelativePath(libraryPath, folderRelativePath);
+      const result = await moveLibraryFolder(
+        libraryPath,
+        folderRelativePath,
+        destinationRelativeFolder
+      );
+
+      if (result.path) {
+        libraryMetadataStore.movePathMetadata(sourcePath, result.path);
+      }
+
+      return result;
+    }
   );
 
-  ipcMain.handle("library:rename-folder", (_event, folderRelativePath: string, newName: string) =>
-    renameLibraryFolder(requireLibraryPath(), folderRelativePath, newName)
+  ipcMain.handle(
+    "library:rename-folder",
+    async (_event, folderRelativePath: string, newName: string) => {
+      const libraryPath = requireLibraryPath();
+      const sourcePath = resolveLibraryRelativePath(libraryPath, folderRelativePath);
+      const result = await renameLibraryFolder(libraryPath, folderRelativePath, newName);
+
+      if (result.path) {
+        libraryMetadataStore.movePathMetadata(sourcePath, result.path);
+      }
+
+      return result;
+    }
   );
 
-  ipcMain.handle("library:rename-model-file", (_event, sourcePath: string, newName: string) =>
-    renameModelFile(requireLibraryPath(), sourcePath, newName)
+  ipcMain.handle(
+    "library:rename-model-file",
+    async (_event, sourcePath: string, newName: string) => {
+      const result = await renameModelFile(requireLibraryPath(), sourcePath, newName);
+
+      if (result.path) {
+        libraryMetadataStore.movePathMetadata(sourcePath, result.path);
+      }
+
+      return result;
+    }
   );
 
   ipcMain.handle("model:save-converted-stl", (_event, sourcePath: string, stlContent: string) =>
@@ -118,9 +162,15 @@ function registerIpcHandlers() {
     )
   );
 
-  ipcMain.handle("library:restore-paths", (_event, pathPairs: FileRestorePair[]) =>
-    restoreLibraryPaths(requireLibraryPath(), pathPairs)
-  );
+  ipcMain.handle("library:restore-paths", async (_event, pathPairs: FileRestorePair[]) => {
+    const result = await restoreLibraryPaths(requireLibraryPath(), pathPairs);
+
+    for (const pair of pathPairs) {
+      libraryMetadataStore.movePathMetadata(pair.sourcePath, pair.destinationPath);
+    }
+
+    return result;
+  });
 
   ipcMain.handle("metadata:get", () => libraryMetadataStore.getMetadata());
 
@@ -270,6 +320,21 @@ function getArchiveToolOptions() {
   return {
     extractorPath: settingsStore.getSettings().archiveExtractorPath
   };
+}
+
+function resolveLibraryRelativePath(libraryPath: string, relativePath: string): string {
+  return path.resolve(libraryPath, relativePath);
+}
+
+function resolveMovedModelPath(
+  libraryPath: string,
+  sourcePath: string,
+  destinationRelativeFolder: string
+): string {
+  return path.join(
+    resolveLibraryRelativePath(libraryPath, destinationRelativeFolder),
+    path.basename(sourcePath)
+  );
 }
 
 async function createWindow() {

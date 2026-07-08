@@ -74,6 +74,7 @@ export async function extractArchiveEntries(
   const selectedPaths = new Set(entryPaths.map(normalizeArchiveEntryPath));
   const destinationRoot = resolveExtractionRoot(rootPath, safeArchivePath, destinationRelativeFolder);
   const extractedPaths: string[] = [];
+  const pendingWrites: Array<{ destinationPath: string; bytes: Uint8Array }> = [];
 
   for (const [entryPath, bytes] of Object.entries(files)) {
     const normalizedEntryPath = normalizeArchiveEntryPath(entryPath);
@@ -89,6 +90,11 @@ export async function extractArchiveEntries(
     }
 
     const destinationPath = resolveEntryDestination(destinationRoot, normalizedEntryPath);
+    await assertAvailableExtractionDestination(destinationPath);
+    pendingWrites.push({ destinationPath, bytes });
+  }
+
+  for (const { destinationPath, bytes } of pendingWrites) {
     await mkdir(path.dirname(destinationPath), { recursive: true });
     await writeFile(destinationPath, bytes);
     extractedPaths.push(destinationPath);
@@ -172,6 +178,10 @@ async function extractWithSevenZip(
 
   if (extractedPaths.length === 0) {
     return { ok: true, message: "Nenhum arquivo extraido.", paths: [] };
+  }
+
+  for (const extractedPath of extractedPaths) {
+    await assertAvailableExtractionDestination(extractedPath);
   }
 
   await mkdir(destinationRoot, { recursive: true });
@@ -274,6 +284,20 @@ async function isExistingFile(candidatePath: string): Promise<boolean> {
   }
 }
 
+async function assertAvailableExtractionDestination(destinationPath: string): Promise<void> {
+  try {
+    await stat(destinationPath);
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return;
+    }
+
+    throw error;
+  }
+
+  throw new Error("Ja existe um arquivo extraido com esse nome.");
+}
+
 async function resolveArchivePath(rootPath: string, archivePath: string): Promise<string> {
   const normalizedRoot = path.resolve(rootPath);
   const normalizedArchivePath = path.resolve(archivePath);
@@ -352,4 +376,8 @@ function assertInsideRoot(rootPath: string, candidatePath: string, allowRoot: bo
   if (isOutside || (!allowRoot && isRoot)) {
     throw new Error("Caminho fora da biblioteca.");
   }
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
 }

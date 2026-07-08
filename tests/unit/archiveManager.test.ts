@@ -75,6 +75,24 @@ describe("archiveManager", () => {
     );
   });
 
+  it("refuses to overwrite an existing file when extracting zip entries", async () => {
+    await mkdir(path.join(tempRoot, "archives", "pack", "folder"), { recursive: true });
+    const archivePath = path.join(tempRoot, "archives", "pack.zip");
+    const existingPath = path.join(tempRoot, "archives", "pack", "folder", "part.stl");
+    await writeFile(existingPath, "existing model");
+    await writeFile(
+      archivePath,
+      zipSync({
+        "folder/part.stl": strToU8("solid part\nendsolid part")
+      })
+    );
+
+    await expect(extractArchiveEntries(tempRoot, archivePath, ["folder/part.stl"])).rejects.toThrow(
+      "Ja existe um arquivo extraido com esse nome"
+    );
+    await expect(readFile(existingPath, "utf8")).resolves.toBe("existing model");
+  });
+
   it("rejects zip entries that would extract outside the library", async () => {
     const archivePath = path.join(tempRoot, "bad.zip");
     await writeFile(
@@ -175,5 +193,26 @@ Folder = -
       message: "1 arquivo extraido.",
       paths: [path.join(destinationRoot, "folder", "part.stl")]
     });
+  });
+
+  it("refuses to run 7-Zip when an extracted destination already exists", async () => {
+    await mkdir(path.join(tempRoot, "archives", "pack", "folder"), { recursive: true });
+    const archivePath = path.join(tempRoot, "archives", "pack.7z");
+    const existingPath = path.join(tempRoot, "archives", "pack", "folder", "part.stl");
+    await writeFile(archivePath, "fake 7z");
+    await writeFile(existingPath, "existing model");
+    const calls: string[][] = [];
+
+    await expect(
+      extractArchiveEntries(tempRoot, archivePath, ["folder/part.stl"], undefined, {
+        extractorPath: process.execPath,
+        runSevenZip: async (args) => {
+          calls.push(args);
+          return { stdout: "Everything is Ok", stderr: "" };
+        }
+      })
+    ).rejects.toThrow("Ja existe um arquivo extraido com esse nome");
+    expect(calls).toEqual([]);
+    await expect(readFile(existingPath, "utf8")).resolves.toBe("existing model");
   });
 });

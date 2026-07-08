@@ -741,16 +741,16 @@ function App() {
 
     await runLibraryOperation(async () => {
       const result = await window.modelLibrary.renameFolder(folderId, nextName);
+      const nextPath = result.path ?? buildFolderPath(settings.libraryPath ?? "", destinationLabel);
+      const restorePairs = createRenameRestorePairs(nextPath, sourcePath);
       selectFolder(destinationLabel);
       return {
         message: result.message,
         selectedPaths: [],
-        action: createActionLogEntry("Pasta renomeada", `${folderId} -> ${destinationLabel}`, [
-          {
-            sourcePath: result.path ?? buildFolderPath(settings.libraryPath ?? "", destinationLabel),
-            destinationPath: sourcePath
-          }
-        ])
+        action:
+          restorePairs.length > 0
+            ? createActionLogEntry("Pasta renomeada", `${folderId} -> ${destinationLabel}`, restorePairs)
+            : undefined
       };
     });
   }
@@ -850,14 +850,16 @@ function App() {
 
     await runLibraryOperation(async () => {
       const result = await window.modelLibrary.renameModelFile(selectedModel.absolutePath, nextName);
+      const restorePairs = result.path
+        ? createRenameRestorePairs(result.path, previousPath)
+        : [];
       return {
         message: result.message,
         selectedPaths: result.path ? [result.path] : [],
-        action: result.path
-          ? createActionLogEntry("Arquivo renomeado", `${selectedModel.name} -> ${nextName}`, [
-              { sourcePath: result.path, destinationPath: previousPath }
-            ])
-          : undefined
+        action:
+          restorePairs.length > 0
+            ? createActionLogEntry("Arquivo renomeado", `${selectedModel.name} -> ${nextName}`, restorePairs)
+            : undefined
       };
     });
   }
@@ -1480,6 +1482,12 @@ function createActionLogEntry(
     undone: false,
     restorePairs
   };
+}
+
+function createRenameRestorePairs(nextPath: string, previousPath: string): FileRestorePair[] {
+  return samePath(nextPath, previousPath)
+    ? []
+    : [{ sourcePath: nextPath, destinationPath: previousPath }];
 }
 
 function samePath(left: string, right: string): boolean {

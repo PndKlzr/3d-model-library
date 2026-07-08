@@ -92,4 +92,22 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("convertThreeMfToStl");
     expect(appSource).toContain("saveConvertedStl");
   });
+
+  it("does not create undo restore pairs for no-op renames", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("createRenameRestorePairs");
+    expect(appSource).toContain("return samePath(nextPath, previousPath)");
+    expect(appSource).toContain(": [{ sourcePath: nextPath, destinationPath: previousPath }]");
+  });
+
+  it("migrates saved model metadata when files or folders are moved and renamed", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+    const metadataStoreSource = await readFile("electron/services/libraryMetadataStore.ts", "utf8");
+
+    expect(metadataStoreSource).toContain("movePathMetadata");
+    expect(mainSource).toContain("libraryMetadataStore.movePathMetadata");
+    expect(mainSource).toContain('"library:move-models"');
+    expect(mainSource).toContain('"library:restore-paths"');
+  });
 });

@@ -1,3 +1,4 @@
+import path from "node:path";
 import type { LibraryMetadata, ModelUserMetadata } from "../../src/shared/types.js";
 
 export type LibraryMetadataBackend = {
@@ -13,6 +14,7 @@ export type LibraryMetadataStore = {
   setNotes: (modelPath: string, notes: string) => LibraryMetadata;
   addCatalogTag: (tag: string) => LibraryMetadata;
   removeCatalogTag: (tag: string) => LibraryMetadata;
+  movePathMetadata: (sourcePath: string, destinationPath: string) => LibraryMetadata;
   recordSlicerOpen: (modelPath: string, slicerId: string, openedAt?: string) => LibraryMetadata;
 };
 
@@ -106,6 +108,29 @@ export function createLibraryMetadataStore(
       });
     },
 
+    movePathMetadata(sourcePath, destinationPath) {
+      if (samePath(sourcePath, destinationPath)) {
+        return getMetadata();
+      }
+
+      const metadata = getMetadata();
+      const nextModels: LibraryMetadata["models"] = {};
+
+      for (const [modelPath, modelMetadata] of Object.entries(metadata.models)) {
+        nextModels[movePathIfInside(modelPath, sourcePath, destinationPath) ?? modelPath] =
+          modelMetadata;
+      }
+
+      return saveMetadata({
+        ...metadata,
+        models: nextModels,
+        slicerHistory: metadata.slicerHistory.map((entry) => ({
+          ...entry,
+          modelPath: movePathIfInside(entry.modelPath, sourcePath, destinationPath) ?? entry.modelPath
+        }))
+      });
+    },
+
     setNotes(modelPath, notes) {
       return updateModel(modelPath, (metadata) => ({
         ...metadata,
@@ -186,4 +211,28 @@ function cloneMetadata(metadata: LibraryMetadata): LibraryMetadata {
 
 function normalizeTags(tags: string[]): string[] {
   return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))].sort();
+}
+
+function movePathIfInside(
+  candidatePath: string,
+  sourcePath: string,
+  destinationPath: string
+): string | null {
+  const normalizedCandidate = path.resolve(candidatePath);
+  const normalizedSource = path.resolve(sourcePath);
+  const normalizedDestination = path.resolve(destinationPath);
+
+  if (samePath(normalizedCandidate, normalizedSource)) {
+    return normalizedDestination;
+  }
+
+  const relativePath = path.relative(normalizedSource, normalizedCandidate);
+  const isInside =
+    Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+
+  return isInside ? path.join(normalizedDestination, relativePath) : null;
+}
+
+function samePath(left: string, right: string): boolean {
+  return path.resolve(left).toLowerCase() === path.resolve(right).toLowerCase();
 }
