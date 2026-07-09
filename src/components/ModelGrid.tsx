@@ -7,7 +7,8 @@ import {
   List,
   Search,
   Settings,
-  Star
+  Star,
+  X
 } from "lucide-react";
 import { useState, type DragEvent } from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
@@ -211,6 +212,17 @@ export function ModelGrid({
           onChange={(event) => onSearchChange(event.currentTarget.value)}
           placeholder="Buscar por nome ou pasta"
         />
+        {searchQuery ? (
+          <button
+            className="search-clear-button"
+            type="button"
+            onClick={() => onSearchChange("")}
+            aria-label="Limpar busca"
+            title="Limpar busca"
+          >
+            <X size={15} />
+          </button>
+        ) : null}
       </label>
 
       <div className="filter-bar" aria-label="Filtros da biblioteca">

@@ -538,12 +538,33 @@ button {
 }
 
 .search-box input {
-  width: 100%;
+  width: auto;
+  min-width: 0;
+  flex: 1;
   height: 42px;
   border: 0;
   background: transparent;
   color: #1f2528;
   outline: none;
+}
+
+.search-clear-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-muted);
+  padding: 0;
+}
+
+.search-clear-button:hover,
+.search-clear-button:focus-visible {
+  background: rgba(40, 124, 120, 0.12);
+  color: var(--accent-strong);
 }
 
 .search-box:focus-within {
@@ -2031,6 +2052,16 @@ button {
 [data-theme="dark"] .organization-panel textarea,
 [data-theme="dark"] .text-input-form input {
   background: transparent;
+  color: #eef6f5;
+}
+
+[data-theme="dark"] .filter-bar select {
+  color-scheme: dark;
+  background: rgba(27, 34, 33, 0.98);
+}
+
+[data-theme="dark"] select option {
+  background: #1b2221;
   color: #eef6f5;
 }
 

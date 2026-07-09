@@ -85,6 +85,18 @@ describe("interaction flow contract", () => {
     expect(settingsSource).toContain("Modo escuro");
     expect(settingsSource).toContain("onThemeModeChange");
     expect(stylesSource).toContain('[data-theme="dark"]');
+    expect(stylesSource).toContain('[data-theme="dark"] select option');
+    expect(stylesSource).toContain("color-scheme: dark");
+  });
+
+  it("lets the search box be cleared with a dedicated button", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const stylesSource = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain("Limpar busca");
+    expect(gridSource).toContain("onSearchChange(\"\")");
+    expect(gridSource).toContain("search-clear-button");
+    expect(stylesSource).toContain(".search-clear-button");
   });
 
   it("autoscrolls the sidebar while dragging models over the folder tree edges", async () => {
