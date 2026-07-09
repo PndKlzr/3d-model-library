@@ -3,7 +3,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Folder,
-  GripVertical,
   LayoutGrid,
   List,
   Search,
@@ -34,6 +33,7 @@ type ModelGridProps = {
   metadataByPath: Record<string, ModelUserMetadata>;
   duplicateModelIds: Set<string>;
   isScanning: boolean;
+  isFilteringStale: boolean;
   canMoveModels: boolean;
   operationMessage: string | null;
   selectedFolder: string;
@@ -54,11 +54,11 @@ type ModelGridProps = {
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
+  onOpenDefaultSlicer: (model: ModelFile) => void;
   onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
   onDragEndModel: () => void;
-  onStartFileDrag: (model: ModelFile) => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
 };
@@ -80,6 +80,7 @@ export function ModelGrid({
   metadataByPath,
   duplicateModelIds,
   isScanning,
+  isFilteringStale,
   canMoveModels,
   operationMessage,
   selectedFolder,
@@ -100,11 +101,11 @@ export function ModelGrid({
   onOpenFolderContextMenu,
   onMoveModelsToFolder,
   onOpenModel,
+  onOpenDefaultSlicer,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
   onDragEndModel,
-  onStartFileDrag,
   onRefresh,
   onOpenSettings
 }: ModelGridProps) {
@@ -293,6 +294,12 @@ export function ModelGrid({
         </div>
       ) : null}
 
+      {isFilteringStale ? (
+        <div className="operation-message subtle" role="status">
+          Atualizando resultados...
+        </div>
+      ) : null}
+
       {!hasGridContent ? (
         <div className="empty-state">
           <Box size={28} />
@@ -335,11 +342,11 @@ export function ModelGrid({
               isSelected={selectedModelId === model.id}
               isChecked={selectedModelIds.has(model.id)}
               onOpenModel={onOpenModel}
+              onOpenDefaultSlicer={onOpenDefaultSlicer}
               onOpenModelContextMenu={onOpenModelContextMenu}
               onToggleModelSelection={onToggleModelSelection}
               onDragStartModel={onDragStartModel}
               onDragEndModel={onDragEndModel}
-              onStartFileDrag={onStartFileDrag}
             />
           ))}
         </div>
@@ -383,11 +390,11 @@ export function ModelGrid({
               isSelected={selectedModelId === model.id}
               isChecked={selectedModelIds.has(model.id)}
               onOpenModel={onOpenModel}
+              onOpenDefaultSlicer={onOpenDefaultSlicer}
               onOpenModelContextMenu={onOpenModelContextMenu}
               onToggleModelSelection={onToggleModelSelection}
               onDragStartModel={onDragStartModel}
               onDragEndModel={onDragEndModel}
-              onStartFileDrag={onStartFileDrag}
             />
           ))}
         </div>
@@ -457,11 +464,11 @@ type ModelCardProps = {
   isSelected: boolean;
   isChecked: boolean;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
+  onOpenDefaultSlicer: (model: ModelFile) => void;
   onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile) => void;
   onDragEndModel: () => void;
-  onStartFileDrag: (model: ModelFile) => void;
 };
 
 function ModelCard({
@@ -471,11 +478,11 @@ function ModelCard({
   isSelected,
   isChecked,
   onOpenModel,
+  onOpenDefaultSlicer,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
-  onDragEndModel,
-  onStartFileDrag
+  onDragEndModel
 }: ModelCardProps) {
   return (
     <div
@@ -505,21 +512,6 @@ function ModelCard({
           <Star size={15} fill="currentColor" />
         </div>
       ) : null}
-      {isNativeDraggableModel(model) ? (
-        <button
-          className="native-file-drag-handle"
-          type="button"
-          draggable
-          title="Arrastar arquivo para Cura ou Creality Print"
-          aria-label={`Arrastar ${model.name} para outro programa`}
-          onDragStart={(event) =>
-            startNativeFileDragFromHandle(event, model, onStartFileDrag)
-          }
-          onClick={(event) => event.preventDefault()}
-        >
-          <GripVertical size={16} />
-        </button>
-      ) : null}
       <button
         className="model-card-main"
         type="button"
@@ -529,6 +521,7 @@ function ModelCard({
             shiftKey: event.shiftKey
           })
         }
+        onDoubleClick={() => void onOpenDefaultSlicer(model)}
       >
         <div className="model-thumb">
           <ModelCardThumbnail model={model} />
@@ -559,11 +552,11 @@ function ModelListRow({
   isSelected,
   isChecked,
   onOpenModel,
+  onOpenDefaultSlicer,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
-  onDragEndModel,
-  onStartFileDrag
+  onDragEndModel
 }: ModelCardProps) {
   return (
     <div
@@ -597,6 +590,7 @@ function ModelListRow({
             shiftKey: event.shiftKey
           })
         }
+        onDoubleClick={() => void onOpenDefaultSlicer(model)}
       >
         <div className="list-thumb">
           <ModelCardThumbnail model={model} />
@@ -616,39 +610,8 @@ function ModelListRow({
           ))}
         </span>
       </button>
-      {isNativeDraggableModel(model) ? (
-        <button
-          className="native-file-drag-handle list-native-file-drag-handle"
-          type="button"
-          draggable
-          title="Arrastar arquivo para Cura ou Creality Print"
-          aria-label={`Arrastar ${model.name} para outro programa`}
-          onDragStart={(event) =>
-            startNativeFileDragFromHandle(event, model, onStartFileDrag)
-          }
-          onClick={(event) => event.preventDefault()}
-        >
-          <GripVertical size={16} />
-        </button>
-      ) : null}
     </div>
   );
-}
-
-function startNativeFileDragFromHandle(
-  event: DragEvent<HTMLElement>,
-  model: ModelFile,
-  onStartFileDrag: (model: ModelFile) => void
-) {
-  event.dataTransfer.effectAllowed = "copy";
-  event.dataTransfer.setData("application/x-model-library-file-drag", model.id);
-  event.preventDefault();
-  event.stopPropagation();
-  onStartFileDrag(model);
-}
-
-function isNativeDraggableModel(model: ModelFile): boolean {
-  return model.extension === ".stl" || model.extension === ".3mf";
 }
 
 function formatBytes(bytes: number): string {

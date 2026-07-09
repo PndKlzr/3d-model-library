@@ -53,6 +53,105 @@ describe("archiveManager", () => {
     });
   });
 
+  it("prefers 7-Zip when listing zip archives so large packages are not decompressed eagerly", async () => {
+    const archivePath = path.join(tempRoot, "large.zip");
+    await writeFile(
+      archivePath,
+      zipSync({
+        "built-in.stl": strToU8("solid built-in\nendsolid built-in")
+      })
+    );
+    const calls: string[][] = [];
+
+    const result = await listArchiveEntries(tempRoot, archivePath, {
+      extractorPath: process.execPath,
+      runSevenZip: async (args) => {
+        calls.push(args);
+        return {
+          stdout: `
+Path = from-7zip.3mf
+Size = 512
+Folder = -
+`,
+          stderr: ""
+        };
+      }
+    });
+
+    expect(calls).toEqual([["l", "-slt", archivePath]]);
+    expect(result.entries).toEqual([
+      {
+        path: "from-7zip.3mf",
+        name: "from-7zip.3mf",
+        extension: ".3mf",
+        sizeBytes: 512
+      }
+    ]);
+  });
+
+  it("falls back to 7-Zip when a zip archive cannot be read by the built-in reader", async () => {
+    const archivePath = path.join(tempRoot, "external.zip");
+    await writeFile(archivePath, "not readable by fflate");
+    const calls: string[][] = [];
+
+    const result = await listArchiveEntries(tempRoot, archivePath, {
+      extractorPath: process.execPath,
+      runSevenZip: async (args) => {
+        calls.push(args);
+        return {
+          stdout: `
+Path = part.stl
+Size = 128
+Folder = -
+
+Path = notes.txt
+Size = 4
+Folder = -
+`,
+          stderr: ""
+        };
+      }
+    });
+
+    expect(calls).toEqual([["l", "-slt", archivePath]]);
+    expect(result.entries).toEqual([
+      {
+        path: "part.stl",
+        name: "part.stl",
+        extension: ".stl",
+        sizeBytes: 128
+      }
+    ]);
+  });
+
+  it("uses 7-Zip list output even when the command exits with warnings", async () => {
+    const archivePath = path.join(tempRoot, "warning.zip");
+    await writeFile(archivePath, "not readable by fflate");
+
+    const result = await listArchiveEntries(tempRoot, archivePath, {
+      extractorPath: process.execPath,
+      runSevenZip: async () => {
+        throw Object.assign(new Error("Warnings while listing archive"), {
+          stdout: `
+Path = usable.stl
+Size = 64
+Folder = -
+`,
+          stderr: "Warnings: headers error"
+        });
+      }
+    });
+
+    expect(result.entries).toEqual([
+      {
+        path: "usable.stl",
+        name: "usable.stl",
+        extension: ".stl",
+        sizeBytes: 64
+      }
+    ]);
+  });
+
   it("extracts selected zip entries into a folder inside the library", async () => {
     await mkdir(path.join(tempRoot, "archives"));
     const archivePath = path.join(tempRoot, "archives", "pack.zip");
@@ -73,6 +172,61 @@ describe("archiveManager", () => {
     await expect(stat(path.join(tempRoot, "archives", "pack", "folder", "model.3mf"))).rejects.toThrow(
       "ENOENT"
     );
+  });
+
+  it("prefers 7-Zip for selected zip extraction when it is available", async () => {
+    await mkdir(path.join(tempRoot, "archives"));
+    const archivePath = path.join(tempRoot, "archives", "pack.zip");
+    await writeFile(
+      archivePath,
+      zipSync({
+        "folder/part.stl": strToU8("solid part\nendsolid part")
+      })
+    );
+    const calls: string[][] = [];
+
+    const result = await extractArchiveEntries(
+      tempRoot,
+      archivePath,
+      ["folder/part.stl"],
+      undefined,
+      {
+        extractorPath: process.execPath,
+        runSevenZip: async (args) => {
+          calls.push(args);
+          return { stdout: "Everything is Ok", stderr: "" };
+        }
+      }
+    );
+
+    const destinationRoot = path.join(tempRoot, "archives", "pack");
+    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(result.paths).toEqual([path.join(destinationRoot, "folder", "part.stl")]);
+  });
+
+  it("falls back to 7-Zip when extracting from a zip archive the built-in reader cannot read", async () => {
+    await mkdir(path.join(tempRoot, "archives"));
+    const archivePath = path.join(tempRoot, "archives", "external.zip");
+    await writeFile(archivePath, "not readable by fflate");
+    const calls: string[][] = [];
+
+    const result = await extractArchiveEntries(
+      tempRoot,
+      archivePath,
+      ["folder/part.stl"],
+      undefined,
+      {
+        extractorPath: process.execPath,
+        runSevenZip: async (args) => {
+          calls.push(args);
+          return { stdout: "Everything is Ok", stderr: "" };
+        }
+      }
+    );
+
+    const destinationRoot = path.join(tempRoot, "archives", "external");
+    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(result.paths).toEqual([path.join(destinationRoot, "folder", "part.stl")]);
   });
 
   it("refuses to overwrite an existing file when extracting zip entries", async () => {

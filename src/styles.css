@@ -317,6 +317,28 @@ button {
   gap: 2px;
 }
 
+.folder-tree-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+.folder-tree-actions button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid #bfd1ce;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--ink-muted);
+  padding: 7px 6px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .folder-tools {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -738,39 +760,6 @@ button {
   padding: 7px 10px;
   color: inherit;
   text-align: left;
-}
-
-.native-file-drag-handle {
-  position: absolute;
-  z-index: 4;
-  top: 8px;
-  right: 8px;
-  display: grid;
-  width: 28px;
-  height: 28px;
-  place-items: center;
-  border: 1px solid rgba(40, 124, 120, 0.28);
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--accent-strong);
-  box-shadow: 0 6px 14px rgba(30, 40, 45, 0.12);
-  cursor: grab;
-}
-
-.native-file-drag-handle:active {
-  cursor: grabbing;
-}
-
-.list-native-file-drag-handle {
-  position: static;
-  align-self: stretch;
-  width: 100%;
-  height: auto;
-  border-width: 0 0 0 1px;
-  border-color: var(--line);
-  border-radius: 0 var(--radius) var(--radius) 0;
-  background: transparent;
-  box-shadow: none;
 }
 
 .list-thumb {
@@ -1266,6 +1255,12 @@ button {
   padding: 10px;
   font-size: 13px;
   font-weight: 700;
+}
+
+.operation-message.subtle {
+  background: rgba(237, 246, 244, 0.68);
+  color: var(--ink-muted);
+  font-weight: 600;
 }
 
 .action-log {
@@ -1866,6 +1861,14 @@ button {
   font-weight: 800;
 }
 
+.settings-helper {
+  margin: -4px 0 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .settings-toggle {
   margin: 0;
   padding: 0;
@@ -1907,7 +1910,7 @@ button {
 }
 
 .slicer-row {
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
 }
 
 .slicer-row div {
@@ -1942,6 +1945,7 @@ button {
 [data-theme="dark"] .folder-row,
 [data-theme="dark"] .secondary-button,
 [data-theme="dark"] .folder-tools button,
+[data-theme="dark"] .folder-tree-actions button,
 [data-theme="dark"] .folder-list-row,
 [data-theme="dark"] .model-list-row,
 [data-theme="dark"] .model-card,
@@ -2045,6 +2049,7 @@ button {
 [data-theme="dark"] .breadcrumbs button,
 [data-theme="dark"] .view-mode-toggle button,
 [data-theme="dark"] .folder-tools button,
+[data-theme="dark"] .folder-tree-actions button,
 [data-theme="dark"] .settings-section-header button,
 [data-theme="dark"] .tag-settings-row button,
 [data-theme="dark"] .path-row button,

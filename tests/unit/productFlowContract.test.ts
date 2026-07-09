@@ -32,7 +32,7 @@ describe("product flow contract", () => {
     expect(gridSource).toContain("onContextMenu");
   });
 
-  it("uses native Electron file drag instead of a text path payload for external slicers", async () => {
+  it("keeps native Electron file drag available without exposing a dead card handle", async () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
     const preloadSource = await readFile("electron/preload.cjs", "utf8");
     const mainSource = await readFile("electron/main.ts", "utf8");
@@ -40,6 +40,8 @@ describe("product flow contract", () => {
     expect(gridSource).toContain('setData("application/x-model-library-model"');
     expect(gridSource).not.toContain('setData("text/plain"');
     expect(gridSource).not.toContain("event.preventDefault();\n        onDragStartModel(model);");
+    expect(gridSource).not.toContain("native-file-drag-handle");
+    expect(gridSource).not.toContain("GripVertical");
     expect(preloadSource).toContain('ipcRenderer.send("model:start-file-drag"');
     expect(preloadSource).not.toContain('ipcRenderer.invoke("model:start-file-drag"');
     expect(mainSource).toContain('ipcMain.on("model:start-file-drag"');
@@ -48,6 +50,14 @@ describe("product flow contract", () => {
     expect(mainSource).toContain("prepareNativeFileDragHelper");
     expect(mainSource).toContain("startNativeFileDropDrag");
     expect(mainSource).toContain("model:file-drag-status");
+    const dragHandlerSource = mainSource.match(
+      /ipcMain\.on\("model:start-file-drag"[\s\S]*?\n  }\);/
+    )?.[0];
+
+    expect(dragHandlerSource).toBeTruthy();
+    expect(dragHandlerSource!.indexOf("event.sender.startDrag")).toBeLessThan(
+      dragHandlerSource!.indexOf("startNativeFileDropDrag")
+    );
   });
 
   it("offers a reliable context action to open selected models in a slicer", async () => {
@@ -65,26 +75,26 @@ describe("product flow contract", () => {
     expect(appSource).toContain("getSlicerLaunchModelCount(modelContextMenu.model) > 0");
   });
 
-  it("separates native file drag from internal folder organization drag", async () => {
+  it("separates internal folder organization drag from external file launching", async () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 
-    expect(gridSource).toContain("native-file-drag-handle");
-    expect(gridSource).toContain("startNativeFileDragFromHandle");
-    expect(gridSource).toContain("application/x-model-library-file-drag");
-    expect(gridSource).toContain("onStartFileDrag(model)");
     expect(gridSource).toContain("onDragStart={(event) =>");
     expect(gridSource).toContain('setData("application/x-model-library-model"');
+    expect(gridSource).not.toContain("application/x-model-library-file-drag");
   });
 
-  it("does not mark models as internally dragged when starting an external slicer drag", async () => {
+  it("opens printable models in the default slicer on double-click", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
-    const helperSource = gridSource.match(
-      /function startNativeFileDragFromHandle[\s\S]*?\n}\n/
-    )?.[0];
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+    const typesSource = await readFile("src/shared/types.ts", "utf8");
 
-    expect(helperSource).toBeTruthy();
-    expect(helperSource).toContain("onStartFileDrag(model)");
-    expect(helperSource).not.toContain("onDragStartModel");
+    expect(typesSource).toContain("defaultSlicerId: string | null");
+    expect(settingsSource).toContain("Slicer padrão");
+    expect(appSource).toContain("openModelInDefaultSlicer");
+    expect(appSource).toContain("settings.defaultSlicerId");
+    expect(gridSource).toContain("onOpenDefaultSlicer");
+    expect(gridSource).toContain("onDoubleClick");
   });
 
   it("wraps the app in an error boundary instead of allowing a blank screen", async () => {

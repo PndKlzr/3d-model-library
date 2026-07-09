@@ -118,6 +118,7 @@ export function SettingsDialog({
 
         <div className="settings-section">
           <h3>Slicers</h3>
+          <p className="settings-helper">Slicer padrão</p>
           <div className="slicer-list">
             {settings.slicers.map((slicer) => (
               <div className="slicer-row" key={slicer.id}>
@@ -142,6 +143,15 @@ export function SettingsDialog({
                     }
                   />
                   Ativo
+                </label>
+                <label>
+                  <input
+                    type="radio"
+                    name="default-slicer"
+                    checked={settings.defaultSlicerId === slicer.id}
+                    onChange={() => onSaveSettings({ ...settings, defaultSlicerId: slicer.id })}
+                  />
+                  Padrão
                 </label>
                 <button type="button" onClick={() => onChooseSlicerExecutable(slicer)}>
                   Escolher .exe

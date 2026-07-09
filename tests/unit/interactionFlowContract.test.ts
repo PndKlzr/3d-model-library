@@ -94,6 +94,19 @@ describe("interaction flow contract", () => {
     expect(folderTreeSource).toContain("sidebarRef");
   });
 
+  it("can expand and collapse the whole folder tree from the sidebar", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const folderTreeSource = await readFile("src/components/FolderTree.tsx", "utf8");
+
+    expect(appSource).toContain("expandAllFolders");
+    expect(appSource).toContain("collapseAllFolders");
+    expect(appSource).toContain("getAllFolderIds");
+    expect(folderTreeSource).toContain("onExpandAllFolders");
+    expect(folderTreeSource).toContain("onCollapseAllFolders");
+    expect(folderTreeSource).toContain("Expandir tudo");
+    expect(folderTreeSource).toContain("Recolher tudo");
+  });
+
   it("lets breadcrumbs receive dragged models as folder drop targets", async () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 
@@ -125,6 +138,14 @@ describe("interaction flow contract", () => {
     expect(detailsSource).toContain("onConvertThreeMfToStl");
     expect(appSource).toContain("convertThreeMfToStl");
     expect(appSource).toContain("saveConvertedStl");
+  });
+
+  it("uses deferred search results so typing does not block the library grid", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("useDeferredValue");
+    expect(appSource).toContain("deferredSearchQuery");
+    expect(appSource).toContain("isFilteringStale");
   });
 
   it("does not create undo restore pairs for no-op renames", async () => {

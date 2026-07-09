@@ -48,16 +48,14 @@ describe("fileDrag", () => {
     );
   });
 
-  it("rejects non-printable archive files for drag-out", async () => {
+  it("allows supported archive files for drag-out to Explorer or desktop", async () => {
     const archivePath = path.join(tempRoot, "pack.zip");
     await writeFile(archivePath, "zip");
 
-    await expect(resolveDraggableFilePaths(tempRoot, [archivePath])).rejects.toThrow(
-      "Arraste para slicer aceita apenas STL e 3MF."
-    );
-    expect(() => resolveDraggableFilePathsSync(tempRoot, [archivePath])).toThrow(
-      "Arraste para slicer aceita apenas STL e 3MF."
-    );
+    await expect(resolveDraggableFilePaths(tempRoot, [archivePath])).resolves.toEqual([
+      archivePath
+    ]);
+    expect(resolveDraggableFilePathsSync(tempRoot, [archivePath])).toEqual([archivePath]);
   });
 
   it("uses a single file payload when dragging one model out", () => {

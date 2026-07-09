@@ -231,16 +231,22 @@ function registerIpcHandlers() {
   ipcMain.on("model:start-file-drag", (event, filePaths: string[]) => {
     try {
       const resolvedPaths = resolveDraggableFilePathsSync(requireLibraryPath(), filePaths);
+      const payload = createNativeFileDragPayload(resolvedPaths, dragIcon);
 
-      if (startNativeFileDropDrag(nativeFileDragHelperPath, resolvedPaths)) {
-        const message = `Arraste nativo iniciado para ${resolvedPaths.length} arquivo(s).`;
-        event.sender.send("model:file-drag-status", { ok: true, message });
-        console.log(`[file-drag] ${message}`);
-        return;
+      try {
+        event.sender.startDrag(payload);
+      } catch (electronDragError) {
+        if (startNativeFileDropDrag(nativeFileDragHelperPath, resolvedPaths)) {
+          const message = `Arraste nativo iniciado para ${resolvedPaths.length} arquivo(s).`;
+          event.sender.send("model:file-drag-status", { ok: true, message });
+          console.log(`[file-drag] ${message}`);
+          return;
+        }
+
+        throw electronDragError;
       }
 
-      event.sender.startDrag(createNativeFileDragPayload(resolvedPaths, dragIcon));
-      const message = `Arraste Electron iniciado para ${resolvedPaths.length} arquivo(s).`;
+      const message = `Arraste externo iniciado para ${resolvedPaths.length} arquivo(s).`;
       event.sender.send("model:file-drag-status", { ok: true, message });
       console.log(`[file-drag] ${message}`);
     } catch (error) {

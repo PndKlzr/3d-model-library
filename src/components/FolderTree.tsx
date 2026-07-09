@@ -1,4 +1,4 @@
-import { ChevronRight, Folder, Layers3 } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, ChevronRight, Folder, Layers3 } from "lucide-react";
 import type { DragEvent, MouseEvent } from "react";
 import { useRef, useState } from "react";
 import type { FolderNode } from "../lib/folderTree";
@@ -14,6 +14,8 @@ type FolderTreeProps = {
   expandedFolderIds: Set<string>;
   onSelectFolder: (folderId: string) => void;
   onToggleFolder: (folderId: string) => void;
+  onExpandAllFolders: () => void;
+  onCollapseAllFolders: () => void;
   onToggleIncludeSubfolders: (value: boolean) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
@@ -29,6 +31,8 @@ export function FolderTree({
   expandedFolderIds,
   onSelectFolder,
   onToggleFolder,
+  onExpandAllFolders,
+  onCollapseAllFolders,
   onToggleIncludeSubfolders,
   onOpenFolderContextMenu,
   onMoveModelsToFolder
@@ -105,6 +109,17 @@ export function FolderTree({
           {selectedModelCount} selecionado{selectedModelCount === 1 ? "" : "s"} para organizar
         </div>
       ) : null}
+
+      <div className="folder-tree-actions" aria-label="Acoes da arvore de pastas">
+        <button type="button" onClick={onExpandAllFolders} title="Expandir tudo">
+          <ChevronsUpDown size={15} />
+          Expandir tudo
+        </button>
+        <button type="button" onClick={onCollapseAllFolders} title="Recolher tudo">
+          <ChevronsDownUp size={15} />
+          Recolher tudo
+        </button>
+      </div>
 
       <div className="folder-list">
         {folders.map((folder) => (

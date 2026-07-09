@@ -9,6 +9,7 @@ export type AppSettings = {
   libraryPath: string | null;
   includeSubfolders: boolean;
   archiveExtractorPath: string;
+  defaultSlicerId: string | null;
   slicers: SlicerConfig[];
 };
 

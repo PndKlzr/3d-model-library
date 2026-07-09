@@ -12,6 +12,7 @@ describe("settingsStore", () => {
     expect(store.getSettings().libraryPath).toBeNull();
     expect(store.getSettings().includeSubfolders).toBe(true);
     expect(store.getSettings().archiveExtractorPath).toBe("");
+    expect(store.getSettings().defaultSlicerId).toBeNull();
     expect(store.getSettings().slicers).toEqual([
       { id: "cura", name: "Cura", executablePath: "", enabled: false },
       {
@@ -67,6 +68,17 @@ describe("settingsStore", () => {
       executablePath: "C:\\Program Files\\UltiMaker Cura\\Cura.exe",
       enabled: true
     });
+  });
+
+  it("saves a default slicer id for double-click launches", () => {
+    const store = createSettingsStore();
+
+    store.saveSettings({
+      ...store.getSettings(),
+      defaultSlicerId: "creality-print"
+    });
+
+    expect(store.getSettings().defaultSlicerId).toBe("creality-print");
   });
 
   it("saves the optional 7-Zip executable path", () => {

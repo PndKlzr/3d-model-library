@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
-const PRINTABLE_FILE_EXTENSIONS = new Set([".stl", ".3mf"]);
+const DRAGGABLE_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
 
 export type NativeFileDragPayload<Icon> = {
   file: string;
@@ -70,8 +70,8 @@ function resolveDraggableFilePathsWithStat(
 
     const extension = path.extname(normalizedFilePath).toLowerCase();
 
-    if (!PRINTABLE_FILE_EXTENSIONS.has(extension)) {
-      throw new Error("Arraste para slicer aceita apenas STL e 3MF.");
+    if (!DRAGGABLE_FILE_EXTENSIONS.has(extension)) {
+      throw new Error("Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z.");
     }
 
     if (!isFileResult) {
@@ -116,8 +116,8 @@ async function resolveDraggableFilePathsAsync(
 
     const extension = path.extname(normalizedFilePath).toLowerCase();
 
-    if (!PRINTABLE_FILE_EXTENSIONS.has(extension)) {
-      throw new Error("Arraste para slicer aceita apenas STL e 3MF.");
+    if (!DRAGGABLE_FILE_EXTENSIONS.has(extension)) {
+      throw new Error("Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z.");
     }
 
     if (!(await isFile(normalizedFilePath))) {

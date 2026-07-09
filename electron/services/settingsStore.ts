@@ -15,6 +15,7 @@ export function createDefaultSettings(): AppSettings {
     libraryPath: null,
     includeSubfolders: true,
     archiveExtractorPath: "",
+    defaultSlicerId: null,
     slicers: [
       { id: "cura", name: "Cura", executablePath: "", enabled: false },
       {
@@ -73,14 +74,28 @@ export async function createElectronSettingsStore(): Promise<SettingsStore> {
 }
 
 function normalizeSettings(settings: AppSettings): AppSettings {
+  const slicers = settings.slicers.map((slicer: SlicerConfig) => ({ ...slicer }));
+
   return {
     libraryPath: settings.libraryPath,
     includeSubfolders: settings.includeSubfolders,
     archiveExtractorPath: settings.archiveExtractorPath ?? "",
-    slicers: settings.slicers.map((slicer: SlicerConfig) => ({ ...slicer }))
+    defaultSlicerId: normalizeDefaultSlicerId(settings.defaultSlicerId, slicers),
+    slicers
   };
 }
 
 function cloneSettings(settings: AppSettings): AppSettings {
   return normalizeSettings(settings);
+}
+
+function normalizeDefaultSlicerId(
+  defaultSlicerId: string | null | undefined,
+  slicers: SlicerConfig[]
+): string | null {
+  if (!defaultSlicerId) {
+    return null;
+  }
+
+  return slicers.some((slicer) => slicer.id === defaultSlicerId) ? defaultSlicerId : null;
 }

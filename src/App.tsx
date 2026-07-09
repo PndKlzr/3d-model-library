@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { DialogShell } from "./components/DialogShell";
@@ -11,7 +11,7 @@ import { TagSelector } from "./components/TagSelector";
 import { TextInputDialog, type TextInputDialogOptions } from "./components/TextInputDialog";
 import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
 import { getContextMenuPosition } from "./lib/contextMenuPosition";
-import { buildFolderTree } from "./lib/folderTree";
+import { buildFolderTree, type FolderNode } from "./lib/folderTree";
 import { ALL_FOLDERS_ID, filterModels, type ModelSortMode, type ModelTypeFilter } from "./lib/folderFilters";
 import {
   createFolderNavigationHistory,
@@ -109,6 +109,8 @@ function App() {
   const textInputResolver = useRef<((value: string | null) => void) | null>(null);
   const [confirmationDialog, setConfirmationDialog] = useState<ConfirmDialogOptions | null>(null);
   const confirmationResolver = useRef<((value: boolean) => void) | null>(null);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const isFilteringStale = deferredSearchQuery !== searchQuery;
 
   useEffect(() => {
     let isMounted = true;
@@ -352,6 +354,7 @@ function App() {
 
     await saveSettings({
       ...settings,
+      defaultSlicerId: settings.defaultSlicerId ?? slicer.id,
       slicers: settings.slicers.map((item) =>
         item.id === slicer.id ? { ...item, executablePath, enabled: true } : item
       )
@@ -410,6 +413,27 @@ function App() {
     }
 
     await launchSlicer(slicerId, modelPaths);
+  }
+
+  async function openModelInDefaultSlicer(model: ModelFile) {
+    if (!isPrintableModel(model)) {
+      setLaunchMessage("Extraia um STL ou 3MF antes de abrir no slicer.");
+      return;
+    }
+
+    if (!settings?.defaultSlicerId) {
+      setLaunchMessage("Escolha um slicer padrão nas configurações para abrir com duplo clique.");
+      return;
+    }
+
+    const defaultSlicer = settings.slicers.find((slicer) => slicer.id === settings.defaultSlicerId);
+
+    if (!defaultSlicer?.enabled || !defaultSlicer.executablePath) {
+      setLaunchMessage("Configure e ative o slicer padrão antes de usar o duplo clique.");
+      return;
+    }
+
+    await launchSlicer(settings.defaultSlicerId, model.absolutePath);
   }
 
   async function toggleFavorite(modelPath: string) {
@@ -632,6 +656,14 @@ function App() {
 
       return nextIds;
     });
+  }
+
+  function expandAllFolders() {
+    setExpandedFolderIds(new Set(getAllFolderIds(folders)));
+  }
+
+  function collapseAllFolders() {
+    setExpandedFolderIds(new Set());
   }
 
   function expandFolderAncestors(folderId: string) {
@@ -1106,6 +1138,58 @@ function App() {
     setSettings(savedSettings);
   }
 
+  const models = scanResult?.models ?? [];
+  const folders = useMemo(
+    () => buildFolderTree(models, scanResult?.folders ?? []),
+    [models, scanResult?.folders]
+  );
+  const includeSubfolders = settings?.includeSubfolders ?? true;
+  const folderCards = useMemo(
+    () => getGridFolderCards(folders, models, selectedFolder, includeSubfolders),
+    [folders, includeSubfolders, models, selectedFolder]
+  );
+  const availableTags = useMemo(
+    () => getAvailableTags(models, libraryMetadata),
+    [libraryMetadata, models]
+  );
+  const duplicateModelIds = useMemo(
+    () => getDuplicateModelIds(models, modelHashes),
+    [modelHashes, models]
+  );
+  const enabledSlicers = useMemo(
+    () => (settings?.slicers ?? []).filter((slicer) => slicer.enabled && slicer.executablePath),
+    [settings?.slicers]
+  );
+  const filteredModels = useMemo(
+    () =>
+      filterModels(models, selectedFolder, includeSubfolders, deferredSearchQuery, {
+        type: typeFilter,
+        sort: sortMode,
+        onlySelected,
+        selectedIds: selectedModelIds,
+        onlyDuplicates,
+        duplicateIds: duplicateModelIds,
+        onlyFavorites,
+        selectedTags: [...selectedTagFilters],
+        metadataByPath: libraryMetadata.models
+      }),
+    [
+      deferredSearchQuery,
+      duplicateModelIds,
+      includeSubfolders,
+      libraryMetadata.models,
+      models,
+      onlyDuplicates,
+      onlyFavorites,
+      onlySelected,
+      selectedFolder,
+      selectedModelIds,
+      selectedTagFilters,
+      sortMode,
+      typeFilter
+    ]
+  );
+
   if (isLoading) {
     return (
       <main className="first-run" data-theme={themeMode}>
@@ -1121,37 +1205,9 @@ function App() {
     return <FirstRun onChooseFolder={chooseFolder} themeMode={themeMode} />;
   }
 
-  const models = scanResult?.models ?? [];
-  const folders = buildFolderTree(models, scanResult?.folders ?? []);
-  const folderCards = getGridFolderCards(
-    folders,
-    models,
-    selectedFolder,
-    settings.includeSubfolders
-  );
-  const availableTags = getAvailableTags(models, libraryMetadata);
-  const duplicateModelIds = getDuplicateModelIds(models, modelHashes);
-  const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const canLaunchContextModelInSlicer = modelContextMenu
     ? getSlicerLaunchModelCount(modelContextMenu.model) > 0
     : false;
-  const filteredModels = filterModels(
-    models,
-    selectedFolder,
-    settings.includeSubfolders,
-    searchQuery,
-    {
-      type: typeFilter,
-      sort: sortMode,
-      onlySelected,
-      selectedIds: selectedModelIds,
-      onlyDuplicates,
-      duplicateIds: duplicateModelIds,
-      onlyFavorites,
-      selectedTags: [...selectedTagFilters],
-      metadataByPath: libraryMetadata.models
-    }
-  );
 
   return (
     <main className="app-shell" data-theme={themeMode}>
@@ -1165,6 +1221,8 @@ function App() {
         expandedFolderIds={expandedFolderIds}
         onSelectFolder={selectFolder}
         onToggleFolder={toggleExpandedFolder}
+        onExpandAllFolders={expandAllFolders}
+        onCollapseAllFolders={collapseAllFolders}
         onToggleIncludeSubfolders={updateIncludeSubfolders}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
@@ -1186,6 +1244,7 @@ function App() {
         metadataByPath={libraryMetadata.models}
         duplicateModelIds={duplicateModelIds}
         isScanning={isScanning}
+        isFilteringStale={isFilteringStale}
         canMoveModels={draggedModelIds.length > 0}
         operationMessage={operationMessage}
         selectedFolder={selectedFolder}
@@ -1206,11 +1265,11 @@ function App() {
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
         onOpenModel={openModel}
+        onOpenDefaultSlicer={openModelInDefaultSlicer}
         onOpenModelContextMenu={openModelContextMenu}
         onToggleModelSelection={toggleModelSelection}
         onDragStartModel={startDraggingModel}
         onDragEndModel={clearDraggedModels}
-        onStartFileDrag={startFileDrag}
         onRefresh={() => scanLibrary(settings.libraryPath ?? "")}
         onOpenSettings={() => setIsSettingsOpen(true)}
       />
@@ -1567,6 +1626,16 @@ function getAncestorFolderIds(folderId: string): string[] {
   }
 
   return ancestors;
+}
+
+function getAllFolderIds(folders: FolderNode[]): string[] {
+  const folderIds: string[] = [];
+
+  for (const folder of folders) {
+    folderIds.push(folder.id, ...getAllFolderIds(folder.children));
+  }
+
+  return folderIds;
 }
 
 function readExpandedFolders(): Set<string> {

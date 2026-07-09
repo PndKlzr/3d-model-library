@@ -1,6 +1,12 @@
 import type { ModelFile } from "../shared/types";
 
-const PRINTABLE_DRAG_EXTENSIONS = new Set<ModelFile["extension"]>([".stl", ".3mf"]);
+const EXTERNAL_DRAG_EXTENSIONS = new Set<ModelFile["extension"]>([
+  ".stl",
+  ".3mf",
+  ".zip",
+  ".rar",
+  ".7z"
+]);
 
 export function getDragOutFilePaths(
   draggedModel: ModelFile,
@@ -12,6 +18,6 @@ export function getDragOutFilePaths(
     : [draggedModel];
 
   return dragModels
-    .filter((model) => PRINTABLE_DRAG_EXTENSIONS.has(model.extension))
+    .filter((model) => EXTERNAL_DRAG_EXTENSIONS.has(model.extension))
     .map((model) => model.absolutePath);
 }

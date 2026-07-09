@@ -28,28 +28,31 @@ export async function listArchiveEntries(
   const extension = path.extname(safeArchivePath).toLowerCase();
 
   if (extension !== ".zip") {
-    const output = await runSevenZipCommand(["l", "-slt", safeArchivePath], options);
+    return listWithSevenZip(safeArchivePath, options);
+  }
+
+  try {
+    return await listWithSevenZip(safeArchivePath, options);
+  } catch {
+    // ZIPs can still be handled without 7-Zip, but prefer 7-Zip when it is
+    // available so large archives are listed without decompressing every entry.
+  }
+
+  try {
+    const files = unzipSync(new Uint8Array(await readFile(safeArchivePath)));
+    const entries = Object.entries(files)
+      .map(([entryPath, bytes]) => createArchiveEntry(entryPath, bytes.length))
+      .filter((entry): entry is ArchiveEntry => Boolean(entry))
+      .sort((left, right) => left.path.localeCompare(right.path));
 
     return {
       ok: true,
       archivePath: safeArchivePath,
-      entries: parseSevenZipListOutput(output.stdout).sort((left, right) =>
-        left.path.localeCompare(right.path)
-      )
+      entries
     };
+  } catch {
+    return listWithSevenZip(safeArchivePath, options);
   }
-
-  const files = unzipSync(new Uint8Array(await readFile(safeArchivePath)));
-  const entries = Object.entries(files)
-    .map(([entryPath, bytes]) => createArchiveEntry(entryPath, bytes.length))
-    .filter((entry): entry is ArchiveEntry => Boolean(entry))
-    .sort((left, right) => left.path.localeCompare(right.path));
-
-  return {
-    ok: true,
-    archivePath: safeArchivePath,
-    entries
-  };
 }
 
 export async function extractArchiveEntries(
@@ -70,7 +73,26 @@ export async function extractArchiveEntries(
     return extractWithSevenZip(rootPath, safeArchivePath, entryPaths, destinationRelativeFolder, options);
   }
 
-  const files = unzipSync(new Uint8Array(await readFile(safeArchivePath)));
+  try {
+    return await extractWithSevenZip(
+      rootPath,
+      safeArchivePath,
+      entryPaths,
+      destinationRelativeFolder,
+      options
+    );
+  } catch {
+    // Fall back to the built-in ZIP reader when 7-Zip is not installed or not configured.
+  }
+
+  let files: Record<string, Uint8Array>;
+
+  try {
+    files = unzipSync(new Uint8Array(await readFile(safeArchivePath)));
+  } catch {
+    return extractWithSevenZip(rootPath, safeArchivePath, entryPaths, destinationRelativeFolder, options);
+  }
+
   const selectedPaths = new Set(entryPaths.map(normalizeArchiveEntryPath));
   const destinationRoot = resolveExtractionRoot(rootPath, safeArchivePath, destinationRelativeFolder);
   const extractedPaths: string[] = [];
@@ -157,6 +179,21 @@ export function parseSevenZipListOutput(output: string): ArchiveEntry[] {
   return entries;
 }
 
+async function listWithSevenZip(
+  archivePath: string,
+  options: ArchiveToolOptions
+): Promise<ArchiveListResult> {
+  const output = await runSevenZipCommand(["l", "-slt", archivePath], options);
+
+  return {
+    ok: true,
+    archivePath,
+    entries: parseSevenZipListOutput(output.stdout).sort((left, right) =>
+      left.path.localeCompare(right.path)
+    )
+  };
+}
+
 async function extractWithSevenZip(
   rootPath: string,
   archivePath: string,
@@ -206,11 +243,11 @@ async function runSevenZipCommand(
 ): Promise<SevenZipRunResult> {
   const executablePath = await resolveSevenZipExecutable(options.extractorPath);
 
-  if (options.runSevenZip) {
-    return options.runSevenZip(args, executablePath);
-  }
-
   try {
+    if (options.runSevenZip) {
+      return await options.runSevenZip(args, executablePath);
+    }
+
     const result = await execFileAsync(executablePath, args, {
       windowsHide: true,
       maxBuffer: 1024 * 1024 * 20
@@ -221,9 +258,43 @@ async function runSevenZipCommand(
       stderr: result.stderr
     };
   } catch (error) {
+    const partialOutput = getPartialSevenZipOutput(error);
+
+    if (args[0] === "l" && partialOutput?.stdout) {
+      return partialOutput;
+    }
+
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`7-Zip nao conseguiu abrir o arquivo compactado. ${message}`);
   }
+}
+
+function getPartialSevenZipOutput(error: unknown): SevenZipRunResult | null {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const maybeOutput = error as { stdout?: unknown; stderr?: unknown };
+  const stdout = outputToString(maybeOutput.stdout);
+  const stderr = outputToString(maybeOutput.stderr);
+
+  if (!stdout && !stderr) {
+    return null;
+  }
+
+  return { stdout, stderr };
+}
+
+function outputToString(output: unknown): string {
+  if (typeof output === "string") {
+    return output;
+  }
+
+  if (Buffer.isBuffer(output)) {
+    return output.toString("utf8");
+  }
+
+  return "";
 }
 
 async function resolveSevenZipExecutable(configuredPath?: string): Promise<string> {
