@@ -30,10 +30,10 @@ describe("settingsStore", () => {
 
     store.saveSettings({
       ...store.getSettings(),
-      libraryPath: "C:\\Users\\Pnd\\Desktop\\STLs"
+      libraryPath: "C:\\Users\\Example\\Desktop\\Models"
     });
 
-    expect(store.getSettings().libraryPath).toBe("C:\\Users\\Pnd\\Desktop\\STLs");
+    expect(store.getSettings().libraryPath).toBe("C:\\Users\\Example\\Desktop\\Models");
   });
 
   it("persists the include-subfolders toggle", () => {
