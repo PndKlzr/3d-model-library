@@ -11,6 +11,7 @@ describe("settingsStore", () => {
     expect(store.getSettings()).toEqual(createDefaultSettings());
     expect(store.getSettings().libraryPath).toBeNull();
     expect(store.getSettings().includeSubfolders).toBe(true);
+    expect(store.getSettings().fileDragBehavior).toBe("organize-default");
     expect(store.getSettings().archiveExtractorPath).toBe("");
     expect(store.getSettings().defaultSlicerId).toBeNull();
     expect(store.getSettings().slicers).toEqual([
@@ -44,6 +45,17 @@ describe("settingsStore", () => {
     });
 
     expect(store.getSettings().includeSubfolders).toBe(false);
+  });
+
+  it("persists the preferred file drag behavior", () => {
+    const store = createSettingsStore();
+
+    store.saveSettings({
+      ...store.getSettings(),
+      fileDragBehavior: "external-default"
+    });
+
+    expect(store.getSettings().fileDragBehavior).toBe("external-default");
   });
 
   it("updates configured slicer executable paths", () => {

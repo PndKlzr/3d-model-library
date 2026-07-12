@@ -21,7 +21,7 @@ describe("folder context menu contract", () => {
     expect(appSource).toContain("Mover pasta");
     expect(appSource).toContain("Mover pasta para Lixeira");
     expect(appSource).toContain("Tags");
-    expect(appSource).toContain("Desfazer ultima acao");
+    expect(appSource).toContain("Desfazer última ação");
   });
 
   it("opens model tags through the unified tag selector instead of inline tag actions", async () => {

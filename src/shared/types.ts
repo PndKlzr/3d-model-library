@@ -5,9 +5,12 @@ export type SlicerConfig = {
   enabled: boolean;
 };
 
+export type FileDragBehavior = "organize-default" | "external-default";
+
 export type AppSettings = {
   libraryPath: string | null;
   includeSubfolders: boolean;
+  fileDragBehavior: FileDragBehavior;
   archiveExtractorPath: string;
   defaultSlicerId: string | null;
   slicers: SlicerConfig[];
@@ -60,8 +63,16 @@ export type SlicerLaunchResult = {
   message: string;
 };
 
+export type FileDragState = "started" | "dropped" | "cancelled" | "failed";
+
+export type FileDragRequest = {
+  sessionId: string;
+  filePaths: string[];
+};
+
 export type FileDragStatus = {
-  ok: boolean;
+  sessionId: string;
+  state: FileDragState;
   message: string;
 };
 

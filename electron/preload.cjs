@@ -35,7 +35,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
     ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),
   showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
-  startFileDrag: (filePaths) => ipcRenderer.send("model:start-file-drag", filePaths),
+  startFileDrag: (request) => ipcRenderer.send("model:start-file-drag", request),
   onFileDragStatus: (callback) => {
     const listener = (_event, status) => callback(status);
     ipcRenderer.on("model:file-drag-status", listener);

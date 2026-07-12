@@ -7,6 +7,7 @@ export type GridFolderCard = {
   name: string;
   modelCount: number;
   childCount: number;
+  previewModels: ModelFile[];
 };
 
 export function getGridFolderCards(
@@ -26,7 +27,8 @@ export function getGridFolderCards(
     id: folder.id,
     name: folder.name,
     childCount: folder.children.length,
-    modelCount: countModelsInsideFolder(models, folder.id)
+    modelCount: countModelsInsideFolder(models, folder.id),
+    previewModels: getFolderPreviewModels(models, folder.id)
   }));
 }
 
@@ -50,4 +52,16 @@ function countModelsInsideFolder(models: ModelFile[], folderId: string): number 
   return models.filter(
     (model) => model.relativeFolder === folderId || model.relativeFolder.startsWith(`${folderId}/`)
   ).length;
+}
+
+function getFolderPreviewModels(models: ModelFile[], folderId: string): ModelFile[] {
+  const printableModels = models.filter(
+    (model) =>
+      (model.extension === ".stl" || model.extension === ".3mf") &&
+      (model.relativeFolder === folderId || model.relativeFolder.startsWith(`${folderId}/`))
+  );
+  const directModels = printableModels.filter((model) => model.relativeFolder === folderId);
+  const descendantModels = printableModels.filter((model) => model.relativeFolder !== folderId);
+
+  return [...directModels, ...descendantModels].slice(0, 4);
 }

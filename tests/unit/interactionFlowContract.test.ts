@@ -75,6 +75,21 @@ describe("interaction flow contract", () => {
     expect(stylesSource).toContain("overflow-x: hidden");
   });
 
+  it("keeps a persisted one-hand drag mode switch in the sticky toolbar", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const stylesSource = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain("drag-behavior-toggle");
+    expect(gridSource).toContain("onFileDragBehaviorChange");
+    expect(gridSource).toContain("Organizar na biblioteca");
+    expect(gridSource).toContain("Enviar para outro programa");
+    expect(appSource).toContain("updateFileDragBehavior");
+    expect(appSource).toContain("onFileDragBehaviorChange={updateFileDragBehavior}");
+    expect(stylesSource).toMatch(/\.toolbar\s*\{[\s\S]*?position:\s*sticky;/);
+    expect(stylesSource).toContain(".drag-behavior-toggle");
+  });
+
   it("supports a persisted dark mode from settings", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
@@ -115,8 +130,19 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("getAllFolderIds");
     expect(folderTreeSource).toContain("onExpandAllFolders");
     expect(folderTreeSource).toContain("onCollapseAllFolders");
-    expect(folderTreeSource).toContain("Expandir tudo");
-    expect(folderTreeSource).toContain("Recolher tudo");
+    expect(folderTreeSource).toContain("Expandir todas as pastas");
+    expect(folderTreeSource).toContain("Recolher todas as pastas");
+  });
+
+  it("keeps folder and disclosure icons in stable tree columns", async () => {
+    const folderTreeSource = await readFile("src/components/FolderTree.tsx", "utf8");
+    const stylesSource = await readFile("src/styles.css", "utf8");
+
+    expect(folderTreeSource).toContain("folder-disclosure-placeholder");
+    expect(folderTreeSource).toContain("folder-node-icon");
+    expect(folderTreeSource).toContain("<FolderOpen");
+    expect(folderTreeSource).toContain("<Folder size={15}");
+    expect(stylesSource).toContain(".folder-node-icon");
   });
 
   it("lets breadcrumbs receive dragged models as folder drop targets", async () => {
@@ -145,11 +171,20 @@ describe("interaction flow contract", () => {
   it("offers a 3MF to STL conversion action from details", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
     const appSource = await readFile("src/App.tsx", "utf8");
+    const workerClientSource = await readFile("src/lib/threeMfToStlWorker.ts", "utf8");
+    const workerSource = await readFile("src/workers/threeMfToStl.worker.ts", "utf8");
 
     expect(detailsSource).toContain("Converter para STL");
     expect(detailsSource).toContain("onConvertThreeMfToStl");
-    expect(appSource).toContain("convertThreeMfToStl");
+    expect(detailsSource).toContain('role="progressbar"');
+    expect(detailsSource).toContain("conversionProgress");
+    expect(appSource).toContain("convertThreeMfToStlInWorker");
     expect(appSource).toContain("saveConvertedStl");
+    expect(workerClientSource).toContain("new Worker(");
+    expect(workerClientSource).toContain("worker.postMessage({ buffer }, [buffer])");
+    expect(workerClientSource).toContain("worker.terminate()");
+    expect(workerSource).toContain("convertThreeMfToStl");
+    expect(workerSource).toContain('type: "progress"');
   });
 
   it("uses deferred search results so typing does not block the library grid", async () => {

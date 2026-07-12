@@ -35,4 +35,22 @@ describe("layout scroll contract", () => {
     expect(css).toContain("-webkit-line-clamp: 2");
     expect(css).toContain(".model-card-meta strong");
   });
+
+  it("keeps the sticky toolbar and deep folder tree inside their panels", async () => {
+    const css = await readFile("src/styles.css", "utf8");
+    const folderTreeSource = await readFile("src/components/FolderTree.tsx", "utf8");
+
+    expect(css).toMatch(/\.sidebar\s*\{[\s\S]*?overflow-x:\s*hidden;/);
+    expect(css).toContain("scrollbar-gutter: stable");
+    expect(css).toContain("--folder-indent");
+    expect(css).toMatch(/\.drop-cue\s*\{[\s\S]*?position:\s*absolute;/);
+    expect(css).toContain(".folder-tree-row.drag-target-ready");
+    expect(css).toContain(".toolbar > :first-child");
+    expect(css).toContain("--library-padding");
+    expect(css).toContain("top: calc(0px - var(--library-padding));");
+    expect(css).toMatch(/\.breadcrumbs\s*\{[\s\S]*?overflow-x:\s*auto;/);
+    expect(folderTreeSource).toContain('"--folder-indent"');
+    expect(folderTreeSource).toContain("drag-target-ready");
+    expect(folderTreeSource).not.toContain("paddingLeft: 10 + depth * 14");
+  });
 });

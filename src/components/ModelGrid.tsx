@@ -1,21 +1,32 @@
 import {
   Box,
+  CheckSquare2,
   ChevronLeft,
   ChevronRight,
+  Copy,
   Folder,
+  FolderInput,
   LayoutGrid,
   List,
+  RotateCw,
   Search,
   Settings,
+  SlidersHorizontal,
   Star,
   X
 } from "lucide-react";
-import { useState, type DragEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent
+} from "react";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
+import { FolderCardThumbnail } from "./FolderCardThumbnail";
 import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
-import type { ModelFile, ModelUserMetadata } from "../shared/types";
+import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
 
 type ModelGridProps = {
   models: ModelFile[];
@@ -36,9 +47,11 @@ type ModelGridProps = {
   isScanning: boolean;
   isFilteringStale: boolean;
   canMoveModels: boolean;
+  pointerDragOverFolder: string | null;
   operationMessage: string | null;
   selectedFolder: string;
   viewMode: ModelViewMode;
+  fileDragBehavior: FileDragBehavior;
   canNavigateBack: boolean;
   canNavigateForward: boolean;
   onSearchChange: (query: string) => void;
@@ -49,6 +62,7 @@ type ModelGridProps = {
   onOnlyDuplicatesChange: (onlyDuplicates: boolean) => void;
   onToggleTagFilter: (tag: string) => void;
   onViewModeChange: (viewMode: ModelViewMode) => void;
+  onFileDragBehaviorChange: (behavior: FileDragBehavior) => void;
   onNavigateBack: () => void;
   onNavigateForward: () => void;
   onOpenFolder: (folderId: string) => void;
@@ -58,7 +72,7 @@ type ModelGridProps = {
   onOpenDefaultSlicer: (model: ModelFile) => void;
   onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
-  onDragStartModel: (model: ModelFile) => void;
+  onDragStartModel: (model: ModelFile, mode: "external" | "internal") => void;
   onDragEndModel: () => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
@@ -83,9 +97,11 @@ export function ModelGrid({
   isScanning,
   isFilteringStale,
   canMoveModels,
+  pointerDragOverFolder,
   operationMessage,
   selectedFolder,
   viewMode,
+  fileDragBehavior,
   canNavigateBack,
   canNavigateForward,
   onSearchChange,
@@ -96,6 +112,7 @@ export function ModelGrid({
   onOnlyDuplicatesChange,
   onToggleTagFilter,
   onViewModeChange,
+  onFileDragBehaviorChange,
   onNavigateBack,
   onNavigateForward,
   onOpenFolder,
@@ -111,7 +128,68 @@ export function ModelGrid({
   onOpenSettings
 }: ModelGridProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const hasGridContent = folderCards.length > 0 || models.length > 0;
+  const hasActiveFilters =
+    typeFilter !== "all" ||
+    onlySelected ||
+    onlyFavorites ||
+    onlyDuplicates ||
+    selectedTags.size > 0;
+
+  useEffect(() => {
+    function setModifierDragReady(key: "Control" | "Shift", isReady: boolean) {
+      const panel = panelRef.current;
+
+      if (!panel) {
+        return;
+      }
+
+      if (key === "Control" && fileDragBehavior === "organize-default") {
+        panel.classList.toggle("external-drag-ready", isReady);
+      }
+
+      if (key === "Shift" && fileDragBehavior === "external-default") {
+        panel.classList.toggle("internal-drag-ready", isReady);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Control" || event.key === "Shift") {
+        setModifierDragReady(event.key, true);
+      }
+    }
+
+    function handleKeyUp(event: KeyboardEvent) {
+      if (event.key === "Control" || event.key === "Shift") {
+        setModifierDragReady(event.key, false);
+      }
+    }
+
+    function handleBlur() {
+      panelRef.current?.classList.remove("external-drag-ready", "internal-drag-ready");
+    }
+
+    panelRef.current?.classList.toggle(
+      "external-drag-default",
+      fileDragBehavior === "external-default"
+    );
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+      panelRef.current?.classList.remove(
+        "external-drag-ready",
+        "internal-drag-ready",
+        "external-drag-default"
+      );
+    };
+  }, [fileDragBehavior]);
 
   function allowFolderDrop(event: DragEvent, folderId: string) {
     if (!canMoveModels) {
@@ -133,8 +211,30 @@ export function ModelGrid({
     onMoveModelsToFolder(folderId);
   }
 
+  function clearFilters() {
+    onTypeFilterChange("all");
+    onOnlySelectedChange(false);
+    onOnlyFavoritesChange(false);
+    onOnlyDuplicatesChange(false);
+    selectedTags.forEach(onToggleTagFilter);
+  }
+
   return (
-    <section className="library-panel" aria-label="Modelos encontrados">
+    <section className="library-panel" aria-label="Modelos encontrados" ref={panelRef}>
+      <div className="external-drag-mode-cue" aria-hidden="true">
+        <Copy size={17} />
+        <span>
+          <strong>Copiar para outro programa</strong>
+          <small>Cura, Creality Print ou Explorer</small>
+        </span>
+      </div>
+      <div className="internal-drag-mode-cue" aria-hidden="true">
+        <FolderInput size={17} />
+        <span>
+          <strong>Organizar dentro da biblioteca</strong>
+          <small>Solte o modelo em uma pasta</small>
+        </span>
+      </div>
       <header className="toolbar">
         <div>
           <p className="eyebrow">STL / 3MF</p>
@@ -155,14 +255,15 @@ export function ModelGrid({
               type="button"
               onClick={onNavigateForward}
               disabled={!canNavigateForward}
-              aria-label="Avancar pasta"
-              title="Avancar"
+              aria-label="Avançar pasta"
+              title="Avançar"
             >
               <ChevronRight size={15} />
             </button>
             <Breadcrumb
               selectedFolder={selectedFolder}
               dragOverFolder={dragOverFolder}
+              pointerDragOverFolder={pointerDragOverFolder}
               onOpenFolder={onOpenFolder}
               onDragOverFolder={allowFolderDrop}
               onDropOnFolder={dropOnFolder}
@@ -171,6 +272,30 @@ export function ModelGrid({
           </div>
         </div>
         <div className="toolbar-actions">
+          <div className="drag-behavior-toggle" role="group" aria-label="Modo de arraste">
+            <button
+              className={fileDragBehavior === "organize-default" ? "active" : ""}
+              type="button"
+              onClick={() => onFileDragBehaviorChange("organize-default")}
+              aria-pressed={fileDragBehavior === "organize-default"}
+              aria-label="Organizar na biblioteca"
+              title="Arraste para pastas. Ctrl + arraste envia para outro programa."
+            >
+              <FolderInput size={15} />
+              Pasta
+            </button>
+            <button
+              className={fileDragBehavior === "external-default" ? "active" : ""}
+              type="button"
+              onClick={() => onFileDragBehaviorChange("external-default")}
+              aria-pressed={fileDragBehavior === "external-default"}
+              aria-label="Enviar para outro programa"
+              title="Arraste para Cura, Creality ou Explorer. Shift + arraste organiza."
+            >
+              <Copy size={15} />
+              Externo
+            </button>
+          </div>
           <div className="view-mode-toggle" role="group" aria-label="Modo de visualizacao">
             <button
               className={viewMode === "grid" ? "active" : ""}
@@ -195,12 +320,20 @@ export function ModelGrid({
             className="icon-only"
             type="button"
             onClick={onOpenSettings}
-            aria-label="Configuracoes"
+            aria-label="Configurações"
+            title="Configurações"
           >
             <Settings size={17} />
           </button>
-          <button className="secondary-button" type="button" onClick={onRefresh} disabled={isScanning}>
-            {isScanning ? "Escaneando" : "Atualizar"}
+          <button
+            className="icon-only"
+            type="button"
+            onClick={onRefresh}
+            disabled={isScanning}
+            aria-label={isScanning ? "Atualizando biblioteca" : "Atualizar biblioteca"}
+            title={isScanning ? "Atualizando biblioteca" : "Atualizar biblioteca"}
+          >
+            <RotateCw className={isScanning ? "spinning" : ""} size={17} />
           </button>
         </div>
       </header>
@@ -226,7 +359,10 @@ export function ModelGrid({
       </label>
 
       <div className="filter-bar" aria-label="Filtros da biblioteca">
-        <label>
+        <span className="filter-bar-label" aria-hidden="true" title="Filtros">
+          <SlidersHorizontal size={14} />
+        </span>
+        <label className="filter-select">
           Tipo
           <select
             value={typeFilter}
@@ -237,7 +373,7 @@ export function ModelGrid({
             <option value=".3mf">3MF</option>
           </select>
         </label>
-        <label>
+        <label className="filter-select">
           Ordenar
           <select
             value={sortMode}
@@ -248,30 +384,42 @@ export function ModelGrid({
             <option value="size">Tamanho</option>
           </select>
         </label>
-        <label className="filter-check">
-          <input
-            type="checkbox"
-            checked={onlySelected}
-            onChange={(event) => onOnlySelectedChange(event.currentTarget.checked)}
-          />
-          So selecionados
-        </label>
-        <label className="filter-check">
-          <input
-            type="checkbox"
-            checked={onlyFavorites}
-            onChange={(event) => onOnlyFavoritesChange(event.currentTarget.checked)}
-          />
-          Favoritos
-        </label>
-        <label className="filter-check">
-          <input
-            type="checkbox"
-            checked={onlyDuplicates}
-            onChange={(event) => onOnlyDuplicatesChange(event.currentTarget.checked)}
-          />
-          Duplicados
-        </label>
+        <button
+          className={`filter-toggle ${onlySelected ? "active" : ""}`}
+          type="button"
+          aria-pressed={onlySelected}
+          aria-label="Somente selecionados"
+          title="Mostrar somente os modelos selecionados"
+          onClick={() => onOnlySelectedChange(!onlySelected)}
+        >
+          <CheckSquare2 size={14} />
+        </button>
+        <button
+          className={`filter-toggle ${onlyFavorites ? "active" : ""}`}
+          type="button"
+          aria-pressed={onlyFavorites}
+          aria-label="Somente favoritos"
+          title="Mostrar somente favoritos"
+          onClick={() => onOnlyFavoritesChange(!onlyFavorites)}
+        >
+          <Star size={14} fill={onlyFavorites ? "currentColor" : "none"} />
+        </button>
+        <button
+          className={`filter-toggle ${onlyDuplicates ? "active" : ""}`}
+          type="button"
+          aria-pressed={onlyDuplicates}
+          aria-label="Somente possíveis duplicados"
+          title="Mostrar possíveis arquivos duplicados"
+          onClick={() => onOnlyDuplicatesChange(!onlyDuplicates)}
+        >
+          <Copy size={14} />
+        </button>
+        {hasActiveFilters ? (
+          <button className="filter-clear" type="button" onClick={clearFilters} title="Limpar filtros">
+            <X size={14} />
+            Limpar
+          </button>
+        ) : null}
       </div>
 
       {availableTags.length > 0 ? (
@@ -291,7 +439,7 @@ export function ModelGrid({
 
       {scanErrors.length > 0 ? (
         <div className="scan-errors" role="status">
-          <strong>Alguns itens nao puderam ser lidos</strong>
+          <strong>Alguns itens não puderam ser lidos</strong>
           {scanErrors.slice(0, 4).map((error) => (
             <span key={`${error.path}-${error.message}`}>
               {error.path}: {error.message}
@@ -315,14 +463,19 @@ export function ModelGrid({
       {!hasGridContent ? (
         <div className="empty-state">
           <Box size={28} />
-          <strong>Nenhum item nesta visao</strong>
+          <strong>Nenhum item nesta visão</strong>
           <span>Tente outra pasta, limpe a busca ou atualize a biblioteca.</span>
         </div>
       ) : viewMode === "list" ? (
         <div className="model-list">
           {folderCards.map((folderCard) => (
             <button
-              className={`folder-list-row ${dragOverFolder === folderCard.id ? "drop-target" : ""}`}
+              className={`folder-list-row ${
+                dragOverFolder === folderCard.id || pointerDragOverFolder === folderCard.id
+                  ? "drop-target"
+                  : ""
+              }`}
+              data-folder-drop-id={folderCard.id}
               key={folderCard.id}
               type="button"
               onClick={() => onOpenFolder(folderCard.id)}
@@ -353,6 +506,7 @@ export function ModelGrid({
               isDuplicate={duplicateModelIds.has(model.id)}
               isSelected={selectedModelId === model.id}
               isChecked={selectedModelIds.has(model.id)}
+              fileDragBehavior={fileDragBehavior}
               onOpenModel={onOpenModel}
               onOpenDefaultSlicer={onOpenDefaultSlicer}
               onOpenModelContextMenu={onOpenModelContextMenu}
@@ -366,7 +520,12 @@ export function ModelGrid({
         <div className="model-grid">
           {folderCards.map((folderCard) => (
             <button
-              className={`folder-card ${dragOverFolder === folderCard.id ? "drop-target" : ""}`}
+              className={`folder-card ${
+                dragOverFolder === folderCard.id || pointerDragOverFolder === folderCard.id
+                  ? "drop-target"
+                  : ""
+              }`}
+              data-folder-drop-id={folderCard.id}
               key={folderCard.id}
               type="button"
               onClick={() => onOpenFolder(folderCard.id)}
@@ -378,9 +537,7 @@ export function ModelGrid({
               onDragLeave={() => setDragOverFolder(null)}
               onDrop={(event) => dropOnFolder(event, folderCard.id)}
             >
-              <div className="folder-card-icon">
-                <Folder size={34} />
-              </div>
+              <FolderCardThumbnail models={folderCard.previewModels} />
               <div className="model-card-meta">
                 <strong title={folderCard.name}>{folderCard.name}</strong>
                 <span>
@@ -401,6 +558,7 @@ export function ModelGrid({
               isDuplicate={duplicateModelIds.has(model.id)}
               isSelected={selectedModelId === model.id}
               isChecked={selectedModelIds.has(model.id)}
+              fileDragBehavior={fileDragBehavior}
               onOpenModel={onOpenModel}
               onOpenDefaultSlicer={onOpenDefaultSlicer}
               onOpenModelContextMenu={onOpenModelContextMenu}
@@ -418,6 +576,7 @@ export function ModelGrid({
 type BreadcrumbProps = {
   selectedFolder: string;
   dragOverFolder: string | null;
+  pointerDragOverFolder: string | null;
   onOpenFolder: (folderId: string) => void;
   onDragOverFolder: (event: DragEvent, folderId: string) => void;
   onDropOnFolder: (event: DragEvent, folderId: string) => void;
@@ -427,6 +586,7 @@ type BreadcrumbProps = {
 function Breadcrumb({
   selectedFolder,
   dragOverFolder,
+  pointerDragOverFolder,
   onOpenFolder,
   onDragOverFolder,
   onDropOnFolder,
@@ -437,7 +597,12 @@ function Breadcrumb({
   return (
     <nav className="breadcrumbs">
       <button
-        className={dragOverFolder === ALL_FOLDERS_ID ? "breadcrumb-drop-target" : ""}
+        className={
+          dragOverFolder === ALL_FOLDERS_ID || pointerDragOverFolder === ALL_FOLDERS_ID
+            ? "breadcrumb-drop-target"
+            : ""
+        }
+        data-folder-drop-id={ALL_FOLDERS_ID}
         type="button"
         onClick={() => onOpenFolder(ALL_FOLDERS_ID)}
         onDragOver={(event) => onDragOverFolder(event, ALL_FOLDERS_ID)}
@@ -453,7 +618,12 @@ function Breadcrumb({
           <span key={folderId}>
             <ChevronRight size={13} />
             <button
-              className={dragOverFolder === folderId ? "breadcrumb-drop-target" : ""}
+              className={
+                dragOverFolder === folderId || pointerDragOverFolder === folderId
+                  ? "breadcrumb-drop-target"
+                  : ""
+              }
+              data-folder-drop-id={folderId}
               type="button"
               onClick={() => onOpenFolder(folderId)}
               onDragOver={(event) => onDragOverFolder(event, folderId)}
@@ -475,11 +645,12 @@ type ModelCardProps = {
   isDuplicate: boolean;
   isSelected: boolean;
   isChecked: boolean;
+  fileDragBehavior: FileDragBehavior;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
   onOpenDefaultSlicer: (model: ModelFile) => void;
   onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
-  onDragStartModel: (model: ModelFile) => void;
+  onDragStartModel: (model: ModelFile, mode: "external" | "internal") => void;
   onDragEndModel: () => void;
 };
 
@@ -489,6 +660,7 @@ function ModelCard({
   isDuplicate,
   isSelected,
   isChecked,
+  fileDragBehavior,
   onOpenModel,
   onOpenDefaultSlicer,
   onOpenModelContextMenu,
@@ -500,10 +672,17 @@ function ModelCard({
     <div
       className={`model-card ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
       draggable
+      title={getFileDragHelp(fileDragBehavior)}
       onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "copyMove";
+        if (shouldStartExternalFileDrag(fileDragBehavior, event)) {
+          event.preventDefault();
+          onDragStartModel(model, "external");
+          return;
+        }
+
+        event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("application/x-model-library-model", model.id);
-        onDragStartModel(model);
+        onDragStartModel(model, "internal");
       }}
       onDragEnd={onDragEndModel}
       onContextMenu={(event) => {
@@ -524,6 +703,9 @@ function ModelCard({
           <Star size={15} fill="currentColor" />
         </div>
       ) : null}
+      <span className="external-drag-card-cue" aria-hidden="true">
+        <Copy size={14} />
+      </span>
       <button
         className="model-card-main"
         type="button"
@@ -563,6 +745,7 @@ function ModelListRow({
   isDuplicate,
   isSelected,
   isChecked,
+  fileDragBehavior,
   onOpenModel,
   onOpenDefaultSlicer,
   onOpenModelContextMenu,
@@ -574,10 +757,17 @@ function ModelListRow({
     <div
       className={`model-list-row ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
       draggable
+      title={getFileDragHelp(fileDragBehavior)}
       onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "copyMove";
+        if (shouldStartExternalFileDrag(fileDragBehavior, event)) {
+          event.preventDefault();
+          onDragStartModel(model, "external");
+          return;
+        }
+
+        event.dataTransfer.effectAllowed = "move";
         event.dataTransfer.setData("application/x-model-library-model", model.id);
-        onDragStartModel(model);
+        onDragStartModel(model, "internal");
       }}
       onDragEnd={onDragEndModel}
       onContextMenu={(event) => {
@@ -585,6 +775,9 @@ function ModelListRow({
         onOpenModelContextMenu(model, event.clientX, event.clientY);
       }}
     >
+      <span className="external-drag-card-cue" aria-hidden="true">
+        <Copy size={14} />
+      </span>
       <label className="list-check" onClick={(event) => event.stopPropagation()}>
         <input
           type="checkbox"
@@ -624,6 +817,19 @@ function ModelListRow({
       </button>
     </div>
   );
+}
+
+function shouldStartExternalFileDrag(
+  behavior: FileDragBehavior,
+  event: DragEvent<HTMLElement>
+): boolean {
+  return behavior === "organize-default" ? event.ctrlKey : !event.shiftKey;
+}
+
+function getFileDragHelp(behavior: FileDragBehavior): string {
+  return behavior === "organize-default"
+    ? "Arraste para organizar. Ctrl + arraste para copiar para outro programa."
+    : "Arraste para copiar para outro programa. Shift + arraste para organizar.";
 }
 
 function formatBytes(bytes: number): string {

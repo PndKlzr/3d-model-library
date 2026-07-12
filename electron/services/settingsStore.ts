@@ -14,6 +14,7 @@ export function createDefaultSettings(): AppSettings {
   return {
     libraryPath: null,
     includeSubfolders: true,
+    fileDragBehavior: "organize-default",
     archiveExtractorPath: "",
     defaultSlicerId: null,
     slicers: [
@@ -79,6 +80,8 @@ function normalizeSettings(settings: AppSettings): AppSettings {
   return {
     libraryPath: settings.libraryPath,
     includeSubfolders: settings.includeSubfolders,
+    fileDragBehavior:
+      settings.fileDragBehavior === "external-default" ? "external-default" : "organize-default",
     archiveExtractorPath: settings.archiveExtractorPath ?? "",
     defaultSlicerId: normalizeDefaultSlicerId(settings.defaultSlicerId, slicers),
     slicers

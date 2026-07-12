@@ -1,5 +1,5 @@
-import { statSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { realpathSync, statSync } from "node:fs";
+import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
 const DRAGGABLE_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
@@ -14,25 +14,52 @@ export async function resolveDraggableFilePaths(
   rootPath: string,
   filePaths: string[]
 ): Promise<string[]> {
-  return resolveDraggableFilePathsWithStat(rootPath, filePaths, async (filePath) => {
-    const fileStat = await stat(filePath);
-    return fileStat.isFile();
-  });
+  const canonicalRoot = await realpath(rootPath);
+  const resolvedPaths: string[] = [];
+  const seenPaths = new Set<string>();
+
+  for (const filePath of filePaths) {
+    const canonicalFilePath = await realpath(filePath);
+    assertInsideRoot(canonicalRoot, canonicalFilePath);
+    assertSupportedExtension(canonicalFilePath);
+
+    if (!(await stat(canonicalFilePath)).isFile()) {
+      throw new Error("Arquivo invalido para arrastar.");
+    }
+
+    addUniquePath(resolvedPaths, seenPaths, canonicalFilePath);
+  }
+
+  assertHasFiles(resolvedPaths);
+  return resolvedPaths;
 }
 
 export function resolveDraggableFilePathsSync(rootPath: string, filePaths: string[]): string[] {
-  return resolveDraggableFilePathsWithStat(rootPath, filePaths, (filePath) =>
-    statSync(filePath).isFile()
-  );
+  const canonicalRoot = realpathSync.native(rootPath);
+  const resolvedPaths: string[] = [];
+  const seenPaths = new Set<string>();
+
+  for (const filePath of filePaths) {
+    const canonicalFilePath = realpathSync.native(filePath);
+    assertInsideRoot(canonicalRoot, canonicalFilePath);
+    assertSupportedExtension(canonicalFilePath);
+
+    if (!statSync(canonicalFilePath).isFile()) {
+      throw new Error("Arquivo invalido para arrastar.");
+    }
+
+    addUniquePath(resolvedPaths, seenPaths, canonicalFilePath);
+  }
+
+  assertHasFiles(resolvedPaths);
+  return resolvedPaths;
 }
 
 export function createNativeFileDragPayload<Icon>(
   filePaths: string[],
   icon: Icon
 ): NativeFileDragPayload<Icon> {
-  if (filePaths.length === 0) {
-    throw new Error("Nenhum STL ou 3MF selecionado para arrastar.");
-  }
+  assertHasFiles(filePaths);
 
   return filePaths.length === 1
     ? {
@@ -46,97 +73,31 @@ export function createNativeFileDragPayload<Icon>(
       };
 }
 
-function resolveDraggableFilePathsWithStat(
-  rootPath: string,
-  filePaths: string[],
-  isFile: (filePath: string) => boolean
-): string[];
-function resolveDraggableFilePathsWithStat(
-  rootPath: string,
-  filePaths: string[],
-  isFile: (filePath: string) => Promise<boolean>
-): Promise<string[]>;
-function resolveDraggableFilePathsWithStat(
-  rootPath: string,
-  filePaths: string[],
-  isFile: (filePath: string) => boolean | Promise<boolean>
-): string[] | Promise<string[]> {
-  const normalizedRoot = path.resolve(rootPath);
-  const resolvedPaths: string[] = [];
-
-  const resolveFilePath = (filePath: string, isFileResult: boolean) => {
-    const normalizedFilePath = path.resolve(filePath);
-    assertInsideRoot(normalizedRoot, normalizedFilePath);
-
-    const extension = path.extname(normalizedFilePath).toLowerCase();
-
-    if (!DRAGGABLE_FILE_EXTENSIONS.has(extension)) {
-      throw new Error("Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z.");
-    }
-
-    if (!isFileResult) {
-      throw new Error("Arquivo invalido para arrastar.");
-    }
-
-    resolvedPaths.push(normalizedFilePath);
-  };
-
-  for (const filePath of filePaths) {
-    const normalizedFilePath = path.resolve(filePath);
-    const isFileResult = isFile(normalizedFilePath);
-
-    if (isFileResult instanceof Promise) {
-      return resolveDraggableFilePathsAsync(
-        filePaths,
-        normalizedRoot,
-        isFile as (filePath: string) => Promise<boolean>
-      );
-    }
-
-    resolveFilePath(filePath, isFileResult);
+function assertSupportedExtension(filePath: string) {
+  if (!DRAGGABLE_FILE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) {
+    throw new Error("Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z.");
   }
-
-  if (resolvedPaths.length === 0) {
-    throw new Error("Nenhum STL ou 3MF selecionado para arrastar.");
-  }
-
-  return resolvedPaths;
 }
 
-async function resolveDraggableFilePathsAsync(
-  filePaths: string[],
-  normalizedRoot: string,
-  isFile: (filePath: string) => Promise<boolean>
-): Promise<string[]> {
-  const resolvedPaths: string[] = [];
+function addUniquePath(resolvedPaths: string[], seenPaths: Set<string>, filePath: string) {
+  const comparisonPath = process.platform === "win32" ? filePath.toLowerCase() : filePath;
 
-  for (const filePath of filePaths) {
-    const normalizedFilePath = path.resolve(filePath);
-    assertInsideRoot(normalizedRoot, normalizedFilePath);
-
-    const extension = path.extname(normalizedFilePath).toLowerCase();
-
-    if (!DRAGGABLE_FILE_EXTENSIONS.has(extension)) {
-      throw new Error("Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z.");
-    }
-
-    if (!(await isFile(normalizedFilePath))) {
-      throw new Error("Arquivo invalido para arrastar.");
-    }
-
-    resolvedPaths.push(normalizedFilePath);
+  if (!seenPaths.has(comparisonPath)) {
+    seenPaths.add(comparisonPath);
+    resolvedPaths.push(filePath);
   }
+}
 
-  if (resolvedPaths.length === 0) {
-    throw new Error("Nenhum STL ou 3MF selecionado para arrastar.");
+function assertHasFiles(filePaths: string[]) {
+  if (filePaths.length === 0) {
+    throw new Error("Nenhum arquivo suportado para arrastar.");
   }
-
-  return resolvedPaths;
 }
 
 function assertInsideRoot(rootPath: string, candidatePath: string) {
   const relativePath = path.relative(rootPath, candidatePath);
-  const isOutside = relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
+  const isOutside =
+    relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
 
   if (isOutside) {
     throw new Error("Arquivo fora da biblioteca.");

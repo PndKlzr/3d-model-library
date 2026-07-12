@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDragOutFilePaths } from "../../src/lib/dragFiles";
+import { getDragModelIds, getDragOutFilePaths } from "../../src/lib/dragFiles";
 import type { ModelFile } from "../../src/shared/types";
 
 describe("dragFiles", () => {
@@ -29,6 +29,22 @@ describe("dragFiles", () => {
     const paths = getDragOutFilePaths(models[2], models, new Set(["c"]));
 
     expect(paths).toEqual(["C:\\library\\pack.zip"]);
+  });
+
+  it("keeps selected models from the whole library even when a filtered view is showing", () => {
+    expect(getDragModelIds(models[0], models, new Set(["a", "c"]))).toEqual(["a", "c"]);
+  });
+
+  it("uses only the dragged model when it is outside the current selection", () => {
+    expect(getDragModelIds(models[1], models, new Set(["a", "c"]))).toEqual(["b"]);
+  });
+
+  it("deduplicates paths case-insensitively for Windows native drag", () => {
+    const duplicate = createModel("d", "PART-A.STL", ".stl", "c:\\LIBRARY\\PART-A.STL");
+
+    expect(getDragOutFilePaths(models[0], [...models, duplicate], new Set(["a", "d"]))).toEqual([
+      "C:\\library\\part-a.stl"
+    ]);
   });
 });
 

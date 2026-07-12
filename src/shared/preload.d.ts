@@ -2,6 +2,7 @@ import type {
   AppSettings,
   ArchiveListResult,
   FileOperationResult,
+  FileDragRequest,
   FileRestorePair,
   FileDragStatus,
   LibraryMetadata,
@@ -57,7 +58,7 @@ export type ModelLibraryApi = {
   saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
-  startFileDrag: (filePaths: string[]) => void;
+  startFileDrag: (request: FileDragRequest) => void;
   onFileDragStatus: (callback: (status: FileDragStatus) => void) => () => void;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   chooseSlicerExecutable: () => Promise<string | null>;

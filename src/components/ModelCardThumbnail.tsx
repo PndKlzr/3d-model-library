@@ -30,7 +30,7 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
 
         observer.disconnect();
         didRequestRef.current = true;
-        void loadThumbnail(model).then((imageUrl) => {
+        void loadModelThumbnail(model).then((imageUrl) => {
           if (isMounted && imageUrl) {
             setThumbnailUrl(imageUrl);
           }
@@ -50,7 +50,7 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
   return (
     <div className="thumb-fallback" ref={rootRef}>
       {thumbnailUrl ? (
-        <img className="thumbnail-image" src={thumbnailUrl} alt="" />
+        <img className="thumbnail-image" src={thumbnailUrl} alt="" draggable={false} />
       ) : (
         <>
           <Box size={30} />
@@ -61,7 +61,22 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
   );
 }
 
-async function loadThumbnail(model: ModelFile) {
+const modelThumbnailCache = new Map<string, Promise<string | null>>();
+
+export async function loadModelThumbnail(model: ModelFile): Promise<string | null> {
+  const cacheKey = `${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
+  const cached = modelThumbnailCache.get(cacheKey);
+
+  if (cached) {
+    return cached;
+  }
+
+  const thumbnailPromise = resolveModelThumbnail(model);
+  modelThumbnailCache.set(cacheKey, thumbnailPromise);
+  return thumbnailPromise;
+}
+
+async function resolveModelThumbnail(model: ModelFile) {
   if (model.extension === ".zip" || model.extension === ".rar" || model.extension === ".7z") {
     return null;
   }

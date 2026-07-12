@@ -58,6 +58,28 @@ describe("fileDrag", () => {
     expect(resolveDraggableFilePathsSync(tempRoot, [archivePath])).toEqual([archivePath]);
   });
 
+  it("deduplicates repeated file paths", async () => {
+    const filePath = path.join(tempRoot, "part.stl");
+    await writeFile(filePath, "solid part");
+
+    await expect(resolveDraggableFilePaths(tempRoot, [filePath, filePath])).resolves.toEqual([
+      filePath
+    ]);
+    expect(resolveDraggableFilePathsSync(tempRoot, [filePath, filePath])).toEqual([filePath]);
+  });
+
+  it("rejects unsupported files before creating a native payload", async () => {
+    const filePath = path.join(tempRoot, "notes.txt");
+    await writeFile(filePath, "notes");
+
+    await expect(resolveDraggableFilePaths(tempRoot, [filePath])).rejects.toThrow(
+      "Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z."
+    );
+    expect(() => resolveDraggableFilePathsSync(tempRoot, [filePath])).toThrow(
+      "Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z."
+    );
+  });
+
   it("uses a single file payload when dragging one model out", () => {
     const icon = {};
     const filePath = path.join(tempRoot, "part.stl");

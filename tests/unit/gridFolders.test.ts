@@ -16,8 +16,20 @@ describe("getGridFolderCards", () => {
     const cards = getGridFolderCards(buildFolderTree(models), models, ALL_FOLDERS_ID, false);
 
     expect(cards).toEqual([
-      { id: "cosplay", name: "cosplay", modelCount: 2, childCount: 1 },
-      { id: "terrain", name: "terrain", modelCount: 1, childCount: 1 }
+      {
+        id: "cosplay",
+        name: "cosplay",
+        modelCount: 2,
+        childCount: 1,
+        previewModels: [models[1], models[2]]
+      },
+      {
+        id: "terrain",
+        name: "terrain",
+        modelCount: 1,
+        childCount: 1,
+        previewModels: [models[3]]
+      }
     ]);
   });
 
@@ -25,7 +37,38 @@ describe("getGridFolderCards", () => {
     const cards = getGridFolderCards(buildFolderTree(models), models, "cosplay", false);
 
     expect(cards).toEqual([
-      { id: "cosplay/helmet", name: "helmet", modelCount: 1, childCount: 0 }
+      {
+        id: "cosplay/helmet",
+        name: "helmet",
+        modelCount: 1,
+        childCount: 0,
+        previewModels: [models[2]]
+      }
+    ]);
+  });
+
+  it("prioritizes direct printable models and caps folder previews at four", () => {
+    const previewModels = [
+      model("direct-a.stl", "parts"),
+      model("bundle.zip", "parts"),
+      model("direct-b.3mf", "parts"),
+      model("nested-a.stl", "parts/nested"),
+      model("nested-b.stl", "parts/nested"),
+      model("nested-c.stl", "parts/nested")
+    ];
+
+    const [card] = getGridFolderCards(
+      buildFolderTree(previewModels),
+      previewModels,
+      ALL_FOLDERS_ID,
+      false
+    );
+
+    expect(card.previewModels.map((item) => item.name)).toEqual([
+      "direct-a.stl",
+      "direct-b.3mf",
+      "nested-a.stl",
+      "nested-b.stl"
     ]);
   });
 
@@ -37,10 +80,12 @@ describe("getGridFolderCards", () => {
 });
 
 function model(name: string, relativeFolder: string): ModelFile {
+  const extension = name.slice(name.lastIndexOf(".")) as ModelFile["extension"];
+
   return {
     id: `${relativeFolder}/${name}`,
     name,
-    extension: name.endsWith(".3mf") ? ".3mf" : ".stl",
+    extension,
     absolutePath: `C:/library/${relativeFolder}/${name}`,
     relativeFolder,
     sizeBytes: 100,

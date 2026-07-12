@@ -37,7 +37,13 @@ export function TextInputDialog({
           <p className="eyebrow">Entrada</p>
           <h2>{title}</h2>
         </div>
-        <button className="icon-only" type="button" onClick={onCancel} aria-label="Fechar">
+        <button
+          className="icon-only"
+          type="button"
+          onClick={onCancel}
+          aria-label="Fechar"
+          title="Fechar"
+        >
           <X size={18} />
         </button>
       </header>

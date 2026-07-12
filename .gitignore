@@ -4,3 +4,5 @@ dist-renderer/
 *.log
 .env
 .env.local
+tools/native-drop-probe/bin/
+*.obj

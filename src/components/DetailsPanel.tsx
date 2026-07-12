@@ -1,4 +1,14 @@
-import { Archive, Calendar, Eye, FolderOpen, Pencil, Scissors, Star, Weight } from "lucide-react";
+import {
+  Archive,
+  Calendar,
+  Eye,
+  FolderOpen,
+  LoaderCircle,
+  Pencil,
+  Scissors,
+  Star,
+  Weight
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { ModelViewer } from "./ModelViewer";
 import { TagSelector } from "./TagSelector";
@@ -20,7 +30,10 @@ type DetailsPanelProps = {
   onSetModelTags: (modelPath: string, tags: string[]) => Promise<void>;
   onSetModelNotes: (modelPath: string, notes: string) => Promise<void>;
   onExtractArchiveEntries: (archivePath: string, entryPaths: string[]) => Promise<void>;
-  onConvertThreeMfToStl: (modelPath: string) => Promise<void>;
+  onConvertThreeMfToStl: (
+    modelPath: string,
+    onProgress: (progress: number) => void
+  ) => Promise<void>;
 };
 
 export function DetailsPanel({
@@ -48,6 +61,7 @@ export function DetailsPanel({
   );
   const [archiveMessage, setArchiveMessage] = useState<string | null>(null);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
+  const [conversionProgress, setConversionProgress] = useState<number | null>(null);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const favorite = modelMetadata?.favorite ?? false;
   const isArchive = Boolean(model && isArchiveExtension(model.extension));
@@ -58,7 +72,18 @@ export function DetailsPanel({
     setArchiveEntries([]);
     setSelectedArchiveEntryPaths(new Set());
     setArchiveMessage(null);
+    setConversionProgress(null);
   }, [model?.id]);
+
+  async function convertModelToStl(modelPath: string) {
+    setConversionProgress(0);
+
+    try {
+      await onConvertThreeMfToStl(modelPath, setConversionProgress);
+    } finally {
+      setConversionProgress(null);
+    }
+  }
 
   useEffect(() => {
     setNotesDraft(modelMetadata?.notes ?? "");
@@ -157,7 +182,7 @@ export function DetailsPanel({
           <div className="preview-placeholder">
             <Eye size={28} />
             <strong>Preview pausado</strong>
-            <span>Para manter a biblioteca leve, o 3D so carrega quando voce pedir.</span>
+            <span>Para manter a biblioteca leve, o 3D só carrega quando você pedir.</span>
             <button className="primary-button" type="button" onClick={() => setShowPreview(true)}>
               Carregar preview 3D
             </button>
@@ -170,7 +195,7 @@ export function DetailsPanel({
       <div className="details-content">
         <p className="eyebrow">Selecionado</p>
         <div className="details-title-row">
-          <h2>{model ? model.name : "Nenhum modelo selecionado"}</h2>
+          <h2 title={model?.name}>{model ? model.name : "Nenhum modelo selecionado"}</h2>
           {model ? (
             <div className="details-title-actions">
               <button
@@ -187,7 +212,7 @@ export function DetailsPanel({
         </div>
 
         {!model ? (
-          <p>Selecione um arquivo para ver dados, notas e acoes.</p>
+          <p>Selecione um arquivo para ver dados, notas e ações.</p>
         ) : (
           <>
             <div className="details-tabs" role="tablist" aria-label="Detalhes do arquivo">
@@ -216,7 +241,7 @@ export function DetailsPanel({
                 aria-selected={activeTab === "actions"}
                 onClick={() => setActiveTab("actions")}
               >
-                Acoes
+                Ações
               </button>
             </div>
 
@@ -247,7 +272,7 @@ export function DetailsPanel({
                 </dl>
                 {isArchive ? (
                   <div className="archive-panel">
-                    <p className="eyebrow">Conteudo do pacote</p>
+                    <p className="eyebrow">Conteúdo do pacote</p>
                     {isArchiveLoading ? <div className="notice">Lendo arquivo compactado...</div> : null}
                     {archiveMessage ? <div className="notice warning">{archiveMessage}</div> : null}
                     {!isArchiveLoading && !archiveMessage && archiveEntries.length === 0 ? (
@@ -307,7 +332,7 @@ export function DetailsPanel({
                     value={notesDraft}
                     onChange={(event) => setNotesDraft(event.currentTarget.value)}
                     onBlur={() => void saveNotes()}
-                    placeholder="Config de impressao, filamento, observacoes..."
+                    placeholder="Configuração de impressão, filamento, observações..."
                     rows={4}
                   />
                 </label>
@@ -330,14 +355,36 @@ export function DetailsPanel({
                     Renomear arquivo
                   </button>
                   {model.extension === ".3mf" ? (
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      onClick={() => onConvertThreeMfToStl(model.absolutePath)}
-                    >
-                      <Archive size={16} />
-                      Converter para STL
-                    </button>
+                    <div className="conversion-action">
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={conversionProgress !== null}
+                        onClick={() => void convertModelToStl(model.absolutePath)}
+                      >
+                        {conversionProgress !== null ? (
+                          <LoaderCircle className="spinning" size={16} />
+                        ) : (
+                          <Archive size={16} />
+                        )}
+                        {conversionProgress !== null ? "Convertendo..." : "Converter para STL"}
+                      </button>
+                      {conversionProgress !== null ? (
+                        <div className="conversion-progress-status">
+                          <div
+                            className="conversion-progress-track"
+                            role="progressbar"
+                            aria-label="Progresso da conversao para STL"
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-valuenow={conversionProgress}
+                          >
+                            <span style={{ width: `${conversionProgress}%` }} />
+                          </div>
+                          <span>{conversionProgress}%</span>
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
 

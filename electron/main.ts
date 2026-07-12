@@ -1,9 +1,11 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell, type WebContents } from "electron";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
   AppSettings,
+  FileDragRequest,
+  FileDragStatus,
   FileOperationResult,
   FileRestorePair,
   ModelHashInput
@@ -27,14 +29,13 @@ import {
   createElectronLibraryMetadataStore,
   type LibraryMetadataStore
 } from "./services/libraryMetadataStore.js";
-import { createNativeFileDragPayload, resolveDraggableFilePathsSync } from "./services/fileDrag.js";
+import {
+  createNativeFileDragPayload,
+  resolveDraggableFilePathsSync
+} from "./services/fileDrag.js";
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
-import {
-  prepareNativeFileDragHelper,
-  startNativeFileDropDrag
-} from "./services/nativeFileDragHelper.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,10 +44,7 @@ const isDev = !app.isPackaged;
 let settingsStore: SettingsStore;
 let libraryMetadataStore: LibraryMetadataStore;
 let modelHashStore: ModelHashStore;
-let nativeFileDragHelperPath: string | null = null;
-const dragIcon = nativeImage.createFromDataURL(
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lZp7WQAAAABJRU5ErkJggg=="
-);
+const dragIcon = createFileDragIcon();
 
 function registerIpcHandlers() {
   ipcMain.handle("settings:get", () => settingsStore.getSettings());
@@ -228,30 +226,28 @@ function registerIpcHandlers() {
     shell.showItemInFolder(absolutePath);
   });
 
-  ipcMain.on("model:start-file-drag", (event, filePaths: string[]) => {
+  ipcMain.on("model:start-file-drag", (event, request: FileDragRequest) => {
+    const sessionId = typeof request?.sessionId === "string" ? request.sessionId : "invalid-session";
+
     try {
-      const resolvedPaths = resolveDraggableFilePathsSync(requireLibraryPath(), filePaths);
-      const payload = createNativeFileDragPayload(resolvedPaths, dragIcon);
-
-      try {
-        event.sender.startDrag(payload);
-      } catch (electronDragError) {
-        if (startNativeFileDropDrag(nativeFileDragHelperPath, resolvedPaths)) {
-          const message = `Arraste nativo iniciado para ${resolvedPaths.length} arquivo(s).`;
-          event.sender.send("model:file-drag-status", { ok: true, message });
-          console.log(`[file-drag] ${message}`);
-          return;
-        }
-
-        throw electronDragError;
+      if (!request || typeof request.sessionId !== "string" || !Array.isArray(request.filePaths)) {
+        throw new Error("Solicitacao de arraste invalida.");
       }
 
-      const message = `Arraste externo iniciado para ${resolvedPaths.length} arquivo(s).`;
-      event.sender.send("model:file-drag-status", { ok: true, message });
-      console.log(`[file-drag] ${message}`);
+      const resolvedPaths = resolveDraggableFilePathsSync(
+        requireLibraryPath(),
+        request.filePaths
+      );
+
+      sendFileDragStatus(event.sender, {
+        sessionId: request.sessionId,
+        state: "started",
+        message: `Arraste iniciado para ${resolvedPaths.length} arquivo(s).`
+      });
+      event.sender.startDrag(createNativeFileDragPayload(resolvedPaths, dragIcon));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      event.sender.send("model:file-drag-status", { ok: false, message });
+      sendFileDragStatus(event.sender, { sessionId, state: "failed", message });
       console.error("[file-drag]", error);
     }
   });
@@ -419,12 +415,6 @@ app.whenReady().then(async () => {
   settingsStore = await createElectronSettingsStore();
   libraryMetadataStore = await createElectronLibraryMetadataStore();
   modelHashStore = await createElectronModelHashStore();
-  nativeFileDragHelperPath = await prepareNativeFileDragHelper(app.getPath("userData")).catch(
-    (error) => {
-      console.error("[file-drag] native helper unavailable", error);
-      return null;
-    }
-  );
   registerIpcHandlers();
   await createWindow();
 
@@ -435,8 +425,39 @@ app.whenReady().then(async () => {
   });
 });
 
+function sendFileDragStatus(sender: WebContents, status: FileDragStatus) {
+  sender.send("model:file-drag-status", status);
+  console.log(`[file-drag:${status.state}] ${status.sessionId} ${status.message}`);
+}
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
 });
+
+function createFileDragIcon() {
+  const width = 48;
+  const height = 48;
+  const bitmap = Buffer.alloc(width * height * 4);
+
+  function fillRect(x: number, y: number, rectWidth: number, rectHeight: number, color: number[]) {
+    for (let row = y; row < y + rectHeight; row += 1) {
+      for (let column = x; column < x + rectWidth; column += 1) {
+        const offset = (row * width + column) * 4;
+        bitmap[offset] = color[2];
+        bitmap[offset + 1] = color[1];
+        bitmap[offset + 2] = color[0];
+        bitmap[offset + 3] = color[3];
+      }
+    }
+  }
+
+  fillRect(5, 5, 38, 38, [34, 132, 127, 255]);
+  fillRect(14, 10, 20, 28, [245, 249, 249, 255]);
+  fillRect(18, 17, 12, 3, [34, 132, 127, 255]);
+  fillRect(18, 24, 12, 3, [34, 132, 127, 255]);
+  fillRect(18, 31, 8, 3, [34, 132, 127, 255]);
+
+  return nativeImage.createFromBitmap(bitmap, { width, height, scaleFactor: 1 });
+}

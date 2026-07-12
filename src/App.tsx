@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { DialogShell } from "./components/DialogShell";
@@ -19,13 +20,13 @@ import {
   goForwardInFolderHistory,
   pushFolderHistory
 } from "./lib/folderNavigationHistory";
-import { getDragOutFilePaths } from "./lib/dragFiles";
+import { getDragModelIds, getDragOutFilePaths } from "./lib/dragFiles";
 import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
-import { convertThreeMfToStl } from "./lib/threeMfToStl";
+import { convertThreeMfToStlInWorker } from "./lib/threeMfToStlWorker";
 import {
   parseModelViewMode,
   parseThemeMode,
@@ -34,6 +35,7 @@ import {
 } from "./lib/viewPreferences";
 import type {
   AppSettings,
+  FileDragBehavior,
   FileRestorePair,
   LibraryActionLogEntry,
   LibraryMetadata,
@@ -65,6 +67,8 @@ function App() {
   const [lastSelectedModelId, setLastSelectedModelId] = useState<string | null>(null);
   const [lastFocusedItem, setLastFocusedItem] = useState<FocusedLibraryItem>("folder");
   const [draggedModelIds, setDraggedModelIds] = useState<string[]>([]);
+  const draggedModelIdsRef = useRef<string[]>([]);
+  const activeFileDragSessionRef = useRef<string | null>(null);
   const [folderContextMenu, setFolderContextMenu] = useState<{
     folderId: string;
     x: number;
@@ -142,6 +146,13 @@ function App() {
   useEffect(() => {
     const unsubscribe = window.modelLibrary.onFileDragStatus?.((status) => {
       setOperationMessage(status.message);
+
+      if (
+        status.state !== "started" &&
+        status.sessionId === activeFileDragSessionRef.current
+      ) {
+        clearDraggedModels();
+      }
     });
 
     return () => unsubscribe?.();
@@ -339,6 +350,14 @@ function App() {
   async function saveSettings(nextSettings: AppSettings) {
     const savedSettings = await window.modelLibrary.saveSettings(nextSettings);
     setSettings(savedSettings);
+  }
+
+  function updateFileDragBehavior(fileDragBehavior: FileDragBehavior) {
+    if (!settings || settings.fileDragBehavior === fileDragBehavior) {
+      return;
+    }
+
+    void saveSettings({ ...settings, fileDragBehavior });
   }
 
   async function chooseSlicerExecutable(slicer: AppSettings["slicers"][number]) {
@@ -724,30 +743,45 @@ function App() {
     });
   }
 
-  function startDraggingModel(model: ModelFile) {
-    setLastFocusedItem("model");
-    setFolderContextMenu(null);
-    setModelContextMenu(null);
-    const ids = selectedModelIds.has(model.id) ? [...selectedModelIds] : [model.id];
-    setDraggedModelIds(ids);
+  function startDraggingModel(model: ModelFile, mode: "external" | "internal") {
+    const ids = getDragModelIds(model, models, selectedModelIds);
+    const filePaths = getDragOutFilePaths(model, models, selectedModelIds);
+    const internalDragIds = mode === "internal" ? ids : [];
 
-    if (!selectedModelIds.has(model.id)) {
-      setSelectedModelIds(new Set([model.id]));
-      setSelectedModel(model);
-      setLastSelectedModelId(model.id);
+    if (filePaths.length === 0) {
+      return;
+    }
+
+    const sessionId = createFileDragSessionId();
+    draggedModelIdsRef.current = internalDragIds;
+    activeFileDragSessionRef.current = sessionId;
+    setOperationMessage(
+      mode === "internal"
+        ? `Organizando ${filePaths.length} arquivo(s).`
+        : `Arrastando ${filePaths.length} arquivo(s).`
+    );
+
+    flushSync(() => {
+      setLastFocusedItem("model");
+      setFolderContextMenu(null);
+      setModelContextMenu(null);
+      setDraggedModelIds(internalDragIds);
+
+      if (!selectedModelIds.has(model.id)) {
+        setSelectedModelIds(new Set([model.id]));
+        setSelectedModel(model);
+        setLastSelectedModelId(model.id);
+      }
+    });
+    if (mode === "external") {
+      window.modelLibrary.startFileDrag({ sessionId, filePaths });
     }
   }
 
   function clearDraggedModels() {
+    activeFileDragSessionRef.current = null;
+    draggedModelIdsRef.current = [];
     setDraggedModelIds([]);
-  }
-
-  function startFileDrag(model: ModelFile) {
-    const filePaths = getDragOutFilePaths(model, filteredModels, selectedModelIds);
-
-    if (filePaths.length > 0) {
-      void window.modelLibrary.startFileDrag(filePaths);
-    }
   }
 
   async function createFolder(parentFolderOverride?: string) {
@@ -938,11 +972,13 @@ function App() {
   }
 
   async function moveDraggedModels(destinationFolder: string) {
-    if (!settings?.libraryPath || draggedModelIds.length === 0) {
+    const modelIds = draggedModelIdsRef.current;
+
+    if (!settings?.libraryPath || modelIds.length === 0) {
       return;
     }
 
-    await moveModelsToFolderByIds(draggedModelIds, destinationFolder);
+    await moveModelsToFolderByIds(modelIds, destinationFolder);
   }
 
   async function moveSelectedModelsToFolder(destinationFolder: string) {
@@ -1053,14 +1089,17 @@ function App() {
     });
   }
 
-  async function convertSelectedThreeMfToStl(modelPath: string) {
+  async function convertSelectedThreeMfToStl(
+    modelPath: string,
+    onProgress: (progress: number) => void
+  ) {
     if (!settings?.libraryPath) {
       return;
     }
 
     await runLibraryOperation(async () => {
       const modelBytes = await window.modelLibrary.readModelFile(modelPath);
-      const stlContent = convertThreeMfToStl(modelBytes);
+      const stlContent = await convertThreeMfToStlInWorker(modelBytes, onProgress);
       const result = await window.modelLibrary.saveConvertedStl(modelPath, stlContent);
 
       return {
@@ -1218,6 +1257,7 @@ function App() {
         modelCount={models.length}
         selectedModelCount={selectedModelIds.size}
         canMoveModels={draggedModelIds.length > 0}
+        pointerDragOverFolder={null}
         expandedFolderIds={expandedFolderIds}
         onSelectFolder={selectFolder}
         onToggleFolder={toggleExpandedFolder}
@@ -1246,9 +1286,11 @@ function App() {
         isScanning={isScanning}
         isFilteringStale={isFilteringStale}
         canMoveModels={draggedModelIds.length > 0}
+        pointerDragOverFolder={null}
         operationMessage={operationMessage}
         selectedFolder={selectedFolder}
         viewMode={modelViewMode}
+        fileDragBehavior={settings.fileDragBehavior}
         canNavigateBack={folderHistory.back.length > 0}
         canNavigateForward={folderHistory.forward.length > 0}
         onSearchChange={setSearchQuery}
@@ -1259,6 +1301,7 @@ function App() {
         onOnlyDuplicatesChange={setOnlyDuplicates}
         onToggleTagFilter={toggleTagFilter}
         onViewModeChange={setModelViewMode}
+        onFileDragBehaviorChange={updateFileDragBehavior}
         onNavigateBack={goBackFolder}
         onNavigateForward={goForwardFolder}
         onOpenFolder={selectFolder}
@@ -1344,7 +1387,13 @@ function App() {
               <p className="eyebrow">Tags</p>
               <h2>{tagPickerDialog.model.name}</h2>
             </div>
-            <button className="icon-only" type="button" onClick={() => setTagPickerDialog(null)}>
+            <button
+              className="icon-only"
+              type="button"
+              onClick={() => setTagPickerDialog(null)}
+              aria-label="Fechar"
+              title="Fechar"
+            >
               Fechar
             </button>
           </header>
@@ -1406,9 +1455,9 @@ function App() {
           {actionLogEntries.some((entry) => entry.undoable && !entry.undone) ? (
             <>
               <div className="context-menu-separator" />
-              <div className="context-menu-section-title">Historico</div>
+              <div className="context-menu-section-title">Histórico</div>
               <button type="button" role="menuitem" onClick={undoLastAction}>
-                Desfazer ultima acao
+                Desfazer última ação
               </button>
             </>
           ) : null}
@@ -1432,7 +1481,7 @@ function App() {
               setIsSettingsOpen(true);
             }}
           >
-            Configuracoes
+            Configurações
           </button>
         </div>
       ) : null}
@@ -1599,6 +1648,12 @@ function createActionLogEntry(
     undone: false,
     restorePairs
   };
+}
+
+function createFileDragSessionId(): string {
+  return typeof window.crypto.randomUUID === "function"
+    ? window.crypto.randomUUID()
+    : `file-drag-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function createRenameRestorePairs(nextPath: string, previousPath: string): FileRestorePair[] {

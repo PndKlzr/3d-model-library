@@ -8,7 +8,7 @@ describe("product flow contract", () => {
     expect(detailsSource).toContain("details-tabs");
     expect(detailsSource).toContain("Info");
     expect(detailsSource).toContain("Notas");
-    expect(detailsSource).toContain("Acoes");
+    expect(detailsSource).toContain("Ações");
     expect(detailsSource).toContain('activeTab === "actions"');
   });
 
@@ -22,6 +22,30 @@ describe("product flow contract", () => {
     expect(gridSource).toContain("model-card");
   });
 
+  it("shows lazy model thumbnail mosaics on folder cards", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const folderThumbnailSource = await readFile(
+      "src/components/FolderCardThumbnail.tsx",
+      "utf8"
+    );
+    const modelThumbnailSource = await readFile(
+      "src/components/ModelCardThumbnail.tsx",
+      "utf8"
+    );
+    const stylesSource = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain("<FolderCardThumbnail models={folderCard.previewModels}");
+    expect(folderThumbnailSource).toContain("IntersectionObserver");
+    expect(folderThumbnailSource).toContain("loadModelThumbnail");
+    expect(folderThumbnailSource).toContain("draggable={false}");
+    expect(folderThumbnailSource).toContain('data-count={thumbnailUrls.length}');
+    expect(modelThumbnailSource).toContain("export async function loadModelThumbnail");
+    expect(folderThumbnailSource).toContain("folder-kind-strip");
+    expect(folderThumbnailSource).toContain("PASTA");
+    expect(stylesSource).toContain(".folder-thumbnail-mosaic");
+    expect(stylesSource).toContain(".folder-kind-strip");
+  });
+
   it("opens a model context menu from cards and rows", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
@@ -32,32 +56,28 @@ describe("product flow contract", () => {
     expect(gridSource).toContain("onContextMenu");
   });
 
-  it("keeps native Electron file drag available without exposing a dead card handle", async () => {
+  it("starts Electron native file drag directly from the card drag gesture", async () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const thumbnailSource = await readFile("src/components/ModelCardThumbnail.tsx", "utf8");
     const preloadSource = await readFile("electron/preload.cjs", "utf8");
     const mainSource = await readFile("electron/main.ts", "utf8");
 
-    expect(gridSource).toContain('setData("application/x-model-library-model"');
-    expect(gridSource).not.toContain('setData("text/plain"');
-    expect(gridSource).not.toContain("event.preventDefault();\n        onDragStartModel(model);");
+    expect(gridSource).toContain("draggable");
+    expect(gridSource).toContain("onDragStart={(event) =>");
+    expect(gridSource).toContain("event.preventDefault()");
+    expect(gridSource).toContain('event.dataTransfer.setData("application/x-model-library-model"');
     expect(gridSource).not.toContain("native-file-drag-handle");
     expect(gridSource).not.toContain("GripVertical");
+    expect(thumbnailSource).toContain("draggable={false}");
     expect(preloadSource).toContain('ipcRenderer.send("model:start-file-drag"');
     expect(preloadSource).not.toContain('ipcRenderer.invoke("model:start-file-drag"');
     expect(mainSource).toContain('ipcMain.on("model:start-file-drag"');
     expect(mainSource).not.toContain('ipcMain.on("model:start-file-drag", async');
     expect(mainSource).toContain("resolveDraggableFilePathsSync");
-    expect(mainSource).toContain("prepareNativeFileDragHelper");
-    expect(mainSource).toContain("startNativeFileDropDrag");
+    expect(mainSource).toContain("createNativeFileDragPayload");
     expect(mainSource).toContain("model:file-drag-status");
-    const dragHandlerSource = mainSource.match(
-      /ipcMain\.on\("model:start-file-drag"[\s\S]*?\n  }\);/
-    )?.[0];
-
-    expect(dragHandlerSource).toBeTruthy();
-    expect(dragHandlerSource!.indexOf("event.sender.startDrag")).toBeLessThan(
-      dragHandlerSource!.indexOf("startNativeFileDropDrag")
-    );
+    expect(mainSource).toContain("event.sender.startDrag");
+    expect(mainSource).not.toContain("nativeShellDragHost");
   });
 
   it("offers a reliable context action to open selected models in a slicer", async () => {
@@ -75,12 +95,59 @@ describe("product flow contract", () => {
     expect(appSource).toContain("getSlicerLaunchModelCount(modelContextMenu.model) > 0");
   });
 
-  it("separates internal folder organization drag from external file launching", async () => {
+  it("keeps internal folder organization attached to the native drag session", async () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const appSource = await readFile("src/App.tsx", "utf8");
 
-    expect(gridSource).toContain("onDragStart={(event) =>");
-    expect(gridSource).toContain('setData("application/x-model-library-model"');
+    expect(gridSource).toContain("onMoveModelsToFolder");
+    expect(gridSource).toContain("data-folder-drop-id");
+    expect(gridSource).toContain("onDrop={(event) => dropOnFolder");
+    expect(gridSource).toContain("shouldStartExternalFileDrag");
+    expect(gridSource).toContain('behavior === "organize-default" ? event.ctrlKey : !event.shiftKey');
+    expect(gridSource).toContain('onDragStartModel(model, "internal")');
+    expect(gridSource).toContain('onDragStartModel(model, "external")');
+    expect(gridSource).toContain("external-drag-mode-cue");
+    expect(gridSource).toContain("external-drag-card-cue");
+    expect(gridSource).toContain("internal-drag-mode-cue");
+    expect(appSource).toContain("draggedModelIdsRef.current = internalDragIds");
+    expect(appSource).toContain('if (mode === "external")');
+    expect(appSource).toContain("window.modelLibrary.startFileDrag({ sessionId, filePaths })");
     expect(gridSource).not.toContain("application/x-model-library-file-drag");
+  });
+
+  it("shows internal folder drop cues only for an internal drag", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain('const internalDragIds = mode === "internal" ? ids : [];');
+    expect(appSource).toContain("draggedModelIdsRef.current = internalDragIds");
+    expect(appSource).toContain("setDraggedModelIds(internalDragIds)");
+  });
+
+  it("keeps filters compact and offers a single clear action", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const stylesSource = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain("hasActiveFilters");
+    expect(gridSource).toContain("clearFilters");
+    expect(gridSource).toContain('aria-pressed={onlyFavorites}');
+    expect(gridSource).toContain("filter-clear");
+    expect(stylesSource).toContain(".filter-toggle.active");
+    expect(stylesSource).toContain(".model-card:hover .card-check");
+  });
+
+  it("organizes settings into accessible workflow tabs", async () => {
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+    const stylesSource = await readFile("src/styles.css", "utf8");
+
+    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations"');
+    expect(settingsSource).toContain('role="tablist"');
+    expect(settingsSource).toContain('role="tab"');
+    expect(settingsSource).toContain('role="tabpanel"');
+    expect(settingsSource).toContain("Biblioteca");
+    expect(settingsSource).toContain("Organização");
+    expect(settingsSource).toContain("Integrações");
+    expect(stylesSource).toContain(".settings-tabs");
+    expect(stylesSource).toContain(".settings-content");
   });
 
   it("opens printable models in the default slicer on double-click", async () => {
@@ -112,6 +179,8 @@ describe("product flow contract", () => {
 
     expect(appSource).toContain("onFileDragStatus");
     expect(appSource).toContain("setOperationMessage(status.message)");
+    expect(appSource).toContain('status.state !== "started"');
+    expect(appSource).not.toContain("if (activeFileDragSessionRef.current) {\n      return;");
   });
 
   it("guards dev-only preload API drift before computing model hashes", async () => {

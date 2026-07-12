@@ -1,5 +1,12 @@
-import { ChevronsDownUp, ChevronsUpDown, ChevronRight, Folder, Layers3 } from "lucide-react";
-import type { DragEvent, MouseEvent } from "react";
+import {
+  ChevronsDownUp,
+  ChevronsUpDown,
+  ChevronRight,
+  Folder,
+  FolderOpen,
+  Layers3
+} from "lucide-react";
+import type { CSSProperties, DragEvent, MouseEvent } from "react";
 import { useRef, useState } from "react";
 import type { FolderNode } from "../lib/folderTree";
 import { ALL_FOLDERS_ID } from "../lib/folderFilters";
@@ -11,6 +18,7 @@ type FolderTreeProps = {
   modelCount: number;
   selectedModelCount: number;
   canMoveModels: boolean;
+  pointerDragOverFolder: string | null;
   expandedFolderIds: Set<string>;
   onSelectFolder: (folderId: string) => void;
   onToggleFolder: (folderId: string) => void;
@@ -28,6 +36,7 @@ export function FolderTree({
   modelCount,
   selectedModelCount,
   canMoveModels,
+  pointerDragOverFolder,
   expandedFolderIds,
   onSelectFolder,
   onToggleFolder,
@@ -79,8 +88,11 @@ export function FolderTree({
 
       <button
         className={`folder-row ${selectedFolder === ALL_FOLDERS_ID ? "selected" : ""} ${
-          dragOverFolder === ALL_FOLDERS_ID ? "drop-target" : ""
+          dragOverFolder === ALL_FOLDERS_ID || pointerDragOverFolder === ALL_FOLDERS_ID
+            ? "drop-target"
+            : ""
         }`}
+        data-folder-drop-id={ALL_FOLDERS_ID}
         type="button"
         onClick={() => onSelectFolder(ALL_FOLDERS_ID)}
         onContextMenu={(event) => {
@@ -106,19 +118,30 @@ export function FolderTree({
 
       {selectedModelCount > 0 ? (
         <div className="selection-hint">
-          {selectedModelCount} selecionado{selectedModelCount === 1 ? "" : "s"} para organizar
+          {selectedModelCount} selecionado{selectedModelCount === 1 ? "" : "s"}
         </div>
       ) : null}
 
-      <div className="folder-tree-actions" aria-label="Acoes da arvore de pastas">
-        <button type="button" onClick={onExpandAllFolders} title="Expandir tudo">
-          <ChevronsUpDown size={15} />
-          Expandir tudo
-        </button>
-        <button type="button" onClick={onCollapseAllFolders} title="Recolher tudo">
-          <ChevronsDownUp size={15} />
-          Recolher tudo
-        </button>
+      <div className="folder-tree-heading">
+        <span>Pastas</span>
+        <div className="folder-tree-actions" aria-label="Ações da árvore de pastas">
+          <button
+            type="button"
+            onClick={onExpandAllFolders}
+            title="Expandir todas as pastas"
+            aria-label="Expandir todas as pastas"
+          >
+            <ChevronsUpDown size={15} />
+          </button>
+          <button
+            type="button"
+            onClick={onCollapseAllFolders}
+            title="Recolher todas as pastas"
+            aria-label="Recolher todas as pastas"
+          >
+            <ChevronsDownUp size={15} />
+          </button>
+        </div>
       </div>
 
       <div className="folder-list">
@@ -128,6 +151,7 @@ export function FolderTree({
             folder={folder}
             selectedFolder={selectedFolder}
             dragOverFolder={dragOverFolder}
+            pointerDragOverFolder={pointerDragOverFolder}
             canMoveModels={canMoveModels}
             expandedFolderIds={expandedFolderIds}
             onSelectFolder={onSelectFolder}
@@ -170,6 +194,7 @@ function FolderNodeButton({
   folder,
   selectedFolder,
   dragOverFolder,
+  pointerDragOverFolder,
   canMoveModels,
   expandedFolderIds,
   onSelectFolder,
@@ -183,6 +208,7 @@ function FolderNodeButton({
   folder: FolderNode;
   selectedFolder: string;
   dragOverFolder: string | null;
+  pointerDragOverFolder: string | null;
   canMoveModels: boolean;
   expandedFolderIds: Set<string>;
   onSelectFolder: (folderId: string) => void;
@@ -204,10 +230,17 @@ function FolderNodeButton({
   return (
     <div>
       <div
-        className={`folder-row folder-tree-row ${selectedFolder === folder.id ? "selected" : ""} ${
-          dragOverFolder === folder.id ? "drop-target" : ""
+        className={`folder-row folder-tree-row ${canMoveModels ? "drag-target-ready" : ""} ${
+          selectedFolder === folder.id ? "selected" : ""
+        } ${
+          dragOverFolder === folder.id || pointerDragOverFolder === folder.id ? "drop-target" : ""
         }`}
-        style={{ paddingLeft: 10 + depth * 14 }}
+        data-folder-drop-id={folder.id}
+        style={
+          {
+            "--folder-indent": `${Math.min(depth, 4) * 12}px`
+          } as CSSProperties
+        }
         onDragOver={(event) => onDragOverFolder(event, folder.id)}
         onDragLeave={onDragLeaveFolder}
         onDrop={(event) => onDropOnFolder(event, folder.id)}
@@ -224,10 +257,11 @@ function FolderNodeButton({
             <ChevronRight size={14} />
           </button>
         ) : (
-          <span className="folder-disclosure-placeholder">
-            <Folder size={14} />
-          </span>
+          <span className="folder-disclosure-placeholder" aria-hidden="true" />
         )}
+        <span className="folder-node-icon" aria-hidden="true">
+          {isExpanded && hasChildren ? <FolderOpen size={15} /> : <Folder size={15} />}
+        </span>
         <button className="folder-name-button" type="button" onClick={() => onSelectFolder(folder.id)}>
           <span>{folder.name}</span>
         </button>
@@ -239,6 +273,7 @@ function FolderNodeButton({
           folder={child}
           selectedFolder={selectedFolder}
           dragOverFolder={dragOverFolder}
+          pointerDragOverFolder={pointerDragOverFolder}
           canMoveModels={canMoveModels}
           expandedFolderIds={expandedFolderIds}
           onSelectFolder={onSelectFolder}
