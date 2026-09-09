@@ -4,7 +4,7 @@
 
 Make a library with hundreds of models feel immediate without changing the file organization, native drag behavior, slicer integration, or explicit 3D preview flow.
 
-The application should show useful content from the previous session as soon as it opens, update that content in the background, and spend thumbnail work only on items the user can currently see.
+The application should show useful content from the previous session as soon as it opens, update that content in the background, and prioritize thumbnail work for items the user can currently see while retaining completed work for later visits.
 
 Packaging is explicitly out of scope for this pass.
 
@@ -16,6 +16,8 @@ Packaging is explicitly out of scope for this pass.
 - Folder mosaics can enqueue up to four jobs each and compete with visible model cards.
 - Every generated thumbnail creates and disposes a WebGL renderer, which adds GPU and main-thread overhead.
 - Loading feedback does not clearly distinguish cached content from background reconciliation.
+- External filesystem changes require a manual full refresh.
+- Search does not include notes or usage-oriented filters such as recently opened models.
 
 ## Architecture
 
@@ -30,6 +32,8 @@ On startup:
 3. Atomically replace the displayed snapshot only when reconciliation finishes.
 4. Persist the fresh result after a successful scan.
 
+This is a two-phase load. Phase one restores the persisted index and makes navigation, search, and selection usable. Phase two reconciles the index against the filesystem and publishes additions, removals, renames, and changed signatures without clearing the visible grid.
+
 An invalid, unreadable, or schema-incompatible cache is ignored. It must never prevent a real scan. File operations such as move, rename, create, trash, restore, and extraction continue to trigger reconciliation, so the filesystem remains the source of truth.
 
 ### Faster Reconciliation
@@ -37,6 +41,14 @@ An invalid, unreadable, or schema-incompatible cache is ignored. It must never p
 Keep directory traversal deterministic, but collect file-stat work through a small bounded concurrency pool rather than awaiting every file sequentially. The concurrency limit will be conservative to avoid saturating slower disks.
 
 Scanning still reads directory entries and file metadata only. It must not parse STL geometry, unzip 3MF files, hash models, or generate thumbnails.
+
+### Optional Folder Monitoring
+
+Add a remembered `Monitorar alteracoes automaticamente` setting. It is enabled by default for a local library and can be disabled without affecting manual Refresh.
+
+The watcher reports additions, changes, removals, and renames after the initial reconciliation. A short debounce window combines bursts such as archive extraction or multi-file copies. Events update only affected index entries; they do not trigger a full recursive scan. Operations initiated by the application are correlated with watcher events so move, rename, trash, restore, conversion, and extraction are not processed twice.
+
+If the watcher cannot start, loses the directory, or exceeds an operating-system limit, the application keeps the current index, disables monitoring for that session, and shows a concise message directing the user to manual Refresh. Turning the setting off closes the watcher immediately.
 
 ### Persistent Thumbnail Cache
 
@@ -59,12 +71,21 @@ Replace the append-only thumbnail queue with a shared request scheduler.
 - Visible model cards receive high priority.
 - Near-viewport cards receive normal priority.
 - Folder mosaic images receive low priority.
-- Cards cancel their subscription when leaving the viewport or unmounting.
-- A queued job with no remaining subscribers is removed before file reading or parsing begins.
+- A card that leaves the viewport lowers the priority of work that has not started.
+- A thumbnail generation job that has already started is allowed to finish and is persisted, even if its card leaves the viewport.
+- Work for the current viewport can overtake older low-priority work, so fast scrolling never waits behind the complete browsing history.
 - Identical model signatures share one job and one result.
 - The queue runs one heavy geometry parse/render at a time initially; cached image reads may run concurrently.
 
 The queue will expose status counters so the UI can show background activity without rendering a spinner in every card.
+
+Metadata reconciliation and thumbnail generation use separate queues. Finishing or failing one queue never blocks the other, and the explicit details-panel preview can temporarily outrank background thumbnails.
+
+### Grid Virtualization
+
+Render only the visible grid/list window plus a small overscan region while preserving stable keyboard selection, shift ranges, drag behavior, folder drops, and scroll position. Virtualization controls DOM cost; the thumbnail scheduler independently controls file and GPU work.
+
+The first implementation must preserve the current responsive card dimensions. If variable row measurement causes visible jumping, use deterministic row heights per view mode rather than continuously measuring every card.
 
 ### Reused Thumbnail Renderer
 
@@ -81,8 +102,21 @@ Worker-based geometry parsing is deliberately deferred unless measurements after
 - Placeholder dimensions remain fixed so thumbnails do not shift the grid.
 - Failed thumbnails retain the existing file-type placeholder; one failure does not retry continuously in the same session.
 - Manual Refresh forces reconciliation but reuses valid thumbnails.
+- Automatic monitoring has an on/off control in Settings and visibly reports whether it is active.
 - Explicit 3D preview in the details panel keeps priority over background thumbnail generation.
 - Search, folder navigation, selection, internal drag, native external drag, conversion, tags, notes, and archive workflows remain behaviorally unchanged.
+
+### Search and Usage Filters
+
+Keep the existing name, size, modification-date, and type controls. Add:
+
+- `Abertos recentemente`, backed by the existing slicer-open history;
+- `Nunca abertos`;
+- `Com notas` and `Sem notas` as mutually exclusive choices;
+- note text to the general search index;
+- tag matching modes for all selected tags, any selected tag, or excluding selected tags.
+
+Filter combinations update the current grid in real time and never start geometry or thumbnail work. Recently opened means successfully launched through a configured slicer from this application; merely selecting or previewing a model does not count.
 
 ## Error Handling and Safety
 
@@ -91,6 +125,7 @@ Worker-based geometry parsing is deliberately deferred unless measurements after
 - Cache paths are generated internally and cannot be supplied by renderer input.
 - Corrupt index or thumbnail files are ignored and replaced lazily.
 - A failed background scan keeps the cached view visible and reports the scan error without erasing the library.
+- Watcher events are hints only and are validated against the filesystem before changing the index.
 - No model file is modified by indexing or thumbnail caching.
 
 ## Testing
@@ -101,9 +136,12 @@ Add focused tests for:
 - bounded scan concurrency and the existing no-geometry-during-scan contract;
 - thumbnail cache key invalidation after size or modification changes;
 - cache write/read failure fallback and pruning limits;
-- scheduler priority, deduplication, cancellation, and failed-job behavior;
+- scheduler priority, deduplication, demotion, started-job completion, and failed-job behavior;
+- watcher debounce, event validation, duplicate suppression, disable behavior, and failure fallback;
 - persistent renderer reuse and disposal boundaries;
 - immediate cached display followed by background reconciliation;
+- virtualized selection, drag/drop, scroll restoration, and responsive row behavior;
+- recent/never-opened, notes, and tag-matching filter combinations;
 - unchanged native/internal drag and file-operation contracts.
 
 Run the complete unit suite and production build. Measure cold and warm startup against a real library snapshot, recording time to cached grid, scan completion, first visible thumbnail, and event-loop stalls. Acceptance requires warm startup to show the cached grid before reconciliation completes and scrolling to stop enqueueing work for cards that have left the viewport.
@@ -112,16 +150,19 @@ Run the complete unit suite and production build. Measure cold and warm startup 
 
 1. Instrument baseline timings without changing behavior.
 2. Add the persistent library index and background reconciliation.
-3. Add the persistent thumbnail cache.
-4. Replace the queue with viewport priorities and cancellation.
-5. Reuse the WebGL thumbnail renderer.
-6. Polish loading/error feedback and verify responsive behavior.
-7. Re-run regression tests and compare measurements.
+3. Add optional debounced folder monitoring.
+4. Add the persistent thumbnail cache.
+5. Replace the queue with viewport priorities and separate metadata/thumbnail work.
+6. Add grid/list virtualization without changing drag or selection semantics.
+7. Reuse the WebGL thumbnail renderer.
+8. Add usage, notes, and tag-matching filters.
+9. Polish loading/error feedback and verify responsive behavior.
+10. Re-run regression tests and compare measurements.
 
 ## Deferred Work
 
 - Installer or packaged executable.
 - Electron major-version upgrade.
-- Full grid virtualization unless DOM measurements show it is still necessary.
 - Worker-based geometry parsing unless the measured main-thread budget remains unacceptable.
+- Custom thumbnail selection and replacement.
 - New organizational features unrelated to performance.
