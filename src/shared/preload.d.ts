@@ -19,6 +19,7 @@ export type ModelLibraryApi = {
   saveSettings: (settings: AppSettings) => Promise<AppSettings>;
   chooseLibraryFolder: () => Promise<string | null>;
   chooseArchiveExtractor: () => Promise<string | null>;
+  getCachedLibrary: (rootPath: string) => Promise<LibraryScanResult | null>;
   scanLibrary: (rootPath: string) => Promise<LibraryScanResult>;
   listArchiveEntries: (archivePath: string) => Promise<ArchiveListResult>;
   extractArchiveEntries: (

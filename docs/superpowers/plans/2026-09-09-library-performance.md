@@ -115,7 +115,7 @@ git commit -m "perf: bound library scan metadata work"
 - Produces preload API: `getCachedLibrary(rootPath: string): Promise<LibraryScanResult | null>`
 - Preserves preload API: `scanLibrary(rootPath: string): Promise<LibraryScanResult>`
 
-- [ ] **Step 1: Write failing index validation tests**
+- [x] **Step 1: Write failing index validation tests**
 
 ```ts
 it("returns only a versioned snapshot for the requested library", () => {
@@ -132,13 +132,13 @@ it("ignores corrupt snapshots", () => {
 });
 ```
 
-- [ ] **Step 2: Run the index test and confirm it fails**
+- [x] **Step 2: Run the index test and confirm it fails**
 
 Run: `npm test -- tests/unit/libraryIndexStore.test.ts`
 
 Expected: FAIL because the store module does not exist.
 
-- [ ] **Step 3: Implement the versioned store and Electron backend**
+- [x] **Step 3: Implement the versioned store and Electron backend**
 
 ```ts
 export type LibraryIndexSnapshot = {
@@ -155,7 +155,7 @@ export type LibraryIndexStore = {
 
 Use a dedicated `electron-store` file named `library-index`. Clone validated results on read/write.
 
-- [ ] **Step 4: Add cached-index IPC and persist successful scans**
+- [x] **Step 4: Add cached-index IPC and persist successful scans**
 
 ```ts
 ipcMain.handle("library:get-cached", (_event, rootPath: string) => {
@@ -171,7 +171,7 @@ ipcMain.handle("library:scan", async (_event, rootPath: string) => {
 });
 ```
 
-- [ ] **Step 5: Restore cached content before background reconciliation in App**
+- [x] **Step 5: Restore cached content before background reconciliation in App**
 
 ```ts
 const cached = await window.modelLibrary.getCachedLibrary(settings.libraryPath);
@@ -181,13 +181,13 @@ void scanLibrary(settings.libraryPath);
 
 Do not set the grid to an empty loading state when cached content exists. Keep `isScanning` true until reconciliation finishes.
 
-- [ ] **Step 6: Run index, preload, interaction, and full tests**
+- [x] **Step 6: Run index, preload, interaction, and full tests**
 
 Run: `npm test -- tests/unit/libraryIndexStore.test.ts tests/unit/preloadContract.test.ts tests/unit/interactionFlowContract.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit two-phase startup**
+- [x] **Step 7: Commit two-phase startup**
 
 ```bash
 git add electron/services/libraryIndexStore.ts electron/main.ts electron/preload.cjs src/shared/types.ts src/shared/preload.d.ts src/App.tsx tests/unit/libraryIndexStore.test.ts tests/unit/preloadContract.test.ts tests/unit/interactionFlowContract.test.ts

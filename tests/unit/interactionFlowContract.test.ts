@@ -195,6 +195,19 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("isFilteringStale");
   });
 
+  it("restores the cached library before background reconciliation", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const restoreSource = appSource.match(
+      /async function restoreAndScanLibrary[\s\S]*?\n  }\n/
+    )?.[0];
+
+    expect(restoreSource).toBeTruthy();
+    expect(restoreSource).toContain("getCachedLibrary");
+    expect(restoreSource?.indexOf("getCachedLibrary")).toBeLessThan(
+      restoreSource?.indexOf("scanLibrary(rootPath)") ?? -1
+    );
+  });
+
   it("does not create undo restore pairs for no-op renames", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 

@@ -139,7 +139,7 @@ function App() {
 
   useEffect(() => {
     if (settings?.libraryPath) {
-      void scanLibrary(settings.libraryPath);
+      void restoreAndScanLibrary(settings.libraryPath);
     }
   }, [settings?.libraryPath]);
 
@@ -617,6 +617,20 @@ function App() {
     } finally {
       setIsScanning(false);
     }
+  }
+
+  async function restoreAndScanLibrary(rootPath: string) {
+    try {
+      const cachedResult = await window.modelLibrary.getCachedLibrary(rootPath);
+
+      if (cachedResult) {
+        setScanResult(cachedResult);
+      }
+    } catch (error) {
+      setOperationMessage(readErrorMessage(error));
+    }
+
+    return scanLibrary(rootPath);
   }
 
   function selectFolder(folderId: string) {

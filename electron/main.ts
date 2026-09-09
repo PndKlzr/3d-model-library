@@ -23,6 +23,10 @@ import {
   trashModelFiles
 } from "./services/fileOrganizer.js";
 import { scanLibrary } from "./services/libraryScanner.js";
+import {
+  createElectronLibraryIndexStore,
+  type LibraryIndexStore
+} from "./services/libraryIndexStore.js";
 import { readModelMetadata } from "./services/modelMetadata.js";
 import { readEmbeddedThumbnail } from "./services/modelThumbnail.js";
 import {
@@ -42,6 +46,7 @@ const __dirname = path.dirname(__filename);
 
 const isDev = !app.isPackaged;
 let settingsStore: SettingsStore;
+let libraryIndexStore: LibraryIndexStore;
 let libraryMetadataStore: LibraryMetadataStore;
 let modelHashStore: ModelHashStore;
 const dragIcon = createFileDragIcon();
@@ -62,7 +67,17 @@ function registerIpcHandlers() {
     return result.canceled ? null : result.filePaths[0];
   });
 
-  ipcMain.handle("library:scan", (_event, rootPath: string) => scanLibrary(rootPath));
+  ipcMain.handle("library:get-cached", (_event, rootPath: string) => {
+    assertConfiguredLibraryRoot(rootPath);
+    return libraryIndexStore.get(rootPath);
+  });
+
+  ipcMain.handle("library:scan", async (_event, rootPath: string) => {
+    assertConfiguredLibraryRoot(rootPath);
+    const result = await scanLibrary(rootPath);
+    libraryIndexStore.set(result);
+    return result;
+  });
 
   ipcMain.handle("archive:list", (_event, archivePath: string) =>
     listArchiveEntries(requireLibraryPath(), archivePath, getArchiveToolOptions())
@@ -316,6 +331,14 @@ function assertPathInsideLibrary(absolutePath: string) {
   }
 }
 
+function assertConfiguredLibraryRoot(rootPath: string) {
+  const libraryPath = requireLibraryPath();
+
+  if (path.resolve(rootPath).toLowerCase() !== path.resolve(libraryPath).toLowerCase()) {
+    throw new Error("Requested library does not match the configured library folder");
+  }
+}
+
 function requireLibraryPath(): string {
   const settings = settingsStore.getSettings();
 
@@ -413,6 +436,7 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   settingsStore = await createElectronSettingsStore();
+  libraryIndexStore = await createElectronLibraryIndexStore();
   libraryMetadataStore = await createElectronLibraryMetadataStore();
   modelHashStore = await createElectronModelHashStore();
   registerIpcHandlers();
