@@ -406,11 +406,11 @@ git commit -m "perf: prioritize and reuse thumbnail rendering"
 - Uses: `useVirtualizer` from `@tanstack/react-virtual`
 - Preserves all existing ModelGrid callbacks and drag event timing.
 
-- [ ] **Step 1: Install React Virtual**
+- [x] **Step 1: Install React Virtual**
 
 Run: `npm install @tanstack/react-virtual@^3`
 
-- [ ] **Step 2: Write failing deterministic row tests**
+- [x] **Step 2: Write failing deterministic row tests**
 
 ```ts
 it("groups mixed folder and model cards without dropping order", () => {
@@ -421,21 +421,21 @@ it("groups mixed folder and model cards without dropping order", () => {
 });
 ```
 
-- [ ] **Step 3: Implement row grouping and virtualize only the vertical axis**
+- [x] **Step 3: Implement row grouping and virtualize only the vertical axis**
 
 Keep responsive column calculation in ModelGrid. Give each mode a deterministic estimated row height and use overscan `2`. Render each virtual row as the existing CSS grid so card width remains responsive.
 
-- [ ] **Step 4: Preserve interaction semantics**
+- [x] **Step 4: Preserve interaction semantics**
 
 Keep model IDs as React keys. Do not move `onDragStart`, `onDragEnd`, click, double-click, context-menu, checkbox, or folder-drop handlers behind asynchronous callbacks. Keep selection state in App so unmounting a row cannot clear it.
 
-- [ ] **Step 5: Run layout and interaction tests**
+- [x] **Step 5: Run layout and interaction tests**
 
 Run: `npm test -- tests/unit/virtualGrid.test.ts tests/unit/layoutContract.test.ts tests/unit/interactionFlowContract.test.ts tests/unit/fileDrag.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit virtualization**
+- [x] **Step 6: Commit virtualization**
 
 ```bash
 git add package.json package-lock.json src/lib/virtualGrid.ts src/components/ModelGrid.tsx src/styles.css tests/unit/virtualGrid.test.ts tests/unit/layoutContract.test.ts tests/unit/interactionFlowContract.test.ts

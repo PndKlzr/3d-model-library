@@ -17,15 +17,21 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
-  type DragEvent
+  type DragEvent,
+  type ReactNode,
+  type RefObject
 } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { FolderCardThumbnail } from "./FolderCardThumbnail";
 import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
+import { buildVirtualRows } from "../lib/virtualGrid";
 import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
 
 type ModelGridProps = {
@@ -78,6 +84,10 @@ type ModelGridProps = {
   onOpenSettings: () => void;
 };
 
+type CollectionItem =
+  | { kind: "folder"; id: string; folder: GridFolderCard }
+  | { kind: "model"; id: string; model: ModelFile };
+
 export function ModelGrid({
   models,
   folderCards,
@@ -129,6 +139,13 @@ export function ModelGrid({
 }: ModelGridProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  const collectionItems = useMemo<CollectionItem[]>(
+    () => [
+      ...folderCards.map((folder) => ({ kind: "folder" as const, id: `folder:${folder.id}`, folder })),
+      ...models.map((model) => ({ kind: "model" as const, id: `model:${model.id}`, model }))
+    ],
+    [folderCards, models]
+  );
   const hasGridContent = folderCards.length > 0 || models.length > 0;
   const hasActiveFilters =
     typeFilter !== "all" ||
@@ -466,110 +483,166 @@ export function ModelGrid({
           <strong>Nenhum item nesta visão</strong>
           <span>Tente outra pasta, limpe a busca ou atualize a biblioteca.</span>
         </div>
-      ) : viewMode === "list" ? (
-        <div className="model-list">
-          {folderCards.map((folderCard) => (
-            <button
-              className={`folder-list-row ${
-                dragOverFolder === folderCard.id || pointerDragOverFolder === folderCard.id
-                  ? "drop-target"
-                  : ""
-              }`}
-              data-folder-drop-id={folderCard.id}
-              key={folderCard.id}
-              type="button"
-              onClick={() => onOpenFolder(folderCard.id)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                onOpenFolderContextMenu(folderCard.id, event.clientX, event.clientY);
-              }}
-              onDragOver={(event) => allowFolderDrop(event, folderCard.id)}
-              onDragLeave={() => setDragOverFolder(null)}
-              onDrop={(event) => dropOnFolder(event, folderCard.id)}
-            >
-              <Folder size={20} />
-              <strong title={folderCard.name}>{folderCard.name}</strong>
-              <span>
-                {folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}
-              </span>
-              <span className="optional-column">
-                {folderCard.childCount} pasta{folderCard.childCount === 1 ? "" : "s"}
-              </span>
-            </button>
-          ))}
-
-          {models.map((model) => (
-            <ModelListRow
-              key={model.id}
-              model={model}
-              metadata={metadataByPath[model.absolutePath]}
-              isDuplicate={duplicateModelIds.has(model.id)}
-              isSelected={selectedModelId === model.id}
-              isChecked={selectedModelIds.has(model.id)}
-              fileDragBehavior={fileDragBehavior}
-              onOpenModel={onOpenModel}
-              onOpenDefaultSlicer={onOpenDefaultSlicer}
-              onOpenModelContextMenu={onOpenModelContextMenu}
-              onToggleModelSelection={onToggleModelSelection}
-              onDragStartModel={onDragStartModel}
-              onDragEndModel={onDragEndModel}
-            />
-          ))}
-        </div>
       ) : (
-        <div className="model-grid">
-          {folderCards.map((folderCard) => (
-            <button
-              className={`folder-card ${
-                dragOverFolder === folderCard.id || pointerDragOverFolder === folderCard.id
-                  ? "drop-target"
-                  : ""
-              }`}
-              data-folder-drop-id={folderCard.id}
-              key={folderCard.id}
-              type="button"
-              onClick={() => onOpenFolder(folderCard.id)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                onOpenFolderContextMenu(folderCard.id, event.clientX, event.clientY);
-              }}
-              onDragOver={(event) => allowFolderDrop(event, folderCard.id)}
-              onDragLeave={() => setDragOverFolder(null)}
-              onDrop={(event) => dropOnFolder(event, folderCard.id)}
-            >
-              <FolderCardThumbnail models={folderCard.previewModels} />
-              <div className="model-card-meta">
-                <strong title={folderCard.name}>{folderCard.name}</strong>
-                <span>
-                  {folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}
-                  {folderCard.childCount > 0
-                    ? ` - ${folderCard.childCount} pasta${folderCard.childCount === 1 ? "" : "s"}`
-                    : ""}
-                </span>
-              </div>
-            </button>
-          ))}
+        <VirtualizedRows
+          items={collectionItems}
+          mode={viewMode}
+          scrollElementRef={panelRef}
+          renderItem={(item) => {
+            if (item.kind === "folder") {
+              const folderCard = item.folder;
+              return viewMode === "list" ? (
+                <button
+                  className={`folder-list-row ${
+                    dragOverFolder === folderCard.id || pointerDragOverFolder === folderCard.id
+                      ? "drop-target"
+                      : ""
+                  }`}
+                  data-folder-drop-id={folderCard.id}
+                  type="button"
+                  onClick={() => onOpenFolder(folderCard.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    onOpenFolderContextMenu(folderCard.id, event.clientX, event.clientY);
+                  }}
+                  onDragOver={(event) => allowFolderDrop(event, folderCard.id)}
+                  onDragLeave={() => setDragOverFolder(null)}
+                  onDrop={(event) => dropOnFolder(event, folderCard.id)}
+                >
+                  <Folder size={20} />
+                  <strong title={folderCard.name}>{folderCard.name}</strong>
+                  <span>{folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}</span>
+                  <span className="optional-column">
+                    {folderCard.childCount} pasta{folderCard.childCount === 1 ? "" : "s"}
+                  </span>
+                </button>
+              ) : (
+                <button
+                  className={`folder-card ${
+                    dragOverFolder === folderCard.id || pointerDragOverFolder === folderCard.id
+                      ? "drop-target"
+                      : ""
+                  }`}
+                  data-folder-drop-id={folderCard.id}
+                  type="button"
+                  onClick={() => onOpenFolder(folderCard.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    onOpenFolderContextMenu(folderCard.id, event.clientX, event.clientY);
+                  }}
+                  onDragOver={(event) => allowFolderDrop(event, folderCard.id)}
+                  onDragLeave={() => setDragOverFolder(null)}
+                  onDrop={(event) => dropOnFolder(event, folderCard.id)}
+                >
+                  <FolderCardThumbnail models={folderCard.previewModels} />
+                  <div className="model-card-meta">
+                    <strong title={folderCard.name}>{folderCard.name}</strong>
+                    <span>
+                      {folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}
+                      {folderCard.childCount > 0
+                        ? ` - ${folderCard.childCount} pasta${folderCard.childCount === 1 ? "" : "s"}`
+                        : ""}
+                    </span>
+                  </div>
+                </button>
+              );
+            }
 
-          {models.map((model) => (
-            <ModelCard
-              key={model.id}
-              model={model}
-              metadata={metadataByPath[model.absolutePath]}
-              isDuplicate={duplicateModelIds.has(model.id)}
-              isSelected={selectedModelId === model.id}
-              isChecked={selectedModelIds.has(model.id)}
-              fileDragBehavior={fileDragBehavior}
-              onOpenModel={onOpenModel}
-              onOpenDefaultSlicer={onOpenDefaultSlicer}
-              onOpenModelContextMenu={onOpenModelContextMenu}
-              onToggleModelSelection={onToggleModelSelection}
-              onDragStartModel={onDragStartModel}
-              onDragEndModel={onDragEndModel}
-            />
-          ))}
-        </div>
+            const model = item.model;
+            const sharedProps = {
+              model,
+              metadata: metadataByPath[model.absolutePath],
+              isDuplicate: duplicateModelIds.has(model.id),
+              isSelected: selectedModelId === model.id,
+              isChecked: selectedModelIds.has(model.id),
+              fileDragBehavior,
+              onOpenModel,
+              onOpenDefaultSlicer,
+              onOpenModelContextMenu,
+              onToggleModelSelection,
+              onDragStartModel,
+              onDragEndModel
+            };
+            return viewMode === "list" ? <ModelListRow {...sharedProps} /> : <ModelCard {...sharedProps} />;
+          }}
+        />
       )}
     </section>
+  );
+}
+
+type VirtualizedRowsProps = {
+  items: CollectionItem[];
+  mode: ModelViewMode;
+  scrollElementRef: RefObject<HTMLElement>;
+  renderItem: (item: CollectionItem) => ReactNode;
+};
+
+function VirtualizedRows({ items, mode, scrollElementRef, renderItem }: VirtualizedRowsProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [columns, setColumns] = useState(mode === "grid" ? 4 : 1);
+  const [scrollMargin, setScrollMargin] = useState(0);
+  const rows = useMemo(
+    () => buildVirtualRows(items, mode === "grid" ? columns : 1),
+    [columns, items, mode]
+  );
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize: () => (mode === "grid" ? 224 : 71),
+    overscan: 2,
+    scrollMargin
+  });
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateLayout = () => {
+      const nextColumns = mode === "grid"
+        ? Math.max(1, Math.floor((container.clientWidth + 14) / (180 + 14)))
+        : 1;
+      setColumns((current) => current === nextColumns ? current : nextColumns);
+      setScrollMargin((current) => current === container.offsetTop ? current : container.offsetTop);
+    };
+
+    updateLayout();
+    const resizeObserver = new ResizeObserver(updateLayout);
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, [mode]);
+
+  useLayoutEffect(() => {
+    const nextMargin = containerRef.current?.offsetTop ?? 0;
+    setScrollMargin((current) => current === nextMargin ? current : nextMargin);
+    rowVirtualizer.measure();
+  }, [columns, mode, rowVirtualizer, rows.length, scrollMargin]);
+
+  return (
+    <div
+      ref={containerRef}
+      className={`virtual-collection ${mode === "grid" ? "model-grid" : "model-list"}`}
+      style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+    >
+      {rowVirtualizer.getVirtualItems().map((virtualRow) => (
+        <div
+          className={`virtual-collection-row ${mode === "grid" ? "virtual-grid-row" : "virtual-list-row"}`}
+          data-index={virtualRow.index}
+          key={virtualRow.key}
+          ref={rowVirtualizer.measureElement}
+          style={{
+            transform: `translateY(${virtualRow.start - scrollMargin}px)`,
+            gridTemplateColumns: mode === "grid" ? `repeat(${columns}, minmax(0, 1fr))` : undefined
+          }}
+        >
+          {rows[virtualRow.index].map((item) => (
+            <div className="virtual-collection-cell" key={item.id}>
+              {renderItem(item)}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
   );
 }
 

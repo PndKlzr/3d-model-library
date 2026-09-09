@@ -36,6 +36,17 @@ describe("layout scroll contract", () => {
     expect(css).toContain(".model-card-meta strong");
   });
 
+  it("virtualizes only collection rows inside the existing scrolling panel", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain("useVirtualizer");
+    expect(gridSource).toContain("buildVirtualRows");
+    expect(gridSource).toContain("overscan: 2");
+    expect(gridSource).toContain("getScrollElement: () => scrollElementRef.current");
+    expect(css).toContain(".virtual-collection-row");
+  });
+
   it("keeps the sticky toolbar and deep folder tree inside their panels", async () => {
     const css = await readFile("src/styles.css", "utf8");
     const folderTreeSource = await readFile("src/components/FolderTree.tsx", "utf8");

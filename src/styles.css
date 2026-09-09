@@ -919,14 +919,43 @@ button:disabled {
 }
 
 .model-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
+  position: relative;
+  width: 100%;
 }
 
 .model-list {
+  position: relative;
+  width: 100%;
+}
+
+.virtual-collection-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+}
+
+.virtual-grid-row {
+  display: grid;
+  gap: 14px;
+  padding-bottom: 14px;
+}
+
+.virtual-list-row {
   display: grid;
   gap: 7px;
+  padding-bottom: 7px;
+}
+
+.virtual-collection-cell {
+  min-width: 0;
+}
+
+.virtual-collection-cell > .model-card,
+.virtual-collection-cell > .folder-card,
+.virtual-collection-cell > .model-list-row,
+.virtual-collection-cell > .folder-list-row {
+  width: 100%;
 }
 
 .folder-list-row,
