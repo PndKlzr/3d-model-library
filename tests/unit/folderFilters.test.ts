@@ -124,6 +124,60 @@ describe("filterModels", () => {
 
     expect(result.map((modelFile) => modelFile.name)).toEqual(["tree.stl"]);
   });
+
+  it("finds recent and never-opened models from slicer history", () => {
+    const slicerHistory = [
+      { modelPath: models[0].absolutePath, slicerId: "cura", openedAt: "2026-07-20T00:00:00.000Z" },
+      { modelPath: models[1].absolutePath, slicerId: "cura", openedAt: "2026-05-01T00:00:00.000Z" }
+    ];
+
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "", {
+      usageFilter: "recent",
+      slicerHistory,
+      now: Date.parse("2026-08-01T00:00:00.000Z")
+    }).map((item) => item.name)).toEqual(["root.stl"]);
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "", {
+      usageFilter: "never",
+      slicerHistory
+    }).map((item) => item.name)).toEqual(["tree.stl", "visor.3mf"]);
+  });
+
+  it("filters and searches model notes", () => {
+    const metadataByPath = {
+      [models[0].absolutePath]: { favorite: false, tags: [], notes: "Ajustar suporte lateral" },
+      [models[1].absolutePath]: { favorite: false, tags: [], notes: "" }
+    };
+
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "", {
+      notesFilter: "with-notes",
+      metadataByPath
+    }).map((item) => item.name)).toEqual(["root.stl"]);
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "suporte lateral", {
+      metadataByPath
+    }).map((item) => item.name)).toEqual(["root.stl"]);
+  });
+
+  it("supports all, any, and exclude tag matching", () => {
+    const metadataByPath = {
+      [models[0].absolutePath]: { favorite: false, tags: ["util", "rapido"], notes: "" },
+      [models[1].absolutePath]: { favorite: false, tags: ["util"], notes: "" },
+      [models[2].absolutePath]: { favorite: false, tags: ["decoracao"], notes: "" }
+    };
+    const options = { selectedTags: ["util", "rapido"], metadataByPath };
+
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "", {
+      ...options,
+      tagMatchMode: "all"
+    }).map((item) => item.name)).toEqual(["root.stl"]);
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "", {
+      ...options,
+      tagMatchMode: "any"
+    }).map((item) => item.name)).toEqual(["helmet.stl", "root.stl"]);
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "", {
+      ...options,
+      tagMatchMode: "exclude"
+    }).map((item) => item.name)).toEqual(["tree.stl", "visor.3mf"]);
+  });
 });
 
 function model(

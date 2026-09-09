@@ -458,7 +458,7 @@ git commit -m "perf: virtualize large model collections"
 - Adds: `TagMatchMode = "all" | "any" | "exclude"`
 - Extends `ModelFilterOptions` with `usageFilter`, `notesFilter`, `tagMatchMode`, and `slicerHistory`.
 
-- [ ] **Step 1: Write failing pure filter tests**
+- [x] **Step 1: Write failing pure filter tests**
 
 ```ts
 it("finds recent and never-opened models from successful slicer history", () => {
@@ -474,21 +474,21 @@ it("supports all, any, and exclude tag modes", () => {
 });
 ```
 
-- [ ] **Step 2: Implement pure filter semantics**
+- [x] **Step 2: Implement pure filter semantics**
 
 Recent means at least one successful slicer launch in the last 30 days. Never means no history entry. Notes search joins notes to the existing name/folder/tag search text. Empty selected tags make all tag modes neutral.
 
-- [ ] **Step 3: Add compact controls to the existing filter popover**
+- [x] **Step 3: Add compact controls to the existing filter popover**
 
 Use segmented or checkbox rows, not additional permanent toolbar buttons. Show active filter count in the existing filter trigger. `Com notas` and `Sem notas` are mutually exclusive.
 
-- [ ] **Step 4: Run filter and product-flow tests**
+- [x] **Step 4: Run filter and product-flow tests**
 
 Run: `npm test -- tests/unit/folderFilters.test.ts tests/unit/productFlowContract.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit filters**
+- [x] **Step 5: Commit filters**
 
 ```bash
 git add src/lib/folderFilters.ts src/App.tsx src/components/ModelGrid.tsx src/styles.css tests/unit/folderFilters.test.ts tests/unit/productFlowContract.test.ts

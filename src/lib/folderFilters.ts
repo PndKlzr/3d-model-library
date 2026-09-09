@@ -1,9 +1,12 @@
-import type { ModelFile, ModelUserMetadata } from "../shared/types";
+import type { ModelFile, ModelUserMetadata, SlicerHistoryEntry } from "../shared/types";
 
 export const ALL_FOLDERS_ID = "__all__";
 
 export type ModelTypeFilter = "all" | ".stl" | ".3mf";
 export type ModelSortMode = "name" | "modified" | "size";
+export type UsageFilter = "all" | "recent" | "never";
+export type NotesFilter = "all" | "with-notes" | "without-notes";
+export type TagMatchMode = "all" | "any" | "exclude";
 
 export type ModelFilterOptions = {
   type?: ModelTypeFilter;
@@ -14,6 +17,11 @@ export type ModelFilterOptions = {
   duplicateIds?: Set<string>;
   onlyFavorites?: boolean;
   selectedTags?: string[];
+  usageFilter?: UsageFilter;
+  notesFilter?: NotesFilter;
+  tagMatchMode?: TagMatchMode;
+  slicerHistory?: SlicerHistoryEntry[];
+  now?: number;
   metadataByPath?: Record<string, ModelUserMetadata>;
 };
 
@@ -30,6 +38,11 @@ export function filterModels(
   const sortMode = options.sort ?? "name";
   const selectedTags = normalizeTags(options.selectedTags ?? []);
   const metadataByPath = normalizeMetadataPathMap(options.metadataByPath ?? {});
+  const usageFilter = options.usageFilter ?? "all";
+  const notesFilter = options.notesFilter ?? "all";
+  const tagMatchMode = options.tagMatchMode ?? "all";
+  const openedPaths = getOpenedPaths(options.slicerHistory ?? []);
+  const recentlyOpenedPaths = getRecentlyOpenedPaths(options.slicerHistory ?? [], options.now ?? Date.now());
 
   const filteredModels = models.filter((model) => {
     const normalizedModelFolder = normalizeFolder(model.relativeFolder);
@@ -61,10 +74,25 @@ export function filterModels(
       return false;
     }
 
-    if (
-      selectedTags.length > 0 &&
-      !selectedTags.every((tag) => modelMetadata?.tags.includes(tag))
-    ) {
+    const normalizedModelPath = normalizeModelPath(model.absolutePath);
+    if (usageFilter === "recent" && !recentlyOpenedPaths.has(normalizedModelPath)) {
+      return false;
+    }
+
+    if (usageFilter === "never" && openedPaths.has(normalizedModelPath)) {
+      return false;
+    }
+
+    const notes = modelMetadata?.notes.trim() ?? "";
+    if (notesFilter === "with-notes" && !notes) {
+      return false;
+    }
+
+    if (notesFilter === "without-notes" && notes) {
+      return false;
+    }
+
+    if (!matchesTags(modelMetadata?.tags ?? [], selectedTags, tagMatchMode)) {
       return false;
     }
 
@@ -72,12 +100,35 @@ export function filterModels(
       return true;
     }
 
-    return `${model.name} ${normalizedModelFolder} ${modelMetadata?.tags.join(" ") ?? ""}`
+    return `${model.name} ${normalizedModelFolder} ${modelMetadata?.tags.join(" ") ?? ""} ${notes}`
       .toLowerCase()
       .includes(normalizedSearch);
   });
 
   return filteredModels.sort((left, right) => sortModels(left, right, sortMode));
+}
+
+function matchesTags(modelTags: string[], selectedTags: string[], mode: TagMatchMode): boolean {
+  if (selectedTags.length === 0) return true;
+  if (mode === "any") return selectedTags.some((tag) => modelTags.includes(tag));
+  if (mode === "exclude") return selectedTags.every((tag) => !modelTags.includes(tag));
+  return selectedTags.every((tag) => modelTags.includes(tag));
+}
+
+function getOpenedPaths(history: SlicerHistoryEntry[]) {
+  return new Set(history.map((entry) => normalizeModelPath(entry.modelPath)));
+}
+
+function getRecentlyOpenedPaths(history: SlicerHistoryEntry[], now: number) {
+  const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+  return new Set(
+    history
+      .filter((entry) => {
+        const openedAt = Date.parse(entry.openedAt);
+        return Number.isFinite(openedAt) && openedAt >= cutoff && openedAt <= now;
+      })
+      .map((entry) => normalizeModelPath(entry.modelPath))
+  );
 }
 
 function isFolderOrDescendant(modelFolder: string, selectedFolder: string): boolean {

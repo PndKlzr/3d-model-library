@@ -28,7 +28,14 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { FolderCardThumbnail } from "./FolderCardThumbnail";
-import { ALL_FOLDERS_ID, type ModelSortMode, type ModelTypeFilter } from "../lib/folderFilters";
+import {
+  ALL_FOLDERS_ID,
+  type ModelSortMode,
+  type ModelTypeFilter,
+  type NotesFilter,
+  type TagMatchMode,
+  type UsageFilter
+} from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
 import { buildVirtualRows } from "../lib/virtualGrid";
@@ -46,6 +53,9 @@ type ModelGridProps = {
   onlySelected: boolean;
   onlyFavorites: boolean;
   onlyDuplicates: boolean;
+  usageFilter: UsageFilter;
+  notesFilter: NotesFilter;
+  tagMatchMode: TagMatchMode;
   availableTags: string[];
   selectedTags: Set<string>;
   metadataByPath: Record<string, ModelUserMetadata>;
@@ -66,6 +76,9 @@ type ModelGridProps = {
   onOnlySelectedChange: (onlySelected: boolean) => void;
   onOnlyFavoritesChange: (onlyFavorites: boolean) => void;
   onOnlyDuplicatesChange: (onlyDuplicates: boolean) => void;
+  onUsageFilterChange: (usageFilter: UsageFilter) => void;
+  onNotesFilterChange: (notesFilter: NotesFilter) => void;
+  onTagMatchModeChange: (tagMatchMode: TagMatchMode) => void;
   onToggleTagFilter: (tag: string) => void;
   onViewModeChange: (viewMode: ModelViewMode) => void;
   onFileDragBehaviorChange: (behavior: FileDragBehavior) => void;
@@ -100,6 +113,9 @@ export function ModelGrid({
   onlySelected,
   onlyFavorites,
   onlyDuplicates,
+  usageFilter,
+  notesFilter,
+  tagMatchMode,
   availableTags,
   selectedTags,
   metadataByPath,
@@ -120,6 +136,9 @@ export function ModelGrid({
   onOnlySelectedChange,
   onOnlyFavoritesChange,
   onOnlyDuplicatesChange,
+  onUsageFilterChange,
+  onNotesFilterChange,
+  onTagMatchModeChange,
   onToggleTagFilter,
   onViewModeChange,
   onFileDragBehaviorChange,
@@ -138,7 +157,9 @@ export function ModelGrid({
   onOpenSettings
 }: ModelGridProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const panelRef = useRef<HTMLElement | null>(null);
+  const advancedFiltersRef = useRef<HTMLDivElement | null>(null);
   const collectionItems = useMemo<CollectionItem[]>(
     () => [
       ...folderCards.map((folder) => ({ kind: "folder" as const, id: `folder:${folder.id}`, folder })),
@@ -152,7 +173,34 @@ export function ModelGrid({
     onlySelected ||
     onlyFavorites ||
     onlyDuplicates ||
-    selectedTags.size > 0;
+    selectedTags.size > 0 ||
+    usageFilter !== "all" ||
+    notesFilter !== "all" ||
+    tagMatchMode !== "all";
+  const advancedFilterCount =
+    Number(usageFilter !== "all") +
+    Number(notesFilter !== "all") +
+    Number(tagMatchMode !== "all");
+
+  useEffect(() => {
+    if (!isAdvancedFiltersOpen) return;
+
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!advancedFiltersRef.current?.contains(event.target as Node)) {
+        setIsAdvancedFiltersOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsAdvancedFiltersOpen(false);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isAdvancedFiltersOpen]);
 
   useEffect(() => {
     function setModifierDragReady(key: "Control" | "Shift", isReady: boolean) {
@@ -233,6 +281,9 @@ export function ModelGrid({
     onOnlySelectedChange(false);
     onOnlyFavoritesChange(false);
     onOnlyDuplicatesChange(false);
+    onUsageFilterChange("all");
+    onNotesFilterChange("all");
+    onTagMatchModeChange("all");
     selectedTags.forEach(onToggleTagFilter);
   }
 
@@ -360,7 +411,7 @@ export function ModelGrid({
         <input
           value={searchQuery}
           onChange={(event) => onSearchChange(event.currentTarget.value)}
-          placeholder="Buscar por nome ou pasta"
+          placeholder="Buscar por nome, pasta, tag ou nota"
         />
         {searchQuery ? (
           <button
@@ -376,9 +427,58 @@ export function ModelGrid({
       </label>
 
       <div className="filter-bar" aria-label="Filtros da biblioteca">
-        <span className="filter-bar-label" aria-hidden="true" title="Filtros">
-          <SlidersHorizontal size={14} />
-        </span>
+        <div className="advanced-filter-wrap" ref={advancedFiltersRef}>
+          <button
+            className={`filter-toggle ${advancedFilterCount > 0 ? "active" : ""}`}
+            type="button"
+            aria-expanded={isAdvancedFiltersOpen}
+            aria-label="Filtros avançados"
+            title="Filtros avançados"
+            onClick={() => setIsAdvancedFiltersOpen((open) => !open)}
+          >
+            <SlidersHorizontal size={14} />
+            {advancedFilterCount > 0 ? <span>{advancedFilterCount}</span> : null}
+          </button>
+          {isAdvancedFiltersOpen ? (
+            <div className="advanced-filter-popover">
+              <strong>Filtros avançados</strong>
+              <label>
+                Uso
+                <select
+                  value={usageFilter}
+                  onChange={(event) => onUsageFilterChange(event.currentTarget.value as UsageFilter)}
+                >
+                  <option value="all">Qualquer</option>
+                  <option value="recent">Abertos nos últimos 30 dias</option>
+                  <option value="never">Nunca abertos</option>
+                </select>
+              </label>
+              <label>
+                Notas
+                <select
+                  value={notesFilter}
+                  onChange={(event) => onNotesFilterChange(event.currentTarget.value as NotesFilter)}
+                >
+                  <option value="all">Com ou sem notas</option>
+                  <option value="with-notes">Com notas</option>
+                  <option value="without-notes">Sem notas</option>
+                </select>
+              </label>
+              <label>
+                Tags selecionadas
+                <select
+                  value={tagMatchMode}
+                  disabled={selectedTags.size === 0}
+                  onChange={(event) => onTagMatchModeChange(event.currentTarget.value as TagMatchMode)}
+                >
+                  <option value="all">Todas</option>
+                  <option value="any">Qualquer uma</option>
+                  <option value="exclude">Excluir</option>
+                </select>
+              </label>
+            </div>
+          ) : null}
+        </div>
         <label className="filter-select">
           Tipo
           <select

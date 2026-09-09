@@ -13,7 +13,15 @@ import { TextInputDialog, type TextInputDialogOptions } from "./components/TextI
 import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
 import { getContextMenuPosition } from "./lib/contextMenuPosition";
 import { buildFolderTree, type FolderNode } from "./lib/folderTree";
-import { ALL_FOLDERS_ID, filterModels, type ModelSortMode, type ModelTypeFilter } from "./lib/folderFilters";
+import {
+  ALL_FOLDERS_ID,
+  filterModels,
+  type ModelSortMode,
+  type ModelTypeFilter,
+  type NotesFilter,
+  type TagMatchMode,
+  type UsageFilter
+} from "./lib/folderFilters";
 import {
   createFolderNavigationHistory,
   goBackInFolderHistory,
@@ -94,6 +102,9 @@ function App() {
   const [onlySelected, setOnlySelected] = useState(false);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const [onlyDuplicates, setOnlyDuplicates] = useState(false);
+  const [usageFilter, setUsageFilter] = useState<UsageFilter>("all");
+  const [notesFilter, setNotesFilter] = useState<NotesFilter>("all");
+  const [tagMatchMode, setTagMatchMode] = useState<TagMatchMode>("all");
   const [selectedTagFilters, setSelectedTagFilters] = useState<Set<string>>(() => new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [libraryMetadata, setLibraryMetadata] = useState<LibraryMetadata>({
@@ -1257,21 +1268,28 @@ function App() {
         duplicateIds: duplicateModelIds,
         onlyFavorites,
         selectedTags: [...selectedTagFilters],
+        usageFilter,
+        notesFilter,
+        tagMatchMode,
+        slicerHistory: libraryMetadata.slicerHistory,
         metadataByPath: libraryMetadata.models
       }),
     [
       deferredSearchQuery,
       duplicateModelIds,
       includeSubfolders,
-      libraryMetadata.models,
+      libraryMetadata,
       models,
       onlyDuplicates,
       onlyFavorites,
       onlySelected,
+      notesFilter,
       selectedFolder,
       selectedModelIds,
       selectedTagFilters,
       sortMode,
+      tagMatchMode,
+      usageFilter,
       typeFilter
     ]
   );
@@ -1326,6 +1344,9 @@ function App() {
         onlySelected={onlySelected}
         onlyFavorites={onlyFavorites}
         onlyDuplicates={onlyDuplicates}
+        usageFilter={usageFilter}
+        notesFilter={notesFilter}
+        tagMatchMode={tagMatchMode}
         availableTags={availableTags}
         selectedTags={selectedTagFilters}
         metadataByPath={libraryMetadata.models}
@@ -1346,6 +1367,9 @@ function App() {
         onOnlySelectedChange={setOnlySelected}
         onOnlyFavoritesChange={setOnlyFavorites}
         onOnlyDuplicatesChange={setOnlyDuplicates}
+        onUsageFilterChange={setUsageFilter}
+        onNotesFilterChange={setNotesFilter}
+        onTagMatchModeChange={setTagMatchMode}
         onToggleTagFilter={toggleTagFilter}
         onViewModeChange={setModelViewMode}
         onFileDragBehaviorChange={updateFileDragBehavior}
