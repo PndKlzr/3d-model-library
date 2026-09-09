@@ -11,6 +11,7 @@ describe("settingsStore", () => {
     expect(store.getSettings()).toEqual(createDefaultSettings());
     expect(store.getSettings().libraryPath).toBeNull();
     expect(store.getSettings().includeSubfolders).toBe(true);
+    expect(store.getSettings().monitorLibrary).toBe(true);
     expect(store.getSettings().fileDragBehavior).toBe("organize-default");
     expect(store.getSettings().archiveExtractorPath).toBe("");
     expect(store.getSettings().defaultSlicerId).toBeNull();
@@ -45,6 +46,17 @@ describe("settingsStore", () => {
     });
 
     expect(store.getSettings().includeSubfolders).toBe(false);
+  });
+
+  it("persists the automatic library monitoring toggle", () => {
+    const store = createSettingsStore();
+
+    store.saveSettings({
+      ...store.getSettings(),
+      monitorLibrary: false
+    });
+
+    expect(store.getSettings().monitorLibrary).toBe(false);
   });
 
   it("persists the preferred file drag behavior", () => {

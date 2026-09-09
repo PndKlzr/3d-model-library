@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { scanLibrary } from "../../electron/services/libraryScanner";
+import { applyLibraryWatchEvents, scanLibrary } from "../../electron/services/libraryScanner";
 
 let tempRoot: string;
 
@@ -104,5 +104,25 @@ describe("scanLibrary", () => {
       "/charlie.stl",
       "z-folder/beta.stl"
     ]);
+  });
+
+  it("applies file and folder watcher events without rescanning the library", async () => {
+    const firstPath = path.join(tempRoot, "first.stl");
+    const nextFolder = path.join(tempRoot, "new-folder");
+    const nextPath = path.join(nextFolder, "next.3mf");
+    await writeFile(firstPath, "solid first\nendsolid first");
+    const initial = await scanLibrary(tempRoot);
+    await mkdir(nextFolder);
+    await writeFile(nextPath, "next");
+    await rm(firstPath);
+
+    const result = await applyLibraryWatchEvents(initial, [
+      { type: "unlink", absolutePath: firstPath },
+      { type: "addDir", absolutePath: nextFolder },
+      { type: "add", absolutePath: nextPath }
+    ]);
+
+    expect(result.models.map((model) => model.name)).toEqual(["next.3mf"]);
+    expect(result.folders).toEqual(["new-folder"]);
   });
 });

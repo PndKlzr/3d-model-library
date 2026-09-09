@@ -10,10 +10,16 @@ export type FileDragBehavior = "organize-default" | "external-default";
 export type AppSettings = {
   libraryPath: string | null;
   includeSubfolders: boolean;
+  monitorLibrary: boolean;
   fileDragBehavior: FileDragBehavior;
   archiveExtractorPath: string;
   defaultSlicerId: string | null;
   slicers: SlicerConfig[];
+};
+
+export type LibraryWatchEvent = {
+  type: "add" | "change" | "unlink" | "addDir" | "unlinkDir";
+  absolutePath: string;
 };
 
 export type ModelFile = {

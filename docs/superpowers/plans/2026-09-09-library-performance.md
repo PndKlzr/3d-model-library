@@ -218,13 +218,13 @@ git commit -m "perf: restore cached library before reconciliation"
 - Produces preload API: `setLibraryMonitoring(enabled: boolean): Promise<void>`
 - Produces preload subscription: `onLibraryChanged(callback: (events: LibraryWatchEvent[]) => void): () => void`
 
-- [ ] **Step 1: Install the watcher dependency**
+- [x] **Step 1: Install the watcher dependency**
 
 Run: `npm install chokidar@^4.0.3`
 
 Expected: package and lockfile include Chokidar 4.
 
-- [ ] **Step 2: Write failing debounce, extension, and close tests**
+- [x] **Step 2: Write failing debounce, extension, and close tests**
 
 ```ts
 it("coalesces supported changes and ignores unrelated files", async () => {
@@ -238,11 +238,11 @@ it("coalesces supported changes and ignores unrelated files", async () => {
 });
 ```
 
-- [ ] **Step 3: Implement Chokidar monitoring with a 500 ms debounce**
+- [x] **Step 3: Implement Chokidar monitoring with a 500 ms debounce**
 
 Use `ignoreInitial: true`, `atomic: true`, `awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 }`, and `usePolling: false`. Watch only the configured library and normalize supported file events before batching.
 
-- [ ] **Step 4: Add incremental event reconciliation**
+- [x] **Step 4: Add incremental event reconciliation**
 
 ```ts
 export async function applyLibraryWatchEvents(
@@ -253,17 +253,17 @@ export async function applyLibraryWatchEvents(
 
 For add/change, stat the exact supported file and replace its model signature. For unlink, remove the exact file. For addDir, add its relative folder. For unlinkDir, remove the folder, descendants, and contained models. Sort once after the batch.
 
-- [ ] **Step 5: Wire monitoring lifecycle and settings**
+- [x] **Step 5: Wire monitoring lifecycle and settings**
 
 Start after initial reconciliation when enabled. Close before changing library or disabling. Publish validated batches to the renderer and persist the reconciled index. Add a Settings toggle labelled `Monitorar alteracoes automaticamente`.
 
-- [ ] **Step 6: Run watcher and settings tests**
+- [x] **Step 6: Run watcher and settings tests**
 
 Run: `npm test -- tests/unit/libraryWatcher.test.ts tests/unit/libraryScanner.test.ts tests/unit/settingsStore.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit monitoring**
+- [x] **Step 7: Commit monitoring**
 
 ```bash
 git add package.json package-lock.json electron/services/libraryWatcher.ts electron/services/libraryScanner.ts electron/services/settingsStore.ts electron/main.ts electron/preload.cjs src/shared/types.ts src/shared/preload.d.ts src/components/SettingsDialog.tsx src/App.tsx tests/unit/libraryWatcher.test.ts tests/unit/libraryScanner.test.ts tests/unit/settingsStore.test.ts

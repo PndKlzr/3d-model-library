@@ -1,6 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
-import type { LibraryScanResult, ModelFile } from "../../src/shared/types.js";
+import type { LibraryScanResult, LibraryWatchEvent, ModelFile } from "../../src/shared/types.js";
 import { runBounded } from "./boundedTaskPool.js";
 
 const LIBRARY_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
@@ -106,10 +106,115 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
   return { rootPath, models, folders: [...folders].sort(), errors };
 }
 
+export async function applyLibraryWatchEvents(
+  current: LibraryScanResult,
+  events: LibraryWatchEvent[]
+): Promise<LibraryScanResult> {
+  const modelsByPath = new Map(
+    current.models.map((model) => [normalizePathKey(model.absolutePath), model])
+  );
+  const folders = new Set(current.folders);
+  const errors = [...current.errors];
+
+  for (const event of events) {
+    if (!isPathInsideRoot(current.rootPath, event.absolutePath)) {
+      continue;
+    }
+
+    const relativePath = normalizeRelativeFolder(path.relative(current.rootPath, event.absolutePath));
+
+    if (event.type === "addDir") {
+      if (relativePath) {
+        folders.add(relativePath);
+      }
+      continue;
+    }
+
+    if (event.type === "unlinkDir") {
+      for (const folder of folders) {
+        if (folder === relativePath || folder.startsWith(`${relativePath}/`)) {
+          folders.delete(folder);
+        }
+      }
+      for (const [modelPath, model] of modelsByPath) {
+        if (model.relativeFolder === relativePath || model.relativeFolder.startsWith(`${relativePath}/`)) {
+          modelsByPath.delete(modelPath);
+        }
+      }
+      continue;
+    }
+
+    const modelKey = normalizePathKey(event.absolutePath);
+
+    if (event.type === "unlink") {
+      modelsByPath.delete(modelKey);
+      continue;
+    }
+
+    const model = await readModelCandidate(current.rootPath, event.absolutePath);
+
+    if (model) {
+      modelsByPath.set(modelKey, model);
+      if (model.relativeFolder) {
+        folders.add(model.relativeFolder);
+      }
+    } else {
+      modelsByPath.delete(modelKey);
+    }
+  }
+
+  const models = [...modelsByPath.values()].sort(compareModels);
+  return { rootPath: current.rootPath, models, folders: [...folders].sort(), errors };
+}
+
 function normalizeRelativeFolder(relativeFolder: string): string {
   if (relativeFolder === "." || relativeFolder === "") {
     return "";
   }
 
   return relativeFolder.split(path.sep).filter(Boolean).join("/");
+}
+
+async function readModelCandidate(rootPath: string, absolutePath: string): Promise<ModelFile | null> {
+  const extension = path.extname(absolutePath).toLowerCase();
+
+  if (!LIBRARY_FILE_EXTENSIONS.has(extension)) {
+    return null;
+  }
+
+  try {
+    const fileStat = await stat(absolutePath);
+
+    if (!fileStat.isFile()) {
+      return null;
+    }
+
+    return {
+      id: absolutePath,
+      name: path.basename(absolutePath),
+      extension: extension as ModelFile["extension"],
+      absolutePath,
+      relativeFolder: normalizeRelativeFolder(path.dirname(path.relative(rootPath, absolutePath))),
+      sizeBytes: fileStat.size,
+      modifiedAt: fileStat.mtime.toISOString(),
+      dimensionsMm: null,
+      objectCount: null,
+      previewError: null
+    };
+  } catch {
+    return null;
+  }
+}
+
+function compareModels(left: ModelFile, right: ModelFile): number {
+  return left.relativeFolder.localeCompare(right.relativeFolder) || left.name.localeCompare(right.name);
+}
+
+function isPathInsideRoot(rootPath: string, absolutePath: string): boolean {
+  const relative = path.relative(rootPath, absolutePath);
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function normalizePathKey(filePath: string): string {
+  return path.resolve(filePath).replaceAll("\\", "/").toLowerCase();
 }

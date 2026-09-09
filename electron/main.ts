@@ -22,7 +22,7 @@ import {
   trashLibraryFolder,
   trashModelFiles
 } from "./services/fileOrganizer.js";
-import { scanLibrary } from "./services/libraryScanner.js";
+import { applyLibraryWatchEvents, scanLibrary } from "./services/libraryScanner.js";
 import {
   createElectronLibraryIndexStore,
   type LibraryIndexStore
@@ -40,6 +40,10 @@ import {
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
+import {
+  createLibraryWatcher,
+  type LibraryWatcherHandle
+} from "./services/libraryWatcher.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +53,8 @@ let settingsStore: SettingsStore;
 let libraryIndexStore: LibraryIndexStore;
 let libraryMetadataStore: LibraryMetadataStore;
 let modelHashStore: ModelHashStore;
+let libraryWatcher: LibraryWatcherHandle | null = null;
+let watcherGeneration = 0;
 const dragIcon = createFileDragIcon();
 
 function registerIpcHandlers() {
@@ -78,6 +84,10 @@ function registerIpcHandlers() {
     libraryIndexStore.set(result);
     return result;
   });
+
+  ipcMain.handle("library:set-monitoring", (_event, enabled: boolean) =>
+    setLibraryMonitoring(enabled === true)
+  );
 
   ipcMain.handle("archive:list", (_event, archivePath: string) =>
     listArchiveEntries(requireLibraryPath(), archivePath, getArchiveToolOptions())
@@ -355,6 +365,55 @@ function getArchiveToolOptions() {
   };
 }
 
+async function setLibraryMonitoring(enabled: boolean): Promise<void> {
+  watcherGeneration += 1;
+  const generation = watcherGeneration;
+
+  if (libraryWatcher) {
+    await libraryWatcher.close();
+    libraryWatcher = null;
+  }
+
+  if (!enabled) {
+    return;
+  }
+
+  const libraryPath = requireLibraryPath();
+  libraryWatcher = createLibraryWatcher({
+    rootPath: libraryPath,
+    onBatch: async (events) => {
+      if (generation !== watcherGeneration) {
+        return;
+      }
+
+      const current = libraryIndexStore.get(libraryPath) ?? (await scanLibrary(libraryPath));
+      const result = await applyLibraryWatchEvents(current, events);
+      libraryIndexStore.set(result);
+
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send("library:changed", events);
+      }
+    },
+    onError: (error) => {
+      if (generation !== watcherGeneration) {
+        return;
+      }
+
+      watcherGeneration += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      void libraryWatcher?.close();
+      libraryWatcher = null;
+
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send(
+          "library:monitoring-error",
+          `Monitoramento pausado: ${message}`
+        );
+      }
+    }
+  });
+}
+
 function resolveLibraryRelativePath(libraryPath: string, relativePath: string): string {
   return path.resolve(libraryPath, relativePath);
 }
@@ -458,6 +517,12 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  watcherGeneration += 1;
+  void libraryWatcher?.close();
+  libraryWatcher = null;
 });
 
 function createFileDragIcon() {

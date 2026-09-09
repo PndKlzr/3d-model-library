@@ -175,6 +175,16 @@ function LibrarySettings({
         <label className="toggle-row settings-toggle">
           <input
             type="checkbox"
+            checked={settings.monitorLibrary}
+            onChange={(event) =>
+              onSaveSettings({ ...settings, monitorLibrary: event.currentTarget.checked })
+            }
+          />
+          <span>Monitorar alterações automaticamente</span>
+        </label>
+        <label className="toggle-row settings-toggle">
+          <input
+            type="checkbox"
             checked={themeMode === "dark"}
             onChange={(event) =>
               onThemeModeChange(event.currentTarget.checked ? "dark" : "light")

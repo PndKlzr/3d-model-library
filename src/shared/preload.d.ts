@@ -7,6 +7,7 @@ import type {
   FileDragStatus,
   LibraryMetadata,
   LibraryScanResult,
+  LibraryWatchEvent,
   ModelHashInput,
   ModelHashResult,
   ModelFile,
@@ -21,6 +22,9 @@ export type ModelLibraryApi = {
   chooseArchiveExtractor: () => Promise<string | null>;
   getCachedLibrary: (rootPath: string) => Promise<LibraryScanResult | null>;
   scanLibrary: (rootPath: string) => Promise<LibraryScanResult>;
+  setLibraryMonitoring: (enabled: boolean) => Promise<void>;
+  onLibraryChanged: (callback: (events: LibraryWatchEvent[]) => void) => () => void;
+  onLibraryMonitoringError: (callback: (message: string) => void) => () => void;
   listArchiveEntries: (archivePath: string) => Promise<ArchiveListResult>;
   extractArchiveEntries: (
     archivePath: string,

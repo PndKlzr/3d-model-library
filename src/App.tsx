@@ -144,6 +144,39 @@ function App() {
   }, [settings?.libraryPath]);
 
   useEffect(() => {
+    if (!settings?.libraryPath) {
+      return;
+    }
+
+    const rootPath = settings.libraryPath;
+    let isCurrent = true;
+    const unsubscribeChanged = window.modelLibrary.onLibraryChanged(async () => {
+      const cachedResult = await window.modelLibrary.getCachedLibrary(rootPath);
+
+      if (isCurrent && cachedResult) {
+        setScanResult(cachedResult);
+      }
+    });
+    const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((message) => {
+      if (isCurrent) {
+        setOperationMessage(message);
+      }
+    });
+
+    void window.modelLibrary.setLibraryMonitoring(settings.monitorLibrary).catch((error) => {
+      if (isCurrent) {
+        setOperationMessage(readErrorMessage(error));
+      }
+    });
+
+    return () => {
+      isCurrent = false;
+      unsubscribeChanged();
+      unsubscribeError();
+    };
+  }, [settings?.libraryPath, settings?.monitorLibrary]);
+
+  useEffect(() => {
     const unsubscribe = window.modelLibrary.onFileDragStatus?.((status) => {
       setOperationMessage(status.message);
 

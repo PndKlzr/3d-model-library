@@ -8,6 +8,17 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   chooseArchiveExtractor: () => ipcRenderer.invoke("settings:choose-archive-extractor"),
   getCachedLibrary: (rootPath) => ipcRenderer.invoke("library:get-cached", rootPath),
   scanLibrary: (rootPath) => ipcRenderer.invoke("library:scan", rootPath),
+  setLibraryMonitoring: (enabled) => ipcRenderer.invoke("library:set-monitoring", enabled),
+  onLibraryChanged: (callback) => {
+    const listener = (_event, events) => callback(events);
+    ipcRenderer.on("library:changed", listener);
+    return () => ipcRenderer.removeListener("library:changed", listener);
+  },
+  onLibraryMonitoringError: (callback) => {
+    const listener = (_event, message) => callback(message);
+    ipcRenderer.on("library:monitoring-error", listener);
+    return () => ipcRenderer.removeListener("library:monitoring-error", listener);
+  },
   listArchiveEntries: (archivePath) => ipcRenderer.invoke("archive:list", archivePath),
   extractArchiveEntries: (archivePath, entryPaths, destinationRelativeFolder) =>
     ipcRenderer.invoke("archive:extract", archivePath, entryPaths, destinationRelativeFolder),
