@@ -114,6 +114,7 @@ function App() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
+  const [monitorStatus, setMonitorStatus] = useState<"active" | "disabled" | "error">("disabled");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
@@ -161,6 +162,7 @@ function App() {
 
     const rootPath = settings.libraryPath;
     let isCurrent = true;
+    setMonitorStatus("disabled");
     const unsubscribeChanged = window.modelLibrary.onLibraryChanged(async () => {
       const cachedResult = await window.modelLibrary.getCachedLibrary(rootPath);
 
@@ -170,15 +172,21 @@ function App() {
     });
     const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((message) => {
       if (isCurrent) {
-        setOperationMessage(message);
+        setMonitorStatus("error");
+        setOperationMessage(`Monitoramento pausado: ${message}. Use o botão Atualizar.`);
       }
     });
 
-    void window.modelLibrary.setLibraryMonitoring(settings.monitorLibrary).catch((error) => {
-      if (isCurrent) {
-        setOperationMessage(readErrorMessage(error));
-      }
-    });
+    void window.modelLibrary.setLibraryMonitoring(settings.monitorLibrary)
+      .then(() => {
+        if (isCurrent) setMonitorStatus(settings.monitorLibrary ? "active" : "disabled");
+      })
+      .catch((error) => {
+        if (isCurrent) {
+          setMonitorStatus("error");
+          setOperationMessage(`Monitoramento pausado: ${readErrorMessage(error)}. Use o botão Atualizar.`);
+        }
+      });
 
     return () => {
       isCurrent = false;
@@ -1352,6 +1360,7 @@ function App() {
         metadataByPath={libraryMetadata.models}
         duplicateModelIds={duplicateModelIds}
         isScanning={isScanning}
+        monitorStatus={monitorStatus}
         isFilteringStale={isFilteringStale}
         canMoveModels={draggedModelIds.length > 0}
         pointerDragOverFolder={null}

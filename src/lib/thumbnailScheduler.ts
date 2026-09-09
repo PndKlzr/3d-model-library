@@ -16,7 +16,7 @@ type Job<T> = {
   promise: Promise<T>;
   resolve: (value: T) => void;
   reject: (reason?: unknown) => void;
-  state: "queued" | "running";
+  state: "queued" | "running" | "completed";
 };
 
 const PRIORITY_WEIGHT: Record<ThumbnailPriority, number> = {
@@ -36,6 +36,14 @@ export function createThumbnailScheduler(options: { concurrency?: number } = {})
   function enqueue<T>(key: string, priority: ThumbnailPriority, run: () => Promise<T>): ThumbnailRequest<T> {
     const subscriber: Subscriber = { priority, released: false };
     let job = jobs.get(key) as Job<T> | undefined;
+
+    if (job?.state === "completed") {
+      return {
+        promise: job.promise,
+        setPriority() {},
+        release() {}
+      };
+    }
 
     if (!job) {
       let resolve!: (value: T) => void;
@@ -95,7 +103,8 @@ export function createThumbnailScheduler(options: { concurrency?: number } = {})
       activeJobs += 1;
       void nextJob.run().then(nextJob.resolve, nextJob.reject).finally(() => {
         activeJobs -= 1;
-        jobs.delete(nextJob.key);
+        nextJob.state = "completed";
+        nextJob.subscribers.clear();
         runNext();
         resolveIdleWaiters();
       });

@@ -48,6 +48,14 @@ Create a production renderer build:
 npm run build
 ```
 
+## Large Libraries
+
+The app keeps a local index in its application-data folder so a previously scanned library can appear immediately on the next launch. It then checks the real files in the background; the files on disk always remain authoritative.
+
+Generated thumbnails are cached locally and reused until the model's size or modification time changes. Only visible and nearby rows are mounted, and visible thumbnails are rendered before background folder mosaics.
+
+Folder monitoring is enabled by default and can be turned off in Settings. The Refresh button always performs a manual reconciliation, including when monitoring is disabled or unavailable.
+
 ## Privacy And Safety
 
 - The library folder is selected on first launch and stored locally in the app settings.

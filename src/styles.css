@@ -541,6 +541,45 @@ button:disabled {
   justify-content: flex-end;
 }
 
+.library-status {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.library-status i {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #89959a;
+}
+
+.library-status.active i {
+  background: #258574;
+  box-shadow: 0 0 0 3px rgba(37, 133, 116, 0.12);
+}
+
+.library-status.error i {
+  background: #b16a3f;
+}
+
+.library-status.scanning i {
+  background: var(--accent);
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  50% {
+    opacity: 0.38;
+  }
+}
+
 .view-mode-toggle {
   display: inline-flex;
   overflow: hidden;
@@ -2350,6 +2389,11 @@ button:disabled {
 
   .toolbar {
     align-items: flex-start;
+  }
+
+  .library-status {
+    width: 7px;
+    overflow: hidden;
   }
 
   .model-list-main {

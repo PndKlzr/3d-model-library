@@ -33,6 +33,8 @@ export function createThumbnailCache({
   maxCacheBytes = DEFAULT_MAX_CACHE_BYTES,
   maxAgeMs = DEFAULT_MAX_AGE_MS
 }: ThumbnailCacheOptions): ThumbnailCache {
+  const pendingWrites = new Map<string, Promise<void>>();
+
   async function ensureDirectory() {
     await mkdir(cacheDirectory, { recursive: true });
   }
@@ -87,17 +89,16 @@ export function createThumbnailCache({
 
       await ensureDirectory();
       const key = createThumbnailCacheKey(signature, THUMBNAIL_RENDER_VERSION);
-      const destinationPath = path.join(cacheDirectory, `${key}.${parsed.extension}`);
-      const temporaryPath = path.join(cacheDirectory, `${key}-${process.pid}-${Date.now()}.tmp`);
-
-      await writeFile(temporaryPath, parsed.bytes, { flag: "wx" });
-
-      try {
-        await rename(temporaryPath, destinationPath);
-      } catch (error) {
-        await unlink(temporaryPath).catch(() => undefined);
-        throw error;
+      const pendingWrite = pendingWrites.get(key);
+      if (pendingWrite) {
+        return pendingWrite;
       }
+
+      const writePromise = writeCacheEntry(key, parsed.extension, parsed.bytes).finally(() => {
+        pendingWrites.delete(key);
+      });
+      pendingWrites.set(key, writePromise);
+      return writePromise;
     },
 
     async prune() {
@@ -139,6 +140,19 @@ export function createThumbnailCache({
       }
     }
   };
+
+  async function writeCacheEntry(key: string, extension: string, bytes: Buffer) {
+    const destinationPath = path.join(cacheDirectory, `${key}.${extension}`);
+    const temporaryPath = path.join(cacheDirectory, `${key}-${process.pid}-${Date.now()}.tmp`);
+    await writeFile(temporaryPath, bytes, { flag: "wx" });
+
+    try {
+      await rename(temporaryPath, destinationPath);
+    } catch (error) {
+      await unlink(temporaryPath).catch(() => undefined);
+      throw error;
+    }
+  }
 }
 
 export function createThumbnailCacheKey(

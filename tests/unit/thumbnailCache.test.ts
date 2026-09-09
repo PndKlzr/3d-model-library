@@ -1,7 +1,7 @@
 import { mkdir, rm, stat, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createThumbnailCache,
   createThumbnailCacheKey
@@ -16,6 +16,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await rm(cacheDirectory, { recursive: true, force: true });
 });
 
@@ -38,6 +39,20 @@ describe("thumbnailCache", () => {
 
     await expect(cache.read(signature)).resolves.toBe(dataUrl);
     expect((await stat(cacheDirectory)).isDirectory()).toBe(true);
+  });
+
+  it("coalesces concurrent writes for the same model signature", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const signature = model();
+    const dataUrl = `data:image/webp;base64,${Buffer.from("RIFF0000WEBP").toString("base64")}`;
+    vi.spyOn(Date, "now").mockReturnValue(1234);
+
+    await expect(Promise.all([
+      cache.write(signature, dataUrl),
+      cache.write(signature, dataUrl),
+      cache.write(signature, dataUrl)
+    ])).resolves.toEqual([undefined, undefined, undefined]);
+    await expect(cache.read(signature)).resolves.toBe(dataUrl);
   });
 
   it("rejects unsupported or oversized data URLs", async () => {

@@ -43,6 +43,24 @@ describe("thumbnailScheduler", () => {
 
     expect(order).toEqual(["active", "current", "released"]);
   });
+
+  it("reuses completed results instead of retrying failed thumbnails in the session", async () => {
+    const scheduler = createThumbnailScheduler({ concurrency: 1 });
+    let attempts = 0;
+    const first = scheduler.enqueue("broken", "visible", async () => {
+      attempts += 1;
+      return null;
+    });
+
+    await expect(first.promise).resolves.toBeNull();
+    const second = scheduler.enqueue("broken", "visible", async () => {
+      attempts += 1;
+      return "unexpected";
+    });
+
+    await expect(second.promise).resolves.toBeNull();
+    expect(attempts).toBe(1);
+  });
 });
 
 function job(label: string, order: string[]) {

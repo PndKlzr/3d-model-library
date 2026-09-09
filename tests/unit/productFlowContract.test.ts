@@ -15,6 +15,17 @@ describe("product flow contract", () => {
     expect(gridSource).toContain("Com notas");
     expect(gridSource).toContain("Sem notas");
   });
+
+  it("shows restrained reconciliation and monitoring feedback", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+
+    expect(gridSource).toContain("Atualizando biblioteca...");
+    expect(gridSource).toContain("Monitoramento ativo");
+    expect(gridSource).toContain("Atualização manual");
+    expect(appSource).toContain("monitorStatus");
+    expect(appSource).toContain("Use o botão Atualizar");
+  });
   it("organizes the right panel into preview, info, notes, and actions zones", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
 

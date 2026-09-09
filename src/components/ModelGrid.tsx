@@ -61,6 +61,7 @@ type ModelGridProps = {
   metadataByPath: Record<string, ModelUserMetadata>;
   duplicateModelIds: Set<string>;
   isScanning: boolean;
+  monitorStatus: "active" | "disabled" | "error";
   isFilteringStale: boolean;
   canMoveModels: boolean;
   pointerDragOverFolder: string | null;
@@ -121,6 +122,7 @@ export function ModelGrid({
   metadataByPath,
   duplicateModelIds,
   isScanning,
+  monitorStatus,
   isFilteringStale,
   canMoveModels,
   pointerDragOverFolder,
@@ -176,11 +178,11 @@ export function ModelGrid({
     selectedTags.size > 0 ||
     usageFilter !== "all" ||
     notesFilter !== "all" ||
-    tagMatchMode !== "all";
+    (selectedTags.size > 0 && tagMatchMode !== "all");
   const advancedFilterCount =
     Number(usageFilter !== "all") +
     Number(notesFilter !== "all") +
-    Number(tagMatchMode !== "all");
+    Number(selectedTags.size > 0 && tagMatchMode !== "all");
 
   useEffect(() => {
     if (!isAdvancedFiltersOpen) return;
@@ -393,6 +395,23 @@ export function ModelGrid({
           >
             <Settings size={17} />
           </button>
+          <span
+            className={`library-status ${isScanning ? "scanning" : monitorStatus}`}
+            title={
+              isScanning
+                ? "Atualizando biblioteca"
+                : monitorStatus === "active"
+                  ? "Monitoramento ativo"
+                  : "Atualização manual"
+            }
+          >
+            <i aria-hidden="true" />
+            {isScanning
+              ? "Atualizando biblioteca..."
+              : monitorStatus === "active"
+                ? "Monitoramento ativo"
+                : "Atualização manual"}
+          </span>
           <button
             className="icon-only"
             type="button"

@@ -508,25 +508,25 @@ git commit -m "feat: filter models by usage notes and tag matching"
 - Consumes watcher state, reconciliation state, and thumbnail queue counters from previous tasks.
 - Produces no new privileged API.
 
-- [ ] **Step 1: Add failing feedback contract tests**
+- [x] **Step 1: Add failing feedback contract tests**
 
 Assert source contains distinct labels for `Atualizando biblioteca...`, `Monitoramento ativo`, and watcher fallback; assert cached content is not hidden by the scanning state.
 
-- [ ] **Step 2: Implement restrained status feedback**
+- [x] **Step 2: Implement restrained status feedback**
 
 Place one compact status near Refresh. Do not put spinners in every card. Keep sticky toolbar height stable in light/dark themes and at minimum window width.
 
-- [ ] **Step 3: Document monitoring, cached startup, and manual refresh**
+- [x] **Step 3: Document monitoring, cached startup, and manual refresh**
 
 Add a concise README section explaining that cache lives in app data, original models remain authoritative, and monitoring can be disabled in Settings.
 
-- [ ] **Step 4: Run all unit tests**
+- [x] **Step 4: Run all unit tests**
 
 Run: `npm test`
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Run the production build**
+- [x] **Step 5: Run the production build**
 
 Run: `npm run build`
 
@@ -534,9 +534,11 @@ Expected: TypeScript and Vite complete successfully.
 
 - [ ] **Step 6: Manually verify the real library**
 
+Startup smoke test completed without renderer or thumbnail-cache errors. Scroll feel and external drops remain for user validation because computer control was intentionally not used.
+
 Open through `npm run electron:dev`. Verify warm startup shows cached cards before reconciliation, scrolling stays responsive, completed thumbnails remain after scrolling away/back, watcher additions/removals appear once, monitoring toggle persists, Refresh works when monitoring is off, and internal/external drag still behaves exactly as before.
 
-- [ ] **Step 7: Commit final feedback and documentation**
+- [x] **Step 7: Commit final feedback and documentation**
 
 ```bash
 git add src/App.tsx src/components/ModelGrid.tsx src/styles.css tests/unit/productFlowContract.test.ts README.md
