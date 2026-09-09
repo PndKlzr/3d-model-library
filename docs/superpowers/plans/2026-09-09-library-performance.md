@@ -35,7 +35,7 @@
 - Produces: `runBounded<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]>`
 - Preserves: `scanLibrary(rootPath: string): Promise<LibraryScanResult>`
 
-- [ ] **Step 1: Write failing pool and scanner tests**
+- [x] **Step 1: Write failing pool and scanner tests**
 
 ```ts
 it("never exceeds the configured concurrency", async () => {
@@ -53,13 +53,13 @@ it("never exceeds the configured concurrency", async () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm the missing export failure**
+- [x] **Step 2: Run the focused tests and confirm the missing export failure**
 
 Run: `npm test -- tests/unit/boundedTaskPool.test.ts tests/unit/libraryScanner.test.ts`
 
 Expected: FAIL because `runBounded` does not exist.
 
-- [ ] **Step 3: Implement the bounded task pool and collect stat work before awaiting it**
+- [x] **Step 3: Implement the bounded task pool and collect stat work before awaiting it**
 
 ```ts
 export async function runBounded<T, R>(
@@ -82,13 +82,13 @@ export async function runBounded<T, R>(
 
 Use a concurrency of `8` for file stats. Preserve deterministic model and folder sorting after all work finishes.
 
-- [ ] **Step 4: Run focused tests and the performance contract**
+- [x] **Step 4: Run focused tests and the performance contract**
 
 Run: `npm test -- tests/unit/boundedTaskPool.test.ts tests/unit/libraryScanner.test.ts tests/unit/performanceContract.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the scanner change**
+- [x] **Step 5: Commit the scanner change**
 
 ```bash
 git add electron/services/boundedTaskPool.ts electron/services/libraryScanner.ts tests/unit/boundedTaskPool.test.ts tests/unit/libraryScanner.test.ts tests/unit/performanceContract.test.ts

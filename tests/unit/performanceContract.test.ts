@@ -19,6 +19,13 @@ describe("performance contract", () => {
     expect(thumbnailSource).toContain("pendingJobs");
   });
 
+  it("bounds file metadata work during recursive scans", async () => {
+    const scannerSource = await readFile("electron/services/libraryScanner.ts", "utf8");
+
+    expect(scannerSource).toContain("runBounded");
+    expect(scannerSource).toContain("FILE_STAT_CONCURRENCY");
+  });
+
   it("keeps the detail preview isolated from card thumbnails", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");

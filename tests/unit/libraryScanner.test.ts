@@ -90,4 +90,19 @@ describe("scanLibrary", () => {
       previewError: null
     });
   });
+
+  it("keeps deterministic ordering when file metadata completes out of order", async () => {
+    await mkdir(path.join(tempRoot, "z-folder"), { recursive: true });
+    await writeFile(path.join(tempRoot, "z-folder", "beta.stl"), "solid beta\nendsolid beta");
+    await writeFile(path.join(tempRoot, "alpha.3mf"), "alpha");
+    await writeFile(path.join(tempRoot, "charlie.stl"), "solid charlie\nendsolid charlie");
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models.map((model) => `${model.relativeFolder}/${model.name}`)).toEqual([
+      "/alpha.3mf",
+      "/charlie.stl",
+      "z-folder/beta.stl"
+    ]);
+  });
 });

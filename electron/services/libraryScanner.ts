@@ -1,13 +1,22 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryScanResult, ModelFile } from "../../src/shared/types.js";
+import { runBounded } from "./boundedTaskPool.js";
 
 const LIBRARY_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
+const FILE_STAT_CONCURRENCY = 8;
+
+type ModelCandidate = {
+  absolutePath: string;
+  extension: ModelFile["extension"];
+  name: string;
+};
 
 export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> {
   const models: ModelFile[] = [];
   const folders = new Set<string>();
   const errors: LibraryScanResult["errors"] = [];
+  const candidates: ModelCandidate[] = [];
 
   async function scanDirectory(directoryPath: string) {
     const relativeDirectory = normalizeRelativeFolder(path.relative(rootPath, directoryPath));
@@ -46,14 +55,30 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
         continue;
       }
 
+      candidates.push({
+        absolutePath,
+        extension: extension as ModelFile["extension"],
+        name: entry.name
+      });
+    }
+  }
+
+  await scanDirectory(rootPath);
+
+  const scannedModels = await runBounded(
+    candidates,
+    FILE_STAT_CONCURRENCY,
+    async ({ absolutePath, extension, name }): Promise<ModelFile | null> => {
       try {
         const fileStat = await stat(absolutePath);
-        const relativeFolder = normalizeRelativeFolder(path.dirname(path.relative(rootPath, absolutePath)));
+        const relativeFolder = normalizeRelativeFolder(
+          path.dirname(path.relative(rootPath, absolutePath))
+        );
 
-        models.push({
+        return {
           id: absolutePath,
-          name: entry.name,
-          extension: extension as ModelFile["extension"],
+          name,
+          extension,
           absolutePath,
           relativeFolder,
           sizeBytes: fileStat.size,
@@ -61,17 +86,18 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
           dimensionsMm: null,
           objectCount: null,
           previewError: null
-        });
+        };
       } catch (error) {
         errors.push({
           path: absolutePath,
           message: error instanceof Error ? error.message : String(error)
         });
+        return null;
       }
     }
-  }
+  );
 
-  await scanDirectory(rootPath);
+  models.push(...scannedModels.filter((model): model is ModelFile => model !== null));
 
   models.sort((left, right) =>
     left.relativeFolder.localeCompare(right.relativeFolder) || left.name.localeCompare(right.name)
