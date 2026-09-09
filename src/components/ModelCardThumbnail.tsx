@@ -1,6 +1,7 @@
 import { Box } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { requestRenderedModelThumbnail } from "../lib/modelThumbnailQueue";
+import type { ThumbnailPriority, ThumbnailRequest } from "../lib/thumbnailScheduler";
 import type { ModelFile } from "../shared/types";
 
 type ModelCardThumbnailProps = {
@@ -9,41 +10,51 @@ type ModelCardThumbnailProps = {
 
 export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const didRequestRef = useRef(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const element = rootRef.current;
     let isMounted = true;
+    let isNearby = false;
+    let isVisible = false;
+    let request: ThumbnailRequest<string | null> | null = null;
 
-    if (!element || didRequestRef.current) {
-      return () => {
-        isMounted = false;
-      };
-    }
+    setThumbnailUrl(null);
+    if (!element) return;
 
-    const observer = new IntersectionObserver(
+    const updatePriority = () => {
+      request?.setPriority(isVisible ? "visible" : isNearby ? "nearby" : "background");
+    };
+    const ensureRequested = () => {
+      if (request) return;
+      request = requestModelThumbnail(model, isVisible ? "visible" : "nearby");
+      void request.promise.then((imageUrl) => {
+        if (isMounted && imageUrl) setThumbnailUrl(imageUrl);
+      });
+    };
+
+    const nearbyObserver = new IntersectionObserver(
       ([entry]) => {
-        if (!entry.isIntersecting) {
-          return;
-        }
-
-        observer.disconnect();
-        didRequestRef.current = true;
-        void loadModelThumbnail(model).then((imageUrl) => {
-          if (isMounted && imageUrl) {
-            setThumbnailUrl(imageUrl);
-          }
-        });
+        isNearby = entry.isIntersecting;
+        if (isNearby) ensureRequested();
+        updatePriority();
       },
       { rootMargin: "240px" }
     );
+    const visibleObserver = new IntersectionObserver(([entry]) => {
+      isVisible = entry.isIntersecting;
+      if (isVisible) ensureRequested();
+      updatePriority();
+    });
 
-    observer.observe(element);
+    nearbyObserver.observe(element);
+    visibleObserver.observe(element);
 
     return () => {
       isMounted = false;
-      observer.disconnect();
+      nearbyObserver.disconnect();
+      visibleObserver.disconnect();
+      request?.release();
     };
   }, [model]);
 
@@ -61,47 +72,52 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
   );
 }
 
-const modelThumbnailCache = new Map<string, Promise<string | null>>();
-
 export async function loadModelThumbnail(model: ModelFile): Promise<string | null> {
-  const cacheKey = `${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
-  const cached = modelThumbnailCache.get(cacheKey);
-
-  if (cached) {
-    return cached;
-  }
-
-  const thumbnailPromise = resolveModelThumbnail(model);
-  modelThumbnailCache.set(cacheKey, thumbnailPromise);
-  return thumbnailPromise;
+  const request = requestModelThumbnail(model, "background");
+  return request.promise.finally(request.release);
 }
 
-async function resolveModelThumbnail(model: ModelFile) {
-  if (model.extension === ".zip" || model.extension === ".rar" || model.extension === ".7z") {
-    return null;
-  }
+function requestModelThumbnail(
+  model: ModelFile,
+  initialPriority: ThumbnailPriority
+): ThumbnailRequest<string | null> {
+  let priority = initialPriority;
+  let released = false;
+  let renderRequest: ThumbnailRequest<string | null> | null = null;
+
+  const promise = resolveModelThumbnail(model, () => {
+    renderRequest = requestRenderedModelThumbnail(model, released ? "background" : priority);
+    return renderRequest;
+  });
+
+  return {
+    promise,
+    setPriority(nextPriority) {
+      priority = nextPriority;
+      renderRequest?.setPriority(nextPriority);
+    },
+    release() {
+      released = true;
+      renderRequest?.release();
+    }
+  };
+}
+
+async function resolveModelThumbnail(
+  model: ModelFile,
+  createRenderRequest: () => ThumbnailRequest<string | null>
+) {
+  if ([".zip", ".rar", ".7z"].includes(model.extension)) return null;
 
   const cachedThumbnail = await window.modelLibrary.readCachedThumbnail(model);
-
-  if (cachedThumbnail) {
-    return cachedThumbnail;
-  }
+  if (cachedThumbnail) return cachedThumbnail;
 
   let thumbnail: string | null = null;
-
   if (model.extension === ".3mf") {
-    const embeddedThumbnail = await window.modelLibrary.readModelThumbnail(model.absolutePath);
-
-    if (embeddedThumbnail) {
-      thumbnail = embeddedThumbnail;
-    }
+    thumbnail = await window.modelLibrary.readModelThumbnail(model.absolutePath);
   }
 
-  thumbnail ??= await requestRenderedModelThumbnail(model);
-
-  if (thumbnail) {
-    void window.modelLibrary.writeCachedThumbnail(model, thumbnail).catch(() => undefined);
-  }
-
+  thumbnail ??= await createRenderRequest().promise;
+  if (thumbnail) void window.modelLibrary.writeCachedThumbnail(model, thumbnail).catch(() => undefined);
   return thumbnail;
 }

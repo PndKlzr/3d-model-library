@@ -350,7 +350,7 @@ git commit -m "perf: persist generated model thumbnails"
 - Produces: `requestRenderedModelThumbnail(model: ModelFile, priority: ThumbnailPriority): ThumbnailRequest`
 - Produces: `renderThumbnail(extension: ModelFile["extension"], bytes: ArrayBuffer): string`
 
-- [ ] **Step 1: Write failing scheduler tests**
+- [x] **Step 1: Write failing scheduler tests**
 
 ```ts
 it("lets a visible job overtake queued background work", async () => {
@@ -364,25 +364,25 @@ it("lets a visible job overtake queued background work", async () => {
 });
 ```
 
-- [ ] **Step 2: Implement stable priority queues and deduplication**
+- [x] **Step 2: Implement stable priority queues and deduplication**
 
 Jobs already running are never cancelled. `setPriority` reorders queued work. Repeated cache keys share a promise. Failed keys return null and are not retried during the same session.
 
-- [ ] **Step 3: Extract a single reusable WebGL renderer**
+- [x] **Step 3: Extract a single reusable WebGL renderer**
 
 Create one renderer lazily with `powerPreference: "high-performance"`. Dispose model geometry/materials after every image, retain the renderer/canvas, and recreate it only after context loss or render failure.
 
-- [ ] **Step 4: Drive priority from both thumbnail components**
+- [x] **Step 4: Drive priority from both thumbnail components**
 
 Use an IntersectionObserver with a nearby root margin. Exact intersection promotes to `visible`; nearby is `nearby`; folder mosaics begin as `background`. Unmounting demotes queued work instead of discarding started work.
 
-- [ ] **Step 5: Run scheduler and performance tests**
+- [x] **Step 5: Run scheduler and performance tests**
 
 Run: `npm test -- tests/unit/thumbnailScheduler.test.ts tests/unit/performanceContract.test.ts tests/unit/productFlowContract.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit scheduler and renderer reuse**
+- [x] **Step 6: Commit scheduler and renderer reuse**
 
 ```bash
 git add src/lib/thumbnailScheduler.ts src/lib/thumbnailRenderer.ts src/lib/modelThumbnailQueue.ts src/components/ModelCardThumbnail.tsx src/components/FolderCardThumbnail.tsx tests/unit/thumbnailScheduler.test.ts tests/unit/performanceContract.test.ts

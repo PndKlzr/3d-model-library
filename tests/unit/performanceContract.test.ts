@@ -16,7 +16,16 @@ describe("performance contract", () => {
     expect(cardThumbnailSource).not.toContain("setDidQueue");
     expect(thumbnailSource).not.toContain("readModelThumbnail");
     expect(thumbnailSource).toContain("readModelFile");
-    expect(thumbnailSource).toContain("pendingJobs");
+    expect(thumbnailSource).toContain("thumbnailScheduler");
+    expect(thumbnailSource).toContain("renderThumbnail");
+  });
+
+  it("reuses one GPU renderer for generated thumbnails", async () => {
+    const rendererSource = await readFile("src/lib/thumbnailRenderer.ts", "utf8");
+
+    expect(rendererSource).toContain("sharedRenderer");
+    expect(rendererSource).toContain('powerPreference: "high-performance"');
+    expect(rendererSource).not.toContain("renderer.dispose();\n  }");
   });
 
   it("bounds file metadata work during recursive scans", async () => {
