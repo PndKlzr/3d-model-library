@@ -35,6 +35,8 @@ export type ModelFile = {
   previewError: string | null;
 };
 
+export type ThumbnailSignature = Pick<ModelFile, "absolutePath" | "sizeBytes" | "modifiedAt">;
+
 export type LibraryScanResult = {
   rootPath: string;
   models: ModelFile[];

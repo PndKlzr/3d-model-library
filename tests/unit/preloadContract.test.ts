@@ -9,6 +9,8 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("contextBridge.exposeInMainWorld(\"modelLibrary\"");
     expect(preloadSource).toContain("readModelMetadata");
     expect(preloadSource).toContain("readModelThumbnail");
+    expect(preloadSource).toContain("readCachedThumbnail");
+    expect(preloadSource).toContain("writeCachedThumbnail");
     expect(preloadSource).toContain("getCachedLibrary");
     expect(preloadSource).toContain("setLibraryMonitoring");
     expect(preloadSource).toContain("onLibraryChanged");

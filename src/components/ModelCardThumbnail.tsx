@@ -81,13 +81,27 @@ async function resolveModelThumbnail(model: ModelFile) {
     return null;
   }
 
+  const cachedThumbnail = await window.modelLibrary.readCachedThumbnail(model);
+
+  if (cachedThumbnail) {
+    return cachedThumbnail;
+  }
+
+  let thumbnail: string | null = null;
+
   if (model.extension === ".3mf") {
     const embeddedThumbnail = await window.modelLibrary.readModelThumbnail(model.absolutePath);
 
     if (embeddedThumbnail) {
-      return embeddedThumbnail;
+      thumbnail = embeddedThumbnail;
     }
   }
 
-  return requestRenderedModelThumbnail(model);
+  thumbnail ??= await requestRenderedModelThumbnail(model);
+
+  if (thumbnail) {
+    void window.modelLibrary.writeCachedThumbnail(model, thumbnail).catch(() => undefined);
+  }
+
+  return thumbnail;
 }

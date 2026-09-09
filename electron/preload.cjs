@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   setModelNotes: (modelPath, notes) => ipcRenderer.invoke("metadata:set-notes", modelPath, notes),
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
+  readCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-read", model),
+  writeCachedThumbnail: (model, dataUrl) =>
+    ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl),
   saveConvertedStl: (sourcePath, stlContent) =>
     ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),

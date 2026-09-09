@@ -40,6 +40,7 @@ import {
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
+import { createThumbnailCache, type ThumbnailCache } from "./services/thumbnailCache.js";
 import {
   createLibraryWatcher,
   type LibraryWatcherHandle
@@ -54,6 +55,7 @@ let libraryIndexStore: LibraryIndexStore;
 let libraryMetadataStore: LibraryMetadataStore;
 let modelHashStore: ModelHashStore;
 let libraryWatcher: LibraryWatcherHandle | null = null;
+let thumbnailCache: ThumbnailCache;
 let watcherGeneration = 0;
 const dragIcon = createFileDragIcon();
 
@@ -238,6 +240,23 @@ function registerIpcHandlers() {
     return readEmbeddedThumbnail(absolutePath);
   });
 
+  ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
+    assertThumbnailSignature(model);
+    assertPathInsideLibrary(model.absolutePath);
+    return thumbnailCache.read(model);
+  });
+
+  ipcMain.handle("thumbnail:cache-write", async (_event, model, dataUrl: string) => {
+    assertThumbnailSignature(model);
+    assertPathInsideLibrary(model.absolutePath);
+
+    if (typeof dataUrl !== "string") {
+      throw new Error("Invalid thumbnail data");
+    }
+
+    await thumbnailCache.write(model, dataUrl);
+  });
+
   ipcMain.handle("model:hashes", async (_event, models: ModelHashInput[]) => {
     for (const model of models) {
       assertPathInsideLibrary(model.absolutePath);
@@ -346,6 +365,25 @@ function assertConfiguredLibraryRoot(rootPath: string) {
 
   if (path.resolve(rootPath).toLowerCase() !== path.resolve(libraryPath).toLowerCase()) {
     throw new Error("Requested library does not match the configured library folder");
+  }
+}
+
+function assertThumbnailSignature(value: unknown): asserts value is {
+  absolutePath: string;
+  sizeBytes: number;
+  modifiedAt: string;
+} {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("absolutePath" in value) ||
+    typeof value.absolutePath !== "string" ||
+    !("sizeBytes" in value) ||
+    typeof value.sizeBytes !== "number" ||
+    !("modifiedAt" in value) ||
+    typeof value.modifiedAt !== "string"
+  ) {
+    throw new Error("Invalid thumbnail signature");
   }
 }
 
@@ -498,8 +536,14 @@ app.whenReady().then(async () => {
   libraryIndexStore = await createElectronLibraryIndexStore();
   libraryMetadataStore = await createElectronLibraryMetadataStore();
   modelHashStore = await createElectronModelHashStore();
+  thumbnailCache = createThumbnailCache({
+    cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")
+  });
   registerIpcHandlers();
   await createWindow();
+  setTimeout(() => {
+    void thumbnailCache.prune().catch((error) => console.error("[thumbnail-cache]", error));
+  }, 5_000);
 
   app.on("activate", async () => {
     if (BrowserWindow.getAllWindows().length === 0) {

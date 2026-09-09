@@ -287,7 +287,7 @@ git commit -m "feat: monitor library changes incrementally"
 - Produces preload API: `writeCachedThumbnail(model: ThumbnailSignature, dataUrl: string): Promise<void>`
 - Internal renderer version: `THUMBNAIL_RENDER_VERSION = 1`
 
-- [ ] **Step 1: Write failing key, invalidation, corrupt-read, and atomic-write tests**
+- [x] **Step 1: Write failing key, invalidation, corrupt-read, and atomic-write tests**
 
 ```ts
 it("changes the cache key when model content signature changes", () => {
@@ -296,17 +296,17 @@ it("changes the cache key when model content signature changes", () => {
 });
 ```
 
-- [ ] **Step 2: Run cache tests and confirm failure**
+- [x] **Step 2: Run cache tests and confirm failure**
 
 Run: `npm test -- tests/unit/thumbnailCache.test.ts`
 
 Expected: FAIL because the cache module does not exist.
 
-- [ ] **Step 3: Implement app-data cache with generated keys only**
+- [x] **Step 3: Implement app-data cache with generated keys only**
 
 Hash the canonical path, size, modified time, and renderer version with SHA-256. Accept only `data:image/png`, `data:image/jpeg`, and `data:image/webp`; cap writes at 5 MB. Write `<hash>.tmp`, then rename to `<hash>.<ext>`.
 
-- [ ] **Step 4: Read cache before embedded or rendered work and persist successful results**
+- [x] **Step 4: Read cache before embedded or rendered work and persist successful results**
 
 ```ts
 const cached = await window.modelLibrary.readCachedThumbnail(model);
@@ -316,17 +316,17 @@ if (image) void window.modelLibrary.writeCachedThumbnail(model, image);
 return image;
 ```
 
-- [ ] **Step 5: Add idle pruning**
+- [x] **Step 5: Add idle pruning**
 
 Prune entries older than 90 days and then oldest entries until the cache is at most 512 MB. Run after app ready and never block window creation.
 
-- [ ] **Step 6: Run focused and full thumbnail tests**
+- [x] **Step 6: Run focused and full thumbnail tests**
 
 Run: `npm test -- tests/unit/thumbnailCache.test.ts tests/unit/modelThumbnail.test.ts tests/unit/preloadContract.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit thumbnail persistence**
+- [x] **Step 7: Commit thumbnail persistence**
 
 ```bash
 git add electron/services/thumbnailCache.ts electron/main.ts electron/preload.cjs src/shared/preload.d.ts src/components/ModelCardThumbnail.tsx tests/unit/thumbnailCache.test.ts tests/unit/preloadContract.test.ts

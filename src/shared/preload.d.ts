@@ -11,6 +11,7 @@ import type {
   ModelHashInput,
   ModelHashResult,
   ModelFile,
+  ThumbnailSignature,
   SlicerLaunchResult
 } from "./types";
 
@@ -60,6 +61,8 @@ export type ModelLibraryApi = {
     previewError: string | null;
   }>;
   readModelThumbnail: (absolutePath: string) => Promise<string | null>;
+  readCachedThumbnail: (model: ThumbnailSignature) => Promise<string | null>;
+  writeCachedThumbnail: (model: ThumbnailSignature, dataUrl: string) => Promise<void>;
   saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
