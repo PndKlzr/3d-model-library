@@ -1,6 +1,9 @@
 import { Folder } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { modelThumbnailService } from "../lib/modelThumbnailService";
+import {
+  modelThumbnailService,
+  type ModelThumbnailRequest
+} from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
 
 type FolderCardThumbnailProps = {
@@ -13,6 +16,7 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
 
   useEffect(() => {
     const element = rootRef.current;
+    const outstandingRequests = new Set<ModelThumbnailRequest>();
     let isMounted = true;
 
     setThumbnailUrls([]);
@@ -30,7 +34,16 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
         }
 
         observer.disconnect();
-        void Promise.all(models.slice(0, 4).map(loadFolderMosaicThumbnail)).then((imageUrls) => {
+        const requests = models.slice(0, 4).map(loadFolderMosaicThumbnail);
+        for (const request of requests) {
+          outstandingRequests.add(request);
+          void request.promise.then(
+            () => releaseRequest(request),
+            () => releaseRequest(request)
+          );
+        }
+
+        void Promise.all(requests.map((request) => request.promise)).then((imageUrls) => {
           if (isMounted) {
             setThumbnailUrls(imageUrls.filter((imageUrl): imageUrl is string => Boolean(imageUrl)));
           }
@@ -44,7 +57,14 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
     return () => {
       isMounted = false;
       observer.disconnect();
+      for (const request of outstandingRequests) request.release();
+      outstandingRequests.clear();
     };
+
+    function releaseRequest(request: ModelThumbnailRequest) {
+      if (!outstandingRequests.delete(request)) return;
+      request.release();
+    }
   }, [models]);
 
   return (
@@ -71,7 +91,6 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
   );
 }
 
-export function loadFolderMosaicThumbnail(model: ModelFile): Promise<string | null> {
-  const request = modelThumbnailService.request(model, "mosaic");
-  return request.promise.finally(request.release);
+export function loadFolderMosaicThumbnail(model: ModelFile): ModelThumbnailRequest {
+  return modelThumbnailService.request(model, "mosaic");
 }

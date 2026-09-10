@@ -57,7 +57,7 @@ describe("product flow contract", () => {
     expect(gridSource).toContain("<FolderCardThumbnail models={folderCard.previewModels}");
     expect(folderThumbnailSource).toContain("IntersectionObserver");
     expect(folderThumbnailSource).toContain('request(model, "mosaic")');
-    expect(folderThumbnailSource).toContain("request.promise.finally(request.release)");
+    expect(folderThumbnailSource).toContain("request.release()");
     expect(folderThumbnailSource).toContain("draggable={false}");
     expect(folderThumbnailSource).toContain('data-count={thumbnailUrls.length}');
     expect(folderThumbnailSource).toContain("folder-kind-strip");
