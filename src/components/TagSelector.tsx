@@ -7,6 +7,8 @@ type TagSelectorProps = {
   onChange: (tags: string[]) => Promise<void> | void;
   label?: string;
   placeholder?: string;
+  disabled?: boolean;
+  disabledReason?: string | null;
 };
 
 export function TagSelector({
@@ -14,7 +16,9 @@ export function TagSelector({
   availableTags,
   onChange,
   label = "Tags",
-  placeholder = "Buscar ou criar tag"
+  placeholder = "Buscar ou criar tag",
+  disabled = false,
+  disabledReason = null
 }: TagSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -30,6 +34,12 @@ export function TagSelector({
   const visibleTags = normalizedAvailableTags.filter((tag) => tag.includes(normalizedQuery));
   const canCreateTag =
     normalizedQuery.length > 0 && !normalizedAvailableTags.includes(normalizedQuery);
+
+  useEffect(() => {
+    if (disabled) {
+      setIsOpen(false);
+    }
+  }, [disabled]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -89,6 +99,8 @@ export function TagSelector({
         className="tag-selector-trigger"
         type="button"
         onClick={() => setIsOpen((currentValue) => !currentValue)}
+        disabled={disabled}
+        title={disabled ? disabledReason ?? "Tags indisponíveis para edição" : undefined}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-controls={isOpen ? listboxId : undefined}

@@ -275,4 +275,26 @@ describe("interaction flow contract", () => {
     expect(mainSource).toContain("await movePathMetadataSafely(");
     expect(mainSource).toContain("await libraryMetadataStore.recordSlicerOpen(");
   });
+
+  it("loads portable metadata status and reports rejected durable edits", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("metadataStatus");
+    expect(appSource).toContain("getLibraryMetadataStatus");
+    expect(appSource).toContain("retryLibraryMetadata");
+    expect(appSource).toContain("Não foi possível salvar os dados da biblioteca");
+    expect(appSource).toContain("metadataStatus.writable");
+  });
+
+  it("disables note, tag, favorite, and catalog controls when metadata is read-only", async () => {
+    const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+    const tagSelectorSource = await readFile("src/components/TagSelector.tsx", "utf8");
+
+    expect(detailsSource).toContain("metadataWritable");
+    expect(detailsSource).toContain("disabled={!metadataWritable}");
+    expect(settingsSource).toContain("metadataWritable");
+    expect(tagSelectorSource).toContain("disabled = false");
+    expect(tagSelectorSource).toContain("disabled={disabled}");
+  });
 });

@@ -47,6 +47,7 @@ import type {
   FileRestorePair,
   LibraryActionLogEntry,
   LibraryMetadata,
+  LibraryMetadataStatus,
   LibraryScanResult,
   ModelHashResult,
   ModelFile
@@ -112,6 +113,12 @@ function App() {
     tagCatalog: [],
     slicerHistory: []
   });
+  const [metadataStatus, setMetadataStatus] = useState<LibraryMetadataStatus>({
+    availability: "unavailable",
+    writable: false,
+    source: "empty",
+    message: "Biblioteca ainda não conectada."
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [monitorStatus, setMonitorStatus] = useState<"active" | "disabled" | "error">("disabled");
@@ -131,11 +138,16 @@ function App() {
   useEffect(() => {
     let isMounted = true;
 
-    Promise.all([window.modelLibrary.getSettings(), window.modelLibrary.getLibraryMetadata()])
-      .then(([loadedSettings, loadedMetadata]) => {
+    Promise.all([
+      window.modelLibrary.getSettings(),
+      window.modelLibrary.getLibraryMetadata(),
+      window.modelLibrary.getLibraryMetadataStatus()
+    ])
+      .then(([loadedSettings, loadedMetadata, loadedMetadataStatus]) => {
         if (isMounted) {
           setSettings(loadedSettings);
           setLibraryMetadata(loadedMetadata);
+          setMetadataStatus(loadedMetadataStatus);
         }
       })
       .finally(() => {
@@ -379,6 +391,28 @@ function App() {
     textInputDialog
   ]);
 
+  async function refreshMetadataState() {
+    const [nextMetadata, nextStatus] = await Promise.all([
+      window.modelLibrary.getLibraryMetadata(),
+      window.modelLibrary.getLibraryMetadataStatus()
+    ]);
+    setLibraryMetadata(nextMetadata);
+    setMetadataStatus(nextStatus);
+  }
+
+  async function retryLibraryMetadata() {
+    try {
+      const nextStatus = await window.modelLibrary.retryLibraryMetadata();
+      setMetadataStatus(nextStatus);
+      setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
+      setOperationMessage(nextStatus.message ?? "Dados da biblioteca reconectados.");
+    } catch (error) {
+      setOperationMessage(
+        `Não foi possível reconectar os dados da biblioteca: ${readErrorMessage(error)}`
+      );
+    }
+  }
+
   async function chooseFolder() {
     const libraryPath = await window.modelLibrary.chooseLibraryFolder();
 
@@ -392,6 +426,7 @@ function App() {
     });
 
     setSettings(savedSettings);
+    await refreshMetadataState();
     setSelectedFolder(ALL_FOLDERS_ID);
     setFolderHistory(createFolderNavigationHistory());
     setSelectedModel(null);
@@ -400,8 +435,12 @@ function App() {
   }
 
   async function saveSettings(nextSettings: AppSettings) {
+    const libraryChanged = settings?.libraryPath !== nextSettings.libraryPath;
     const savedSettings = await window.modelLibrary.saveSettings(nextSettings);
     setSettings(savedSettings);
+    if (libraryChanged) {
+      await refreshMetadataState();
+    }
   }
 
   function updateFileDragBehavior(fileDragBehavior: FileDragBehavior) {
@@ -454,7 +493,7 @@ function App() {
     setLaunchMessage(result.message);
 
     if (result.ok) {
-      setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
+      await refreshMetadataState();
     }
   }
 
@@ -508,15 +547,27 @@ function App() {
   }
 
   async function toggleFavorite(modelPath: string) {
-    setLibraryMetadata(await window.modelLibrary.toggleFavorite(modelPath));
+    await persistMetadataMutation(() => window.modelLibrary.toggleFavorite(modelPath));
   }
 
   async function setModelTags(modelPath: string, tags: string[]) {
-    setLibraryMetadata(await window.modelLibrary.setModelTags(modelPath, tags));
+    await persistMetadataMutation(() => window.modelLibrary.setModelTags(modelPath, tags));
   }
 
   async function setModelNotes(modelPath: string, notes: string) {
-    setLibraryMetadata(await window.modelLibrary.setModelNotes(modelPath, notes));
+    await persistMetadataMutation(() => window.modelLibrary.setModelNotes(modelPath, notes));
+  }
+
+  async function persistMetadataMutation(operation: () => Promise<LibraryMetadata>) {
+    try {
+      setLibraryMetadata(await operation());
+      setMetadataStatus(await window.modelLibrary.getLibraryMetadataStatus());
+    } catch (error) {
+      setMetadataStatus(await window.modelLibrary.getLibraryMetadataStatus());
+      setOperationMessage(
+        `Não foi possível salvar os dados da biblioteca: ${readErrorMessage(error)}`
+      );
+    }
   }
 
   function requestTextInput(options: TextInputDialogOptions): Promise<string | null> {
@@ -593,7 +644,7 @@ function App() {
       return;
     }
 
-    setLibraryMetadata(await window.modelLibrary.addCatalogTag(tag));
+    await persistMetadataMutation(() => window.modelLibrary.addCatalogTag(tag));
   }
 
   async function removeCatalogTag(tag: string) {
@@ -608,7 +659,7 @@ function App() {
       return;
     }
 
-    setLibraryMetadata(await window.modelLibrary.removeCatalogTag(tag));
+    await persistMetadataMutation(() => window.modelLibrary.removeCatalogTag(tag));
   }
 
   function toggleTagFilter(tag: string) {
@@ -1404,6 +1455,8 @@ function App() {
         }
         availableTags={availableTags}
         launchMessage={launchMessage}
+        metadataStatus={metadataStatus}
+        metadataWritable={metadataStatus.writable}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onLaunchSlicer={launchSlicer}
         onRenameModelFile={renameSelectedModel}
@@ -1411,6 +1464,7 @@ function App() {
         onToggleFavorite={toggleFavorite}
         onSetModelTags={setModelTags}
         onSetModelNotes={setModelNotes}
+        onRetryMetadata={retryLibraryMetadata}
         onExtractArchiveEntries={extractArchiveEntries}
         onConvertThreeMfToStl={convertSelectedThreeMfToStl}
       />
@@ -1418,6 +1472,8 @@ function App() {
         <SettingsDialog
           settings={settings}
           tagCatalog={libraryMetadata.tagCatalog}
+          metadataWritable={metadataStatus.writable}
+          metadataMessage={metadataStatus.message}
           onClose={() => setIsSettingsOpen(false)}
           onSaveSettings={saveSettings}
           onChooseLibraryFolder={chooseFolder}
@@ -1481,6 +1537,8 @@ function App() {
             selectedTags={libraryMetadata.models[tagPickerDialog.model.absolutePath]?.tags ?? []}
             availableTags={availableTags}
             onChange={(tags) => setModelTags(tagPickerDialog.model.absolutePath, tags)}
+            disabled={!metadataStatus.writable}
+            disabledReason={metadataStatus.message}
           />
         </DialogShell>
       ) : null}
@@ -1583,6 +1641,8 @@ function App() {
           <button
             type="button"
             role="menuitem"
+            disabled={!metadataStatus.writable}
+            title={!metadataStatus.writable ? metadataStatus.message ?? undefined : undefined}
             onClick={() => {
               const model = modelContextMenu.model;
               setModelContextMenu(null);
@@ -1598,6 +1658,8 @@ function App() {
           <button
             type="button"
             role="menuitem"
+            disabled={!metadataStatus.writable}
+            title={!metadataStatus.writable ? metadataStatus.message ?? undefined : undefined}
             onClick={() => {
               const model = modelContextMenu.model;
               setModelContextMenu(null);

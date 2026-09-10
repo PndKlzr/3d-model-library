@@ -1733,6 +1733,15 @@ button:disabled {
   color: var(--warn);
 }
 
+.metadata-recovery-notice {
+  margin-top: 14px;
+  overflow-wrap: anywhere;
+}
+
+.metadata-recovery-notice span {
+  min-width: 0;
+}
+
 .slicer-actions {
   display: grid;
   gap: 8px;

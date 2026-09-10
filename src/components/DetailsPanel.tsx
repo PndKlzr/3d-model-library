@@ -12,7 +12,13 @@ import {
 import { useEffect, useState } from "react";
 import { ModelViewer } from "./ModelViewer";
 import { TagSelector } from "./TagSelector";
-import type { AppSettings, ArchiveEntry, ModelFile, ModelUserMetadata } from "../shared/types";
+import type {
+  AppSettings,
+  ArchiveEntry,
+  LibraryMetadataStatus,
+  ModelFile,
+  ModelUserMetadata
+} from "../shared/types";
 
 type DetailsTab = "info" | "notes" | "actions";
 
@@ -22,6 +28,8 @@ type DetailsPanelProps = {
   modelMetadata: ModelUserMetadata | null;
   availableTags: string[];
   launchMessage: string | null;
+  metadataStatus: LibraryMetadataStatus;
+  metadataWritable: boolean;
   onOpenSettings: () => void;
   onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
   onRenameModelFile: () => void;
@@ -29,6 +37,7 @@ type DetailsPanelProps = {
   onToggleFavorite: (modelPath: string) => Promise<void>;
   onSetModelTags: (modelPath: string, tags: string[]) => Promise<void>;
   onSetModelNotes: (modelPath: string, notes: string) => Promise<void>;
+  onRetryMetadata: () => Promise<void>;
   onExtractArchiveEntries: (archivePath: string, entryPaths: string[]) => Promise<void>;
   onConvertThreeMfToStl: (
     modelPath: string,
@@ -42,6 +51,8 @@ export function DetailsPanel({
   modelMetadata,
   availableTags,
   launchMessage,
+  metadataStatus,
+  metadataWritable,
   onOpenSettings,
   onLaunchSlicer,
   onRenameModelFile,
@@ -49,6 +60,7 @@ export function DetailsPanel({
   onToggleFavorite,
   onSetModelTags,
   onSetModelNotes,
+  onRetryMetadata,
   onExtractArchiveEntries,
   onConvertThreeMfToStl
 }: DetailsPanelProps) {
@@ -127,7 +139,7 @@ export function DetailsPanel({
   }, [isArchive, model]);
 
   async function saveNotes() {
-    if (!model) {
+    if (!model || !metadataWritable) {
       return;
     }
 
@@ -202,6 +214,7 @@ export function DetailsPanel({
                 className={`icon-only ${favorite ? "active-icon" : ""}`}
                 type="button"
                 onClick={() => onToggleFavorite(model.absolutePath)}
+                disabled={!metadataWritable}
                 aria-label={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
                 title={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
               >
@@ -215,6 +228,16 @@ export function DetailsPanel({
           <p>Selecione um arquivo para ver dados, notas e ações.</p>
         ) : (
           <>
+            {metadataStatus.availability !== "ready" || metadataStatus.message ? (
+              <div className="notice warning metadata-recovery-notice">
+                <span>{metadataStatus.message ?? "Os dados desta biblioteca estão somente para leitura."}</span>
+                {metadataStatus.availability !== "ready" ? (
+                  <button type="button" onClick={() => void onRetryMetadata()}>
+                    Tentar novamente
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
             <div className="details-tabs" role="tablist" aria-label="Detalhes do arquivo">
               <button
                 className={activeTab === "info" ? "active" : ""}
@@ -325,6 +348,8 @@ export function DetailsPanel({
                   selectedTags={modelMetadata?.tags ?? []}
                   availableTags={availableTags}
                   onChange={(tags) => onSetModelTags(model.absolutePath, tags)}
+                  disabled={!metadataWritable}
+                  disabledReason={metadataStatus.message}
                 />
                 <label>
                   <span>Notas</span>
@@ -332,6 +357,8 @@ export function DetailsPanel({
                     value={notesDraft}
                     onChange={(event) => setNotesDraft(event.currentTarget.value)}
                     onBlur={() => void saveNotes()}
+                    disabled={!metadataWritable}
+                    title={!metadataWritable ? metadataStatus.message ?? undefined : undefined}
                     placeholder="Configuração de impressão, filamento, observações..."
                     rows={4}
                   />

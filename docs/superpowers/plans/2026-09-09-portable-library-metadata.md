@@ -583,17 +583,17 @@ git commit -m "fix: exclude internal metadata from library views"
 - Consumes: `LibraryMetadataStatus`, `getLibraryMetadataStatus()`, and `retryLibraryMetadata()` from Task 4.
 - Adds `metadataWritable: boolean` to `DetailsPanelProps`, `SettingsDialog` tag controls, and `TagSelector` through its existing disabled-control convention.
 
-- [ ] **Step 1: Add failing UI contract tests**
+- [x] **Step 1: Add failing UI contract tests**
 
 Require `App.tsx` to load metadata status alongside settings/metadata, refresh both metadata and status after a library change, catch rejected metadata mutations, and expose a retry action. Require `DetailsPanel.tsx` to disable favorite, tag, and notes controls when `metadataWritable` is false. Require the context-menu favorite/tag actions and Settings tag creation/removal to use the same condition.
 
-- [ ] **Step 2: Run UI contract tests and verify they fail**
+- [x] **Step 2: Run UI contract tests and verify they fail**
 
 Run: `npm test -- tests/unit/interactionFlowContract.test.ts tests/unit/productFlowContract.test.ts`
 
 Expected: FAIL because metadata status is not represented in renderer state.
 
-- [ ] **Step 3: Load and refresh status with library data**
+- [x] **Step 3: Load and refresh status with library data**
 
 Initialize renderer state with:
 
@@ -608,19 +608,19 @@ const [metadataStatus, setMetadataStatus] = useState<LibraryMetadataStatus>({
 
 Load settings, metadata, and status together at startup. After `saveSettings` changes `libraryPath`, fetch both metadata and status before re-enabling the library UI. Do the same after `retryLibraryMetadata`.
 
-- [ ] **Step 4: Make metadata mutations report real outcomes**
+- [x] **Step 4: Make metadata mutations report real outcomes**
 
 Wrap favorite, tag, note, catalog-tag, and path-metadata-triggering flows with `try/catch`. Update local metadata only with the resolved result. On rejection, keep current state and set `operationMessage` to `Não foi possível salvar os dados da biblioteca: ${readErrorMessage(error)}`. Do not optimistically change favorite/tag/note state.
 
-- [ ] **Step 5: Disable durable edits without blocking model use**
+- [x] **Step 5: Disable durable edits without blocking model use**
 
 Pass `metadataStatus.writable` into details, tag picker, settings, and model context menu. Disable favorite, tag, note, add/remove catalog tag controls and add a tooltip that uses `metadataStatus.message`. Keep preview, Explorer reveal, conversion, archive extraction, native drag, and slicer launch available when the underlying model file is readable. When slicer history cannot be written, show the main-process warning but do not undo a successful slicer launch.
 
-- [ ] **Step 6: Add a compact recovery notice**
+- [x] **Step 6: Add a compact recovery notice**
 
 Above the details tabs, render a restrained warning only when status is not ready or has a recovery message. Include a `Tentar novamente` button calling `retryLibraryMetadata`. Use the existing `.notice.warning` visual language and ensure it wraps inside the fixed details width.
 
-- [ ] **Step 7: Run UI contracts and build**
+- [x] **Step 7: Run UI contracts and build**
 
 Run: `npm test -- tests/unit/interactionFlowContract.test.ts tests/unit/productFlowContract.test.ts tests/unit/layoutContract.test.ts`
 
@@ -628,7 +628,7 @@ Run: `npm run build`
 
 Expected: PASS with no TypeScript prop or preload errors.
 
-- [ ] **Step 8: Commit the read-only flow**
+- [x] **Step 8: Commit the read-only flow**
 
 ```bash
 git add src/App.tsx src/components/DetailsPanel.tsx src/components/SettingsDialog.tsx src/components/TagSelector.tsx src/styles.css tests/unit/interactionFlowContract.test.ts tests/unit/productFlowContract.test.ts

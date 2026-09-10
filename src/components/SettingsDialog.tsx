@@ -7,6 +7,8 @@ import type { AppSettings, SlicerConfig } from "../shared/types";
 type SettingsDialogProps = {
   settings: AppSettings;
   tagCatalog: string[];
+  metadataWritable: boolean;
+  metadataMessage: string | null;
   onClose: () => void;
   onSaveSettings: (settings: AppSettings) => Promise<void>;
   onChooseLibraryFolder: () => Promise<void>;
@@ -23,6 +25,8 @@ type SettingsTab = "library" | "organization" | "integrations";
 export function SettingsDialog({
   settings,
   tagCatalog,
+  metadataWritable,
+  metadataMessage,
   onClose,
   onSaveSettings,
   onChooseLibraryFolder,
@@ -89,6 +93,8 @@ export function SettingsDialog({
           <OrganizationSettings
             settings={settings}
             tagCatalog={tagCatalog}
+            metadataWritable={metadataWritable}
+            metadataMessage={metadataMessage}
             onSaveSettings={onSaveSettings}
             onAddCatalogTag={onAddCatalogTag}
             onRemoveCatalogTag={onRemoveCatalogTag}
@@ -200,12 +206,20 @@ function LibrarySettings({
 function OrganizationSettings({
   settings,
   tagCatalog,
+  metadataWritable,
+  metadataMessage,
   onSaveSettings,
   onAddCatalogTag,
   onRemoveCatalogTag
 }: Pick<
   SettingsDialogProps,
-  "settings" | "tagCatalog" | "onSaveSettings" | "onAddCatalogTag" | "onRemoveCatalogTag"
+  | "settings"
+  | "tagCatalog"
+  | "metadataWritable"
+  | "metadataMessage"
+  | "onSaveSettings"
+  | "onAddCatalogTag"
+  | "onRemoveCatalogTag"
 >) {
   return (
     <>
@@ -236,14 +250,28 @@ function OrganizationSettings({
             title="Tags"
             description="Categorias disponíveis para classificar modelos."
           />
-          <button type="button" onClick={onAddCatalogTag}>Nova tag</button>
+          <button
+            type="button"
+            onClick={onAddCatalogTag}
+            disabled={!metadataWritable}
+            title={!metadataWritable ? metadataMessage ?? "Tags indisponíveis para edição" : undefined}
+          >
+            Nova tag
+          </button>
         </div>
         <div className="tag-settings-list">
           {tagCatalog.length > 0 ? (
             tagCatalog.map((tag) => (
               <div className="tag-settings-row" key={tag}>
                 <span>{tag}</span>
-                <button type="button" onClick={() => onRemoveCatalogTag(tag)}>Excluir</button>
+                <button
+                  type="button"
+                  onClick={() => onRemoveCatalogTag(tag)}
+                  disabled={!metadataWritable}
+                  title={!metadataWritable ? metadataMessage ?? "Tags indisponíveis para edição" : undefined}
+                >
+                  Excluir
+                </button>
               </div>
             ))
           ) : (

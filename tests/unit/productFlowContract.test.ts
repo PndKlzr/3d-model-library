@@ -212,4 +212,13 @@ describe("product flow contract", () => {
 
     expect(appSource).toContain('typeof window.modelLibrary.getModelHashes !== "function"');
   });
+
+  it("shows a compact portable metadata recovery notice", async () => {
+    const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+
+    expect(detailsSource).toContain("metadataStatus");
+    expect(detailsSource).toContain("metadata-recovery-notice");
+    expect(detailsSource).toContain("Tentar novamente");
+    expect(detailsSource).toContain("onRetryMetadata");
+  });
 });
