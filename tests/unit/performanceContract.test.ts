@@ -2,6 +2,21 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("performance contract", () => {
+  it("documents bounded thumbnail memory and reproducible benchmark commands", async () => {
+    const readme = await readFile("README.md", "utf8");
+    const baseline = await readFile("docs/performance/thumbnail-benchmark-baseline.md", "utf8");
+    const scheduler = await readFile("src/lib/thumbnailScheduler.ts", "utf8");
+
+    expect(readme).toContain("npm run benchmark:thumbnails");
+    expect(readme).toContain("does not write to the selected library");
+    expect(baseline).toContain("Cold thumbnails");
+    expect(baseline).toContain("Warm thumbnails");
+    expect(baseline).toContain("Scroll stress");
+    expect(baseline).not.toMatch(/[A-Z]:\\\\Users\\\\/i);
+    expect(scheduler).toContain("maxCompletedEntries");
+    expect(scheduler).toContain("maxHistoricalJobs");
+  });
+
   it("does not auto-render model thumbnails in the grid", async () => {
     const modelGridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
     const cardThumbnailSource = await readFile("src/components/ModelCardThumbnail.tsx", "utf8");
