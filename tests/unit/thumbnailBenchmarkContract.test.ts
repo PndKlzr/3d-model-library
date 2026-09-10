@@ -18,12 +18,25 @@ describe("thumbnail benchmark isolation contract", () => {
     const preload = await readFile("electron/preload.cjs", "utf8");
 
     expect(main.indexOf('app.setPath("userData"')).toBeGreaterThan(-1);
+    expect(main.indexOf("realpathSync")).toBeGreaterThan(-1);
+    expect(main.indexOf("realpathSync")).toBeLessThan(main.indexOf('app.setPath("userData"'));
     expect(main.indexOf('app.setPath("userData"')).toBeLessThan(main.indexOf("app.whenReady()"));
     expect(main).toContain('ipcMain.handle("benchmark:get-config"');
     expect(main).toContain('ipcMain.handle("benchmark:submit-report"');
+    expect(main).toContain('ipcMain.handle("benchmark:fatal"');
+    expect(main).toContain("failBenchmark");
+    expect(main).toContain('window.webContents.on("did-fail-load"');
+    expect(main).toContain('window.webContents.on("render-process-gone"');
+    expect(main).toContain(".catch(failBenchmark)");
+    expect(main).toContain("MODEL_LIBRARY_BENCHMARK_FAILURE_PROBE");
+    expect(main).toContain('benchmarkEnvironment && benchmarkFailureProbe === "load"');
+    expect(main).toContain('benchmarkFailureProbe === "report"');
+    expect(main.indexOf('benchmarkFailureProbe === "report"'))
+      .toBeGreaterThan(main.indexOf('ipcMain.handle("benchmark:submit-report"'));
     expect(main).toContain('path.join(__dirname, "..", "..", "dist-renderer", "index.html")');
     expect(preload).toContain('ipcRenderer.invoke("benchmark:get-config")');
     expect(preload).toContain('ipcRenderer.invoke("benchmark:submit-report"');
+    expect(preload).toContain('ipcRenderer.invoke("benchmark:fatal"');
   });
 
   it("builds renderer assets with file-compatible relative URLs", async () => {

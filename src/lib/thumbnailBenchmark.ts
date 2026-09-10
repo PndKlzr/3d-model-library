@@ -27,8 +27,8 @@ export type ThumbnailBenchmarkReport = {
     overTenMiB: number;
   };
   timingsMs: {
-    cachedGridVisible: number;
-    firstVisibleThumbnail: number;
+    libraryScanReady: number;
+    firstVisibleThumbnail: number | null;
     initiallyVisibleSettled: number;
     fullReconciliation: number;
   };
@@ -45,6 +45,8 @@ type BenchmarkOptions = {
   now?: () => number;
   generatedAt?: () => string;
   runtime?: ThumbnailBenchmarkReport["runtime"];
+  libraryScanReadyMs?: number;
+  waitForFrame?: () => Promise<void>;
 };
 
 type PassResult = {
@@ -70,7 +72,13 @@ export async function runThumbnailBenchmark(
   }
 
   const pass = options.scenario === "scroll"
-    ? await runScrollPass(supportedModels, options.request, options.diagnostics, now)
+    ? await runScrollPass(
+        supportedModels,
+        options.request,
+        options.diagnostics,
+        now,
+        options.waitForFrame ?? defaultFrameWait
+      )
     : await runStandardPass(supportedModels, options.request, options.diagnostics, now);
 
   return {
@@ -80,7 +88,10 @@ export async function runThumbnailBenchmark(
     runtime: sanitizeRuntime(options.runtime),
     modelCount: supportedModels.length,
     sizeBuckets: countSizeBuckets(supportedModels),
-    timingsMs: pass.timingsMs,
+    timingsMs: {
+      ...pass.timingsMs,
+      libraryScanReady: normalizeDuration(options.libraryScanReadyMs ?? 0)
+    },
     queuePeak: pass.queuePeak,
     thumbnail: sanitizeDiagnostics(options.diagnostics())
   };
@@ -100,102 +111,124 @@ async function runStandardPass(
   diagnostics: BenchmarkOptions["diagnostics"],
   now: () => number
 ): Promise<PassResult> {
-  return runMeasuredPass(
-    models,
-    () => models.map((model, index) => request(model, initialPriority(index))),
-    diagnostics,
-    now
-  );
+  const tracker = createPassTracker(now, diagnostics);
+
+  for (let offset = 0; offset < models.length; offset += INITIAL_VISIBLE_COUNT) {
+    const batch = models.slice(offset, offset + INITIAL_VISIBLE_COUNT);
+    const handles = batch.map((model, index) => request(model, initialPriority(index)));
+    try {
+      await settleWindow(handles, tracker, offset === 0);
+    } finally {
+      handles.forEach((handle) => handle.release());
+    }
+  }
+
+  return tracker.finish();
 }
 
 async function runScrollPass(
   models: ModelFile[],
   request: BenchmarkOptions["request"],
   diagnostics: BenchmarkOptions["diagnostics"],
-  now: () => number
+  now: () => number,
+  waitForFrame: () => Promise<void>
 ): Promise<PassResult> {
-  return runMeasuredPass(
-    models,
-    () => models.map((model) => request(model, "historical")),
-    diagnostics,
-    now,
-    async (handles, sampleQueue) => {
-      for (let windowStart = 0; windowStart < models.length; windowStart += SCROLL_STEP) {
-        const windowEnd = Math.min(models.length, windowStart + INITIAL_VISIBLE_COUNT);
-        const nearbyStart = Math.max(0, windowStart - SCROLL_STEP);
-        const nearbyEnd = Math.min(models.length, windowEnd + SCROLL_STEP);
+  const tracker = createPassTracker(now, diagnostics);
+  const positions = createScrollPositions(models.length);
 
-        handles.forEach((handle, index) => {
-          const priority: ThumbnailPriority = index === windowStart
-            ? "selected"
-            : index >= windowStart && index < windowEnd
-              ? "visible"
-              : index >= nearbyStart && index < nearbyEnd
-                ? "nearby"
-                : "historical";
-          handle.setPriority(priority);
-        });
-        await Promise.resolve();
-        sampleQueue();
-      }
+  for (let visit = 0; visit < positions.length; visit += 1) {
+    await waitForFrame();
+    const windowStart = positions[visit];
+    const windowEnd = Math.min(models.length, windowStart + INITIAL_VISIBLE_COUNT);
+    const nearbyStart = Math.max(0, windowStart - SCROLL_STEP);
+    const nearbyEnd = Math.min(models.length, windowEnd + SCROLL_STEP);
+    const handles = models.slice(nearbyStart, nearbyEnd).map((model, localIndex) => {
+      const index = nearbyStart + localIndex;
+      const priority: ThumbnailPriority = index === windowStart
+        ? "selected"
+        : index >= windowStart && index < windowEnd
+          ? "visible"
+          : "nearby";
+      return request(model, priority);
+    });
+    try {
+      await settleWindow(handles, tracker, visit === 0, windowEnd - windowStart);
+    } finally {
+      handles.forEach((handle) => handle.release());
     }
-  );
+  }
+
+  return tracker.finish();
 }
 
-async function runMeasuredPass(
-  models: ModelFile[],
-  createHandles: () => ThumbnailBenchmarkRequest[],
-  diagnostics: BenchmarkOptions["diagnostics"],
-  now: () => number,
-  prepare?: (
-    handles: ThumbnailBenchmarkRequest[],
-    sampleQueue: () => void
-  ) => Promise<void>
-): Promise<PassResult> {
+function createPassTracker(now: () => number, diagnostics: BenchmarkOptions["diagnostics"]) {
   const startedAt = now();
-  const handles = createHandles();
   let queuePeak = diagnostics().queued.total;
-  const sampleQueue = () => {
-    queuePeak = Math.max(queuePeak, diagnostics().queued.total);
-  };
-  const initialHandles = handles.slice(0, Math.min(INITIAL_VISIBLE_COUNT, models.length));
+  let firstVisibleThumbnail: number | null = null;
+  let initiallyVisibleSettled = 0;
 
-  try {
-    await prepare?.(handles, sampleQueue);
-    await Promise.resolve();
-    sampleQueue();
-
-    if (initialHandles.length === 0) {
+  return {
+    startedAt,
+    now,
+    sampleQueue() {
+      queuePeak = Math.max(queuePeak, diagnostics().queued.total);
+    },
+    recordSuccess() {
+      if (firstVisibleThumbnail === null) firstVisibleThumbnail = elapsed(now(), startedAt);
+    },
+    settleInitial() {
+      initiallyVisibleSettled = elapsed(now(), startedAt);
+    },
+    finish(): PassResult {
       return {
-        timingsMs: emptyTimings(),
+        timingsMs: {
+          libraryScanReady: 0,
+          firstVisibleThumbnail,
+          initiallyVisibleSettled,
+          fullReconciliation: elapsed(now(), startedAt)
+        },
         queuePeak
       };
     }
+  };
+}
 
-    await Promise.race(initialHandles.map((handle) => handle.promise));
-    const firstVisibleThumbnail = elapsed(now(), startedAt);
-    sampleQueue();
-
-    await Promise.all(initialHandles.map((handle) => handle.promise));
-    const initiallyVisibleSettled = elapsed(now(), startedAt);
-    sampleQueue();
-
-    await Promise.all(handles.map((handle) => handle.promise));
-    const fullReconciliation = elapsed(now(), startedAt);
-    sampleQueue();
-
-    return {
-      timingsMs: {
-        cachedGridVisible: 0,
-        firstVisibleThumbnail,
-        initiallyVisibleSettled,
-        fullReconciliation
-      },
-      queuePeak
-    };
-  } finally {
-    handles.forEach((handle) => handle.release());
+async function settleWindow(
+  handles: ThumbnailBenchmarkRequest[],
+  tracker: ReturnType<typeof createPassTracker>,
+  initial: boolean,
+  initiallyVisibleCount = handles.length
+) {
+  await Promise.resolve();
+  tracker.sampleQueue();
+  const promises = handles.map((handle) => handle.promise.then((thumbnail) => {
+    if (thumbnail !== null) tracker.recordSuccess();
+    return thumbnail;
+  }));
+  if (promises.length > 0) await Promise.race(promises);
+  tracker.sampleQueue();
+  if (initial) {
+    await Promise.all(promises.slice(0, initiallyVisibleCount));
+    tracker.settleInitial();
   }
+  await Promise.all(promises);
+  tracker.sampleQueue();
+}
+
+function createScrollPositions(modelCount: number) {
+  if (modelCount === 0) return [];
+  const last = Math.max(0, modelCount - INITIAL_VISIBLE_COUNT);
+  const downward: number[] = [];
+  for (let start = 0; start < last; start += SCROLL_STEP) downward.push(start);
+  if (downward.at(-1) !== last) downward.push(last);
+  return [...downward, ...downward.slice(0, -1).reverse()];
+}
+
+function defaultFrameWait() {
+  return new Promise<void>((resolve) => {
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => resolve());
+    else setTimeout(resolve, 0);
+  });
 }
 
 function initialPriority(index: number): ThumbnailPriority {
@@ -240,10 +273,14 @@ function elapsed(current: number, startedAt: number) {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
+function normalizeDuration(value: number) {
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
 function emptyTimings(): ThumbnailBenchmarkReport["timingsMs"] {
   return {
-    cachedGridVisible: 0,
-    firstVisibleThumbnail: 0,
+    libraryScanReady: 0,
+    firstVisibleThumbnail: null,
     initiallyVisibleSettled: 0,
     fullReconciliation: 0
   };

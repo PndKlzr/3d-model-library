@@ -244,6 +244,15 @@ export function createThumbnailScheduler(options: ThumbnailSchedulerOptions = {}
     if (changed) publishSnapshot();
   }
 
+  function resetMetrics() {
+    if (activeJobs > 0 || [...jobs.values()].some((job) => job.state === "queued")) {
+      throw new Error("Cannot reset thumbnail scheduler while work is active");
+    }
+    clearCompleted();
+    discardedHistorical = 0;
+    publishSnapshot();
+  }
+
   function createSnapshot(): ThumbnailSchedulerSnapshot {
     const queued: Record<ThumbnailPriority, number> = {
       selected: 0,
@@ -316,7 +325,7 @@ export function createThumbnailScheduler(options: ThumbnailSchedulerOptions = {}
     return new Promise<void>((resolve) => idleWaiters.add(resolve));
   }
 
-  return { enqueue, getSnapshot, subscribe, clearCompleted, pruneCompleted, onIdle };
+  return { enqueue, getSnapshot, subscribe, clearCompleted, resetMetrics, pruneCompleted, onIdle };
 }
 
 function normalizeLimit(value: number | undefined, fallback: number) {

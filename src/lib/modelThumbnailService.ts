@@ -252,6 +252,8 @@ export function createModelThumbnailService(
   }
 
   function resetDiagnostics() {
+    ioScheduler.resetMetrics();
+    renderScheduler.resetMetrics();
     peakRetainedResults = 0;
     diagnostics.reset();
     publishDiagnostics();

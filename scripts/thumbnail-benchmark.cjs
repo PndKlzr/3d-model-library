@@ -1,9 +1,10 @@
-const { mkdir, mkdtemp, rm, stat } = require("node:fs/promises");
+const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const childProcess = require("node:child_process");
 
 const SCENARIOS = new Set(["cold", "warm", "scroll"]);
+const DEFAULT_TIMEOUT_MS = 120_000;
 
 function parseArguments(args) {
   let library;
@@ -26,28 +27,85 @@ function parseArguments(args) {
   return { library: path.resolve(library), scenario };
 }
 
-async function run(args = process.argv.slice(2)) {
-  const options = parseArguments(args);
-  const libraryStat = await stat(options.library);
+async function run(args = process.argv.slice(2), overrides = {}) {
+  const dependencies = {
+    cwd: process.cwd(),
+    tmpdir: os.tmpdir(),
+    now: Date.now,
+    realpath: fs.realpath,
+    stat: fs.stat,
+    mkdir: fs.mkdir,
+    mkdtemp: fs.mkdtemp,
+    rm: fs.rm,
+    spawnElectron,
+    ...overrides
+  };
+  const parsed = parseArguments(args);
+  const library = await dependencies.realpath(parsed.library);
+  const libraryStat = await dependencies.stat(library);
   if (!libraryStat.isDirectory()) throw new Error("--library must identify a directory");
 
-  const outputDirectory = path.resolve(process.cwd(), "benchmark-results");
-  const output = path.join(outputDirectory, `thumbnail-${options.scenario}-${Date.now()}.json`);
-  const userData = await mkdtemp(path.join(os.tmpdir(), "model-library-benchmark-"));
-  await mkdir(outputDirectory, { recursive: true });
+  const canonicalCwd = await dependencies.realpath(dependencies.cwd);
+  const canonicalTempRoot = await dependencies.realpath(dependencies.tmpdir);
+  const outputDirectory = await canonicalizePotentialPath(
+    path.join(canonicalCwd, "benchmark-results"),
+    dependencies.realpath
+  );
+  assertOutsideLibrary(library, outputDirectory, "benchmark output");
+  assertOutsideLibrary(library, canonicalTempRoot, "temporary user data");
+
+  const output = path.join(
+    outputDirectory,
+    `thumbnail-${parsed.scenario}-${dependencies.now()}.json`
+  );
+  let userData;
 
   try {
-    await spawnElectron({ ...options, output, userData });
-    await stat(output);
+    userData = await dependencies.mkdtemp(
+      path.join(canonicalTempRoot, "model-library-benchmark-")
+    );
+    await dependencies.mkdir(outputDirectory, { recursive: true });
+    await dependencies.spawnElectron({
+      library,
+      scenario: parsed.scenario,
+      output,
+      userData
+    });
+    await dependencies.stat(output);
     process.stdout.write(`${output}\n`);
   } finally {
-    await rm(userData, { recursive: true, force: true });
+    if (userData) await dependencies.rm(userData, { recursive: true, force: true });
   }
 }
 
-function spawnElectron({ library, scenario, output, userData }) {
-  const electronPath = require("electron");
-  const mainPath = path.resolve(process.cwd(), "dist-electron", "electron", "main.js");
+async function canonicalizePotentialPath(candidate, realpath) {
+  try {
+    return await realpath(candidate);
+  } catch (error) {
+    if (!error || error.code !== "ENOENT") throw error;
+    const parent = path.dirname(candidate);
+    if (parent === candidate) throw error;
+    return path.join(await canonicalizePotentialPath(parent, realpath), path.basename(candidate));
+  }
+}
+
+function assertOutsideLibrary(library, candidate, label) {
+  const relative = path.relative(library, candidate);
+  if (relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))) {
+    throw new Error(`${label} must be outside the library`);
+  }
+}
+
+function spawnElectron({ library, scenario, output, userData }, overrides = {}) {
+  const spawn = overrides.spawn ?? childProcess.spawn;
+  const timeoutMs = overrides.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const electronPath = overrides.electronPath ?? require("electron");
+  const mainPath = overrides.mainPath ?? path.resolve(
+    process.cwd(),
+    "dist-electron",
+    "electron",
+    "main.js"
+  );
   const child = spawn(electronPath, [mainPath], {
     cwd: process.cwd(),
     env: {
@@ -61,15 +119,29 @@ function spawnElectron({ library, scenario, output, userData }) {
   });
 
   return new Promise((resolve, reject) => {
-    child.once("error", reject);
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      if (error) reject(error);
+      else resolve();
+    };
+    const watchdog = setTimeout(() => {
+      child.kill();
+      finish(new Error(`Electron benchmark timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    watchdog.unref?.();
+
+    child.once("error", (error) => finish(error));
     child.once("exit", (code, signal) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Electron benchmark failed (${signal ?? code})`));
+      if (code === 0) finish();
+      else finish(new Error(`Electron benchmark failed (${signal ?? code})`));
     });
   });
 }
 
-module.exports = { parseArguments, run };
+module.exports = { parseArguments, run, spawnElectron };
 
 if (require.main === module) {
   run().catch((error) => {

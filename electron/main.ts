@@ -9,6 +9,7 @@ import {
   type WebContents
 } from "electron";
 import { readFile, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -65,6 +66,7 @@ const __dirname = path.dirname(__filename);
 
 const isDev = !app.isPackaged;
 const benchmarkEnvironment = readBenchmarkEnvironment();
+const benchmarkFailureProbe = process.env.MODEL_LIBRARY_BENCHMARK_FAILURE_PROBE;
 
 if (benchmarkEnvironment) {
   app.setPath("userData", benchmarkEnvironment.userData);
@@ -79,6 +81,9 @@ let thumbnailCache: ThumbnailCache;
 let watcherGeneration = 0;
 let benchmarkScanResult: Awaited<ReturnType<typeof scanLibrary>> | null = null;
 let benchmarkReportWritten = false;
+let benchmarkFailed = false;
+let benchmarkLibraryScanReadyMs = 0;
+const benchmarkStartedAt = performance.now();
 const dragIcon = createFileDragIcon();
 
 type BenchmarkEnvironment = {
@@ -104,15 +109,21 @@ function readBenchmarkEnvironment(): BenchmarkEnvironment | null {
     throw new Error("Invalid benchmark output path");
   }
   if (!userData || !path.isAbsolute(userData)) throw new Error("Invalid benchmark userData path");
-  if (isPathAtOrInside(root, output) || isPathAtOrInside(root, userData)) {
+  const canonicalRoot = realpathSync(root);
+  const canonicalOutput = path.join(realpathSync(path.dirname(output)), path.basename(output));
+  const canonicalUserData = realpathSync(userData);
+  if (
+    isPathAtOrInside(canonicalRoot, canonicalOutput) ||
+    isPathAtOrInside(canonicalRoot, canonicalUserData)
+  ) {
     throw new Error("Benchmark writable paths must be outside the library");
   }
 
   return {
-    root: path.resolve(root),
+    root: canonicalRoot,
     scenario,
-    output: path.resolve(output),
-    userData: path.resolve(userData)
+    output: canonicalOutput,
+    userData: canonicalUserData
   };
 }
 
@@ -464,8 +475,12 @@ function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
   ipcMain.handle("system:runtime-versions", () => getRuntimeVersions());
   ipcMain.handle("benchmark:get-config", () => ({
     scenario: environment.scenario,
-    models: benchmarkScanResult?.models ?? []
+    models: benchmarkScanResult?.models ?? [],
+    libraryScanReadyMs: benchmarkLibraryScanReadyMs
   }));
+  ipcMain.handle("benchmark:fatal", (_event, message: unknown) => {
+    failBenchmark(new Error(typeof message === "string" ? message.slice(0, 512) : "Renderer failed"));
+  });
   ipcMain.handle("model:thumbnail", async (_event, absolutePath: string) => {
     assertPathInsideLibrary(absolutePath);
     return readEmbeddedThumbnail(absolutePath);
@@ -487,15 +502,28 @@ function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   });
   ipcMain.handle("benchmark:submit-report", async (_event, submittedReport: unknown) => {
-    if (benchmarkReportWritten) throw new Error("Benchmark report was already submitted");
-    const report = sanitizeBenchmarkReport(submittedReport, environment);
-    benchmarkReportWritten = true;
-    await writeFile(environment.output, `${JSON.stringify(report, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx"
-    });
-    setImmediate(() => app.quit());
+    try {
+      if (benchmarkFailureProbe === "report") throw new Error("Forced report rejection");
+      if (benchmarkReportWritten) throw new Error("Benchmark report was already submitted");
+      const report = sanitizeBenchmarkReport(submittedReport, environment);
+      await writeFile(environment.output, `${JSON.stringify(report, null, 2)}\n`, {
+        encoding: "utf8",
+        flag: "wx"
+      });
+      benchmarkReportWritten = true;
+      setImmediate(() => app.quit());
+    } catch (error) {
+      failBenchmark(error);
+      throw error;
+    }
   });
+}
+
+function failBenchmark(error: unknown) {
+  if (benchmarkFailed) return;
+  benchmarkFailed = true;
+  console.error("[thumbnail-benchmark:fatal]", error);
+  app.exit(1);
 }
 
 function sanitizeBenchmarkReport(value: unknown, environment: BenchmarkEnvironment) {
@@ -525,8 +553,11 @@ function sanitizeBenchmarkReport(value: unknown, environment: BenchmarkEnvironme
       overTenMiB: aggregateNumber(sizeBuckets.overTenMiB, "overTenMiB", true)
     },
     timingsMs: {
-      cachedGridVisible: aggregateNumber(timings.cachedGridVisible, "cachedGridVisible"),
-      firstVisibleThumbnail: aggregateNumber(timings.firstVisibleThumbnail, "firstVisibleThumbnail"),
+      libraryScanReady: aggregateNumber(timings.libraryScanReady, "libraryScanReady"),
+      firstVisibleThumbnail: nullableAggregateNumber(
+        timings.firstVisibleThumbnail,
+        "firstVisibleThumbnail"
+      ),
       initiallyVisibleSettled: aggregateNumber(
         timings.initiallyVisibleSettled,
         "initiallyVisibleSettled"
@@ -586,6 +617,10 @@ function aggregateNumber(value: unknown, label: string, integer = false) {
   }
   if (integer && !Number.isInteger(value)) throw new Error(`Invalid aggregate ${label}`);
   return value;
+}
+
+function nullableAggregateNumber(value: unknown, label: string) {
+  return value === null ? null : aggregateNumber(value, label);
 }
 
 function sanitizeCounters(record: Record<string, unknown>, keys: string[]) {
@@ -784,16 +819,25 @@ async function createWindow() {
 
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
     console.error(`[renderer:load-failed] ${errorCode} ${errorDescription} ${validatedURL}`);
+    if (benchmarkEnvironment) failBenchmark(new Error(`Renderer load failed: ${errorCode}`));
   });
 
   window.webContents.on("render-process-gone", (_event, details) => {
     console.error(`[renderer:gone] ${details.reason}`);
+    if (benchmarkEnvironment) failBenchmark(new Error(`Renderer exited: ${details.reason}`));
+  });
+
+  window.on("unresponsive", () => {
+    if (benchmarkEnvironment) failBenchmark(new Error("Renderer became unresponsive"));
   });
 
   if (isDev && !benchmarkEnvironment) {
     await window.loadURL("http://127.0.0.1:5173");
   } else {
-    await window.loadFile(path.join(__dirname, "..", "..", "dist-renderer", "index.html"));
+    const rendererEntry = benchmarkEnvironment && benchmarkFailureProbe === "load"
+      ? path.join(__dirname, "missing-benchmark-renderer.html")
+      : path.join(__dirname, "..", "..", "dist-renderer", "index.html");
+    await window.loadFile(rendererEntry);
   }
 }
 
@@ -803,6 +847,7 @@ app.whenReady().then(async () => {
       cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")
     });
     benchmarkScanResult = await scanLibrary(benchmarkEnvironment.root);
+    benchmarkLibraryScanReadyMs = performance.now() - benchmarkStartedAt;
     registerBenchmarkIpcHandlers(benchmarkEnvironment);
     await createWindow();
     return;
@@ -833,7 +878,7 @@ app.whenReady().then(async () => {
       await createWindow();
     }
   });
-});
+}).catch(failBenchmark);
 
 function sendFileDragStatus(sender: WebContents, status: FileDragStatus) {
   sender.send("model:file-drag-status", status);

@@ -78,6 +78,7 @@ type LocalActionLogEntry = LibraryActionLogEntry & {
 type BenchmarkConfiguration = {
   scenario: ThumbnailBenchmarkScenario;
   models: ModelFile[];
+  libraryScanReadyMs: number;
 };
 
 function App() {
@@ -113,12 +114,13 @@ function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfigu
         request: (model, priority) => modelThumbnailService.request(model, priority),
         diagnostics: () => modelThumbnailService.getDiagnostics(),
         resetDiagnostics: () => modelThumbnailService.resetDiagnostics(),
+        libraryScanReadyMs: configuration.libraryScanReadyMs,
         runtime
       }))
       .then((report) => active ? window.modelLibrary.submitThumbnailBenchmark(report) : undefined)
       .catch((error) => {
         console.error("[thumbnail-benchmark]", error);
-        window.close();
+        void window.modelLibrary.failThumbnailBenchmark(readErrorMessage(error));
       });
 
     return () => {

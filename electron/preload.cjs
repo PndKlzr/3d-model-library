@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   version: "0.1.0",
   getThumbnailBenchmark: () => ipcRenderer.invoke("benchmark:get-config"),
   submitThumbnailBenchmark: (report) => ipcRenderer.invoke("benchmark:submit-report", report),
+  failThumbnailBenchmark: (message) => ipcRenderer.invoke("benchmark:fatal", message),
   getRuntimeVersions: () => ipcRenderer.invoke("system:runtime-versions"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),

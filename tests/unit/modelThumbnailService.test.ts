@@ -13,6 +13,7 @@ describe("modelThumbnailService", () => {
     const service = createModelThumbnailService(dependencies());
 
     await service.request(model(), "visible").promise;
+    service.recordLongTask(125);
     expect(service.getDiagnostics().renders).toBe(1);
 
     service.resetDiagnostics();
@@ -21,7 +22,15 @@ describe("modelThumbnailService", () => {
       cacheHits: 0,
       cacheMisses: 0,
       renders: 0,
-      failures: 0
+      failures: 0,
+      discardedHistorical: 0,
+      longTasks: { count: 0, maximumMs: 0 },
+      retainedResults: { current: 0, peak: 0 },
+      durationMs: {
+        io: { count: 0, average: 0, maximum: 0 },
+        render: { count: 0, average: 0, maximum: 0 },
+        total: { count: 0, average: 0, maximum: 0 }
+      }
     });
   });
 

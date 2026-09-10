@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest";
 import { createThumbnailScheduler } from "../../src/lib/thumbnailScheduler";
 
 describe("thumbnailScheduler", () => {
+  it("clears retained results and lifetime counters for a new measurement pass", async () => {
+    const scheduler = createThumbnailScheduler({ concurrency: 1, maxHistoricalJobs: 0 });
+    const completed = scheduler.enqueue("completed", "visible", async () => "image");
+    await completed.promise;
+    const discarded = scheduler.enqueue("discarded", "historical", async () => "late");
+    await discarded.promise;
+    expect(scheduler.getSnapshot()).toMatchObject({ retainedResults: 1, discardedHistorical: 1 });
+
+    scheduler.resetMetrics();
+
+    expect(scheduler.getSnapshot()).toMatchObject({ retainedResults: 0, discardedHistorical: 0 });
+  });
+
   it("lets visible work overtake queued historical work", async () => {
     const order: string[] = [];
     const scheduler = createThumbnailScheduler({ concurrency: 1 });
