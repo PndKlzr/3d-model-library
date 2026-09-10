@@ -61,6 +61,7 @@ export function createThumbnailScheduler(options: ThumbnailSchedulerOptions = {}
   let discardedHistorical = 0;
   let sequence = 0;
   let runScheduled = false;
+  let completedExpiryTimer: ReturnType<typeof setTimeout> | undefined;
 
   function enqueue<T>(
     key: string,
@@ -223,7 +224,25 @@ export function createThumbnailScheduler(options: ThumbnailSchedulerOptions = {}
     const removed = new Set([...expired, ...overLimit]);
 
     for (const job of removed) jobs.delete(job.key);
+    scheduleCompletedExpiry();
     if (notify && removed.size > 0) publishSnapshot();
+  }
+
+  function scheduleCompletedExpiry() {
+    if (completedExpiryTimer !== undefined) {
+      clearTimeout(completedExpiryTimer);
+      completedExpiryTimer = undefined;
+    }
+    const nextCompletedAt = [...jobs.values()]
+      .filter((job) => job.state === "completed" && job.completedAt !== undefined)
+      .reduce<number | undefined>((earliest, job) =>
+        earliest === undefined ? job.completedAt : Math.min(earliest, job.completedAt!), undefined);
+    if (nextCompletedAt === undefined) return;
+
+    completedExpiryTimer = setTimeout(() => {
+      completedExpiryTimer = undefined;
+      pruneCompleted();
+    }, Math.max(0, nextCompletedAt + completedTtlMs - now()));
   }
 
   function clearCompleted(key?: string) {
@@ -241,6 +260,7 @@ export function createThumbnailScheduler(options: ThumbnailSchedulerOptions = {}
         changed = true;
       }
     }
+    scheduleCompletedExpiry();
     if (changed) publishSnapshot();
   }
 

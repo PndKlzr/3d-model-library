@@ -32,8 +32,15 @@ export function createThumbnailDiagnostics(now: () => number = () => performance
   const listeners = new Set<ThumbnailSnapshotListener>();
   const snapshot = createEmptyThumbnailDiagnosticsSnapshot();
   return {
+    startRequest() {
+      return createTrackedThumbnailRequest(snapshot, listeners, now);
+    },
     start(stage: ThumbnailStage, priority: ThumbnailPriority) {
       return createTrackedThumbnailOperation(snapshot, listeners, now, stage, priority);
+    },
+    recordCacheMiss() {
+      snapshot.cacheMisses += 1;
+      publishThumbnailSnapshot(snapshot, listeners);
     },
     recordLongTask(durationMs: number) {
       snapshot.longTasks.count += 1;
@@ -152,7 +159,7 @@ function createTrackedThumbnailOperation(
     } else if (result) {
       recordResult(snapshot, result);
     }
-    recordDuration(snapshot, stage, normalizeDuration(now() - startedAt));
+    recordStageDuration(snapshot, stage, normalizeDuration(now() - startedAt));
     publishThumbnailSnapshot(snapshot, listeners);
   }
 
@@ -178,17 +185,37 @@ function createTrackedThumbnailOperation(
   };
 }
 
+function createTrackedThumbnailRequest(
+  snapshot: ThumbnailDiagnosticsSnapshot,
+  listeners: Set<ThumbnailSnapshotListener>,
+  now: () => number
+) {
+  const startedAt = now();
+  const generation = generationBySnapshot.get(snapshot);
+  let isSettled = false;
+  return {
+    settled() {
+      if (generationBySnapshot.get(snapshot) !== generation || isSettled) return;
+      isSettled = true;
+      const durationMs = normalizeDuration(now() - startedAt);
+      const totals = durationTotalsBySnapshot.get(snapshot);
+      if (!totals) return;
+      updateDurationSummary(snapshot.durationMs.total, totals, "total", durationMs);
+      publishThumbnailSnapshot(snapshot, listeners);
+    }
+  };
+}
+
 function recordResult(snapshot: ThumbnailDiagnosticsSnapshot, source: ThumbnailResultSource) {
   if (source === "cache") {
     snapshot.cacheHits += 1;
     return;
   }
-  snapshot.cacheMisses += 1;
   if (source === "embedded") snapshot.embeddedHits += 1;
   if (source === "render") snapshot.renders += 1;
 }
 
-function recordDuration(
+function recordStageDuration(
   snapshot: ThumbnailDiagnosticsSnapshot,
   stage: ThumbnailStage,
   durationMs: number
@@ -196,7 +223,6 @@ function recordDuration(
   const totals = durationTotalsBySnapshot.get(snapshot);
   if (!totals) return;
   updateDurationSummary(snapshot.durationMs[stage], totals, stage, durationMs);
-  updateDurationSummary(snapshot.durationMs.total, totals, "total", durationMs);
 }
 
 function updateDurationSummary(

@@ -26,11 +26,15 @@ describe("thumbnailDiagnostics", () => {
     let now = 0;
     const diagnostics = createThumbnailDiagnostics(() => now);
 
+    const request = diagnostics.startRequest();
+
+    diagnostics.recordCacheMiss();
     const embedded = diagnostics.start("io", "selected");
     embedded.running();
     now = 10;
     embedded.succeeded("embedded");
 
+    diagnostics.recordCacheMiss();
     const rendered = diagnostics.start("render", "mosaic");
     rendered.running();
     now = 30;
@@ -40,6 +44,7 @@ describe("thumbnailDiagnostics", () => {
     failed.running();
     now = 40;
     failed.failed();
+    request.settled();
 
     expect(diagnostics.getSnapshot()).toMatchObject({
       queued: { total: 0 },
@@ -52,7 +57,7 @@ describe("thumbnailDiagnostics", () => {
       durationMs: {
         io: { count: 1, average: 10, maximum: 10 },
         render: { count: 2, average: 15, maximum: 20 },
-        total: { count: 3, average: 40 / 3, maximum: 20 }
+        total: { count: 1, average: 40, maximum: 40 }
       }
     });
   });

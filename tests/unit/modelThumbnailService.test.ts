@@ -34,6 +34,59 @@ describe("modelThumbnailService", () => {
     });
   });
 
+  it("clears failed signatures between warm-up and measured passes", async () => {
+    let attempts = 0;
+    const service = createModelThumbnailService(dependencies({
+      renderThumbnail: () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error("warm-up failure");
+        return WEBP;
+      }
+    }));
+    const target = model();
+
+    await expect(service.request(target, "visible").promise).resolves.toBeNull();
+    service.resetDiagnostics();
+    await expect(service.request(target, "visible").promise).resolves.toBe(WEBP);
+
+    expect(attempts).toBe(2);
+    expect(service.getDiagnostics()).toMatchObject({
+      cacheMisses: 1,
+      renders: 1,
+      failures: 0
+    });
+  });
+
+  it("records a cache miss before a later render failure settles", async () => {
+    const renderGate = deferred<void>();
+    const service = createModelThumbnailService(dependencies({
+      yieldBeforeRender: () => renderGate.promise,
+      renderThumbnail: () => {
+        throw new Error("broken mesh");
+      }
+    }));
+
+    const request = service.request(model(), "visible");
+    await vi.waitFor(() => expect(service.getDiagnostics().cacheMisses).toBe(1));
+    expect(service.getDiagnostics().failures).toBe(0);
+
+    renderGate.resolve(undefined);
+    await expect(request.promise).resolves.toBeNull();
+    expect(service.getDiagnostics()).toMatchObject({ cacheMisses: 1, failures: 1 });
+  });
+
+  it("records one total duration for a multi-stage request", async () => {
+    const service = createModelThumbnailService(dependencies());
+
+    await service.request(model(), "visible").promise;
+
+    expect(service.getDiagnostics().durationMs).toMatchObject({
+      io: { count: 2 },
+      render: { count: 1 },
+      total: { count: 1 }
+    });
+  });
+
   it("records long-task durations in the shared diagnostics stream", () => {
     const service = createModelThumbnailService(dependencies());
 

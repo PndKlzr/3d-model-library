@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createThumbnailScheduler } from "../../src/lib/thumbnailScheduler";
 
 describe("thumbnailScheduler", () => {
@@ -131,6 +131,41 @@ describe("thumbnailScheduler", () => {
     scheduler.pruneCompleted();
 
     expect(scheduler.getSnapshot().retainedResults).toBe(0);
+  });
+
+  it("expires retained results while idle", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const scheduler = createThumbnailScheduler({ completedTtlMs: 100 });
+      const retainedCounts: number[] = [];
+      scheduler.subscribe((snapshot) => retainedCounts.push(snapshot.retainedResults));
+
+      await scheduler.enqueue("idle", "visible", async () => "image").promise;
+      expect(retainedCounts.at(-1)).toBe(1);
+
+      await vi.advanceTimersByTimeAsync(100);
+
+      expect(retainedCounts.at(-1)).toBe(0);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels retained-result expiry when completed entries are cleared", async () => {
+    vi.useFakeTimers();
+    try {
+      const scheduler = createThumbnailScheduler({ completedTtlMs: 100 });
+      await scheduler.enqueue("done", "visible", async () => "image").promise;
+      expect(vi.getTimerCount()).toBe(1);
+
+      scheduler.clearCompleted();
+
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("publishes snapshots after state changes and supports clearing retained results", async () => {

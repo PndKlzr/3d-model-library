@@ -44,6 +44,7 @@ type PipelineEntry = {
   resolve: (thumbnail: string | null) => void;
   subscribers: Set<PipelineSubscriber>;
   stageRequest: ThumbnailRequest<unknown> | null;
+  requestOperation: { settled: () => void };
 };
 
 type ThumbnailLookup =
@@ -118,7 +119,15 @@ export function createModelThumbnailService(
     const promise = new Promise<string | null>((resolvePromise) => {
       resolve = resolvePromise;
     });
-    return { key, model, promise, resolve, subscribers: new Set(), stageRequest: null };
+    return {
+      key,
+      model,
+      promise,
+      resolve,
+      subscribers: new Set(),
+      stageRequest: null,
+      requestOperation: diagnostics.startRequest()
+    };
   }
 
   async function executePipeline(entry: PipelineEntry) {
@@ -127,6 +136,7 @@ export function createModelThumbnailService(
       const lookup = await runIoStage(entry, `read:${entry.key}`, async () => {
         const cached = await dependencies.readCachedThumbnail(entry.model);
         if (cached) return { kind: "cache", thumbnail: cached } as const;
+        diagnostics.recordCacheMiss();
 
         if (entry.model.extension === ".3mf") {
           const embedded = await dependencies.readEmbeddedThumbnail(entry.model.absolutePath);
@@ -159,6 +169,7 @@ export function createModelThumbnailService(
     } finally {
       entry.stageRequest = null;
       pipelineEntries.delete(entry.key);
+      entry.requestOperation.settled();
       entry.resolve(thumbnail ?? null);
       publishDiagnostics();
     }
@@ -254,6 +265,7 @@ export function createModelThumbnailService(
   function resetDiagnostics() {
     ioScheduler.resetMetrics();
     renderScheduler.resetMetrics();
+    failedSignatures.clear();
     peakRetainedResults = 0;
     diagnostics.reset();
     publishDiagnostics();
