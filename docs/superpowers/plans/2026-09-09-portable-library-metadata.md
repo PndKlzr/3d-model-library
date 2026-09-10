@@ -213,7 +213,7 @@ export type PortableMetadataRepository = {
 };
 ```
 
-- [ ] **Step 1: Add failing repository tests**
+- [x] **Step 1: Add failing repository tests**
 
 Create integration-style tests using `mkdtemp`, `readFile`, `writeFile`, and `rm` from `node:fs/promises`. Cover: empty library, primary load, writable probing, primary load, valid backup fallback after corrupt primary, manifest size rejection, preservation of the valid backup while repairing a corrupt primary, unique temporary-file cleanup, and write failure propagation. Inject a repository filesystem adapter whose `open` rejects to verify `checkWritable` returns `false` without altering the primary or backup. The recovery assertion must be explicit:
 
@@ -246,17 +246,17 @@ it("loads a valid backup and preserves corrupt evidence during repair", async ()
 });
 ```
 
-- [ ] **Step 2: Run the repository test and verify it fails**
+- [x] **Step 2: Run the repository test and verify it fails**
 
 Run: `npm test -- tests/unit/portableMetadataRepository.test.ts`
 
 Expected: FAIL because `createPortableMetadataRepository` does not exist.
 
-- [ ] **Step 3: Implement bounded reads and backup-aware loads**
+- [x] **Step 3: Implement bounded reads and backup-aware loads**
 
 Read `stat.size` before `readFile` and reject files over `MAX_PORTABLE_METADATA_BYTES`. Parse primary first. If primary is absent, return `empty`; if it is invalid, try `.bak`. If backup succeeds, return `source: "backup"`, a Portuguese warning, and the primary path as `corruptPrimaryPath`. If both existing files are invalid, throw a clear error that names neither file contents nor user-specific paths.
 
-- [ ] **Step 4: Implement the safe write sequence**
+- [x] **Step 4: Implement the safe write sequence**
 
 For each save:
 
@@ -273,13 +273,13 @@ The repository must write only paths constructed from the two fixed constants an
 
 Implement `checkWritable` by creating and removing a unique zero-byte probe inside the fixed metadata directory. If the directory does not yet exist, probe the canonical library root instead. Always close and remove the probe in `finally`; return `false` for access, missing-root, and read-only filesystem errors without changing metadata files.
 
-- [ ] **Step 5: Run repository tests**
+- [x] **Step 5: Run repository tests**
 
 Run: `npm test -- tests/unit/portableMetadataRepository.test.ts`
 
 Expected: PASS, including recovery and temporary-file cleanup.
 
-- [ ] **Step 6: Commit the file repository**
+- [x] **Step 6: Commit the file repository**
 
 ```bash
 git add electron/services/portableMetadataRepository.ts tests/unit/portableMetadataRepository.test.ts
