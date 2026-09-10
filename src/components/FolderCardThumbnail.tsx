@@ -1,7 +1,7 @@
 import { Folder } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { modelThumbnailService } from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
-import { loadModelThumbnail } from "./ModelCardThumbnail";
 
 type FolderCardThumbnailProps = {
   models: ModelFile[];
@@ -30,7 +30,7 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
         }
 
         observer.disconnect();
-        void Promise.all(models.slice(0, 4).map(loadModelThumbnail)).then((imageUrls) => {
+        void Promise.all(models.slice(0, 4).map(loadFolderMosaicThumbnail)).then((imageUrls) => {
           if (isMounted) {
             setThumbnailUrls(imageUrls.filter((imageUrl): imageUrl is string => Boolean(imageUrl)));
           }
@@ -69,4 +69,9 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
       </span>
     </div>
   );
+}
+
+export function loadFolderMosaicThumbnail(model: ModelFile): Promise<string | null> {
+  const request = modelThumbnailService.request(model, "mosaic");
+  return request.promise.finally(request.release);
 }

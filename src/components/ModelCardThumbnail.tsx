@@ -1,16 +1,27 @@
 import { Box, FileArchive } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { modelThumbnailService } from "../lib/modelThumbnailService";
+import {
+  modelThumbnailService,
+  type ModelThumbnailRequest,
+  type ThumbnailPriority
+} from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
 
 type ModelCardThumbnailProps = {
   model: ModelFile;
+  selected: boolean;
 };
 
-export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
+export function ModelCardThumbnail({ model, selected }: ModelCardThumbnailProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const requestRef = useRef<ModelThumbnailRequest | null>(null);
+  const selectedRef = useRef(selected);
+  const isIntersectingRef = useRef(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const isArchive = [".zip", ".rar", ".7z"].includes(model.extension);
+  const modelSignature = `${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
+
+  selectedRef.current = selected;
 
   useEffect(() => {
     const element = rootRef.current;
@@ -19,7 +30,10 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
     setThumbnailUrl(null);
     if (!element) return;
 
-    const request = modelThumbnailService.request(model, "nearby");
+    const initialPriority: ThumbnailPriority = selected ? "selected" : "nearby";
+    const request = modelThumbnailService.request(model, initialPriority);
+    requestRef.current = request;
+    isIntersectingRef.current = false;
     void request.promise
       .then((imageUrl) => {
         if (isMounted && imageUrl) setThumbnailUrl(imageUrl);
@@ -27,7 +41,10 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
       .catch(() => undefined);
 
     const visibleObserver = new IntersectionObserver(([entry]) => {
-      request.setPriority(entry.isIntersecting ? "visible" : "nearby");
+      isIntersectingRef.current = entry.isIntersecting;
+      request.setPriority(
+        selectedRef.current ? "selected" : entry.isIntersecting ? "visible" : "nearby"
+      );
     });
 
     visibleObserver.observe(element);
@@ -36,8 +53,15 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
       isMounted = false;
       visibleObserver.disconnect();
       request.release();
+      if (requestRef.current === request) requestRef.current = null;
     };
-  }, [model]);
+  }, [modelSignature]);
+
+  useEffect(() => {
+    requestRef.current?.setPriority(
+      selected ? "selected" : isIntersectingRef.current ? "visible" : "nearby"
+    );
+  }, [selected]);
 
   return (
     <div className={`thumb-fallback${isArchive ? " archive-thumb-fallback" : ""}`} ref={rootRef}>
@@ -53,9 +77,4 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
       )}
     </div>
   );
-}
-
-export async function loadModelThumbnail(model: ModelFile): Promise<string | null> {
-  const request = modelThumbnailService.request(model, "historical");
-  return request.promise.finally(request.release);
 }

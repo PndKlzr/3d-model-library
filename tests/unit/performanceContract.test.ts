@@ -12,7 +12,7 @@ describe("performance contract", () => {
     expect(modelGridSource).not.toContain("readModelFile");
     expect(modelGridSource).toContain("ModelCardThumbnail");
     expect(cardThumbnailSource).toContain('from "../lib/modelThumbnailService"');
-    expect(cardThumbnailSource).toContain('modelThumbnailService.request(model, "nearby")');
+    expect(cardThumbnailSource).toContain("modelThumbnailService.request(model, initialPriority)");
     expect(cardThumbnailSource).not.toContain("readCachedThumbnail");
     expect(cardThumbnailSource).not.toContain("readModelThumbnail");
     expect(cardThumbnailSource).not.toContain("writeCachedThumbnail");
@@ -29,6 +29,18 @@ describe("performance contract", () => {
     expect(thumbnailSource).toContain("concurrency: 1");
     expect(cardThumbnailSource).not.toContain('"background"');
     expect(thumbnailSource).toContain("thumbnail ?? null");
+  });
+
+  it("gives selected cards priority without changing virtualized render identity", async () => {
+    const card = await readFile("src/components/ModelCardThumbnail.tsx", "utf8");
+    const grid = await readFile("src/components/ModelGrid.tsx", "utf8");
+
+    expect(card).toContain('selected ? "selected" : "nearby"');
+    expect(card).toContain(
+      'selectedRef.current ? "selected" : entry.isIntersecting ? "visible" : "nearby"'
+    );
+    expect(grid).toContain("<ModelCardThumbnail model={model} selected={isSelected}");
+    expect(grid).toContain("key={virtualRow.key}");
   });
 
   it("reuses one GPU renderer for generated thumbnails", async () => {

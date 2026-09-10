@@ -910,7 +910,7 @@ function ModelCard({
         onDoubleClick={() => void onOpenDefaultSlicer(model)}
       >
         <div className="model-thumb">
-          <ModelCardThumbnail model={model} />
+          <ModelCardThumbnail model={model} selected={isSelected} />
         </div>
         <div className="model-card-meta">
           <strong title={model.name}>{model.name}</strong>
@@ -990,7 +990,7 @@ function ModelListRow({
         onDoubleClick={() => void onOpenDefaultSlicer(model)}
       >
         <div className="list-thumb">
-          <ModelCardThumbnail model={model} />
+          <ModelCardThumbnail model={model} selected={isSelected} />
         </div>
         <strong title={model.name}>{model.name}</strong>
         <span className="optional-column" title={model.relativeFolder || "Raiz"}>

@@ -52,18 +52,14 @@ describe("product flow contract", () => {
       "src/components/FolderCardThumbnail.tsx",
       "utf8"
     );
-    const modelThumbnailSource = await readFile(
-      "src/components/ModelCardThumbnail.tsx",
-      "utf8"
-    );
     const stylesSource = await readFile("src/styles.css", "utf8");
 
     expect(gridSource).toContain("<FolderCardThumbnail models={folderCard.previewModels}");
     expect(folderThumbnailSource).toContain("IntersectionObserver");
-    expect(folderThumbnailSource).toContain("loadModelThumbnail");
+    expect(folderThumbnailSource).toContain('request(model, "mosaic")');
+    expect(folderThumbnailSource).toContain("request.promise.finally(request.release)");
     expect(folderThumbnailSource).toContain("draggable={false}");
     expect(folderThumbnailSource).toContain('data-count={thumbnailUrls.length}');
-    expect(modelThumbnailSource).toContain("export async function loadModelThumbnail");
     expect(folderThumbnailSource).toContain("folder-kind-strip");
     expect(folderThumbnailSource).toContain("PASTA");
     expect(stylesSource).toContain(".folder-thumbnail-mosaic");
