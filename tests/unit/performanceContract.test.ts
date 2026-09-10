@@ -15,7 +15,8 @@ describe("performance contract", () => {
     expect(baseline).toContain("Cached index ready");
     expect(baseline).toContain("Library reconciliation settled");
     expect(baseline).toContain("Thumbnail pass settled");
-    expect(baseline).toContain("pending controller regeneration");
+    expect(baseline).not.toContain("pending");
+    expect(baseline).toContain("449 STL/3MF models");
     expect(baseline).not.toContain("Full reconciliation");
     expect(baseline).not.toMatch(/[A-Z]:\\\\Users\\\\/i);
     expect(scheduler).toContain("maxCompletedEntries");

@@ -18,29 +18,33 @@ The scroll scenario advances viewport windows on frame boundaries while prior re
 
 ## Scenario Results
 
-The corrected cold, warm, and scroll measurements are pending controller regeneration. Earlier numbers were removed because the previous scroll scenario serialized complete windows and the startup fields did not describe what they measured.
+Recorded on 2026-09-10 with 3D Model Library 0.1.0, Electron 33.2.1 and Chromium 130.0.6723.137, running on an NVIDIA GeForce RTX 4060 and Intel Xeon E5-2690 v4. The library contained 449 STL/3MF models: 265 below 1 MiB, 138 from 1 to 10 MiB, and 46 above 10 MiB. Times are milliseconds, rounded to three decimal places from the aggregate JSON reports.
 
 | Metric | Cold thumbnails | Warm thumbnails | Scroll stress |
 | --- | ---: | ---: | ---: |
-| Cached index ready | pending | pending | pending |
-| Library reconciliation settled | pending | pending | pending |
-| First visible thumbnail | pending | pending | pending |
-| Initially visible settled | pending | pending | pending |
-| Thumbnail pass settled | pending | pending | pending |
-| Queue peak | pending | pending | pending |
-| Retained-result peak | pending | pending | pending |
-| Cache hits | pending | pending | pending |
-| Cache misses | pending | pending | pending |
-| Embedded thumbnails | pending | pending | pending |
-| Generated renders | pending | pending | pending |
-| Failures | pending | pending | pending |
-| Discarded historical jobs | pending | pending | pending |
-| Long tasks | pending | pending | pending |
-| Longest task | pending | pending | pending |
-| Average I/O duration | pending | pending | pending |
-| Maximum I/O duration | pending | pending | pending |
-| Average render duration | pending | pending | pending |
-| Maximum render duration | pending | pending | pending |
+| Cached index ready | 2.859 | 2.983 | 2.913 |
+| Library reconciliation settled | 383.498 | 101.344 | 99.031 |
+| First visible thumbnail | 725.100 | 3.800 | 401.300 |
+| Initially visible settled | 6,622.100 | 17.900 | 1,451.100 |
+| Thumbnail pass settled | 51,952.500 | 332.500 | 12,988.600 |
+| Queue peak | 24 | 24 | 112 |
+| Retained-result peak | 8 | 0 | 8 |
+| Cache hits | 0 | 449 | 0 |
+| Cache misses | 449 | 0 | 146 |
+| Embedded thumbnails | 76 | 0 | 22 |
+| Generated renders | 373 | 0 | 68 |
+| Failures | 0 | 0 | 0 |
+| Discarded historical jobs | 0 | 0 | 721 |
+| Long tasks | 94 | 0 | 28 |
+| Longest task | 2,298.000 | 0 | 1,502.000 |
+| Average I/O duration | 162.359 | 9.978 | 256.853 |
+| Maximum I/O duration | 6,149.700 | 18.200 | 2,720.600 |
+| Average render duration | 1,504.632 | 0 | 4,105.851 |
+| Maximum render duration | 5,893.100 | 0 | 8,765.600 |
+| Average end-to-end request | 1,575.331 | 10.476 | 926.025 |
+| Maximum end-to-end request | 6,621.200 | 18.900 | 11,221.900 |
+
+The warm pass served all 449 models from the isolated cache in 332.5 ms. Cold and warm traversals completed every model without discards. Scroll stress intentionally moved faster than generation: released work became historical, the bounded schedulers discarded 721 obsolete jobs, and newly visible work continued with zero failures.
 
 ## Reproduction
 
