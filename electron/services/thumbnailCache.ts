@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ThumbnailSignature } from "../../src/shared/types.js";
+import { THUMBNAIL_RENDER_VERSION } from "../../src/shared/thumbnailVersion.js";
 
-export const THUMBNAIL_RENDER_VERSION = 1;
+export { THUMBNAIL_RENDER_VERSION };
 const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_CACHE_BYTES = 512 * 1024 * 1024;
 const DEFAULT_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;

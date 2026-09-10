@@ -1532,6 +1532,29 @@ button:disabled {
   place-items: center;
 }
 
+.archive-thumb-fallback {
+  gap: 6px;
+  background:
+    linear-gradient(145deg, rgba(210, 142, 42, 0.18), transparent 62%),
+    var(--surface-subtle, #e6ecee);
+  color: var(--ink-muted);
+}
+
+.archive-extension {
+  padding: 2px 7px;
+  border: 1px solid color-mix(in srgb, currentColor 28%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface, #fff) 78%, transparent);
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.list-thumb .archive-extension {
+  padding: 1px 4px;
+  font-size: 8px;
+}
+
 .model-card-meta {
   display: grid;
   align-content: start;

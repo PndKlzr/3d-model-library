@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { parseThreeMfPreview } from "./threeMfPreview";
+import { orientModelForBed } from "./modelOrientation";
 import type { ModelFile } from "../shared/types";
 
 const THUMBNAIL_WIDTH = 260;
@@ -22,14 +23,13 @@ export function renderThumbnail(extension: ModelFile["extension"], modelBytes: A
     fillLight.position.set(-70, -30, -60);
     scene.add(fillLight);
 
-    centerObject(object);
     scene.add(object);
     fitCamera(camera, object);
 
     const box = new THREE.Box3().setFromObject(object);
     const gridSize = Math.max(50, Math.max(...box.getSize(new THREE.Vector3()).toArray()) * 1.8);
     const grid = new THREE.GridHelper(gridSize, 10, "#9eb2b5", "#d1dbde");
-    grid.position.y = box.min.y;
+    grid.position.y = 0;
     scene.add(grid);
 
     renderer.render(scene, camera);
@@ -66,30 +66,27 @@ function createThumbnailObject(extension: ModelFile["extension"], modelBytes: Ar
   if (extension === ".stl") {
     const geometry = new STLLoader().parse(modelBytes);
     geometry.computeVertexNormals();
-    geometry.center();
-    return new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+    return orientModelForBed(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
       color: "#78aaa6",
       roughness: 0.62,
       metalness: 0.08
-    }));
+    })));
   }
-  if (extension === ".3mf") return parseThreeMfPreview(modelBytes);
+  if (extension === ".3mf") {
+    return orientModelForBed(parseThreeMfPreview(modelBytes, { center: false }));
+  }
   throw new Error("Arquivo sem thumbnail 3D.");
-}
-
-function centerObject(object: THREE.Object3D) {
-  const box = new THREE.Box3().setFromObject(object);
-  object.position.sub(box.getCenter(new THREE.Vector3()));
 }
 
 function fitCamera(camera: THREE.PerspectiveCamera, object: THREE.Object3D) {
   const size = new THREE.Box3().setFromObject(object).getSize(new THREE.Vector3());
   const maxDimension = Math.max(size.x, size.y, size.z, 1);
   const distance = maxDimension / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
-  camera.position.set(distance * 0.72, distance * 0.58, distance * 1.35);
+  const targetY = size.y / 2;
+  camera.position.set(distance * 0.72, targetY + distance * 0.58, distance * 1.35);
   camera.near = Math.max(0.1, distance / 100);
   camera.far = distance * 100;
-  camera.lookAt(0, 0, 0);
+  camera.lookAt(0, targetY, 0);
   camera.updateProjectionMatrix();
 }
 

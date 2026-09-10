@@ -1,4 +1,4 @@
-import { Box } from "lucide-react";
+import { Box, FileArchive } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { requestRenderedModelThumbnail } from "../lib/modelThumbnailQueue";
 import type { ThumbnailPriority, ThumbnailRequest } from "../lib/thumbnailScheduler";
@@ -11,6 +11,7 @@ type ModelCardThumbnailProps = {
 export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const isArchive = [".zip", ".rar", ".7z"].includes(model.extension);
 
   useEffect(() => {
     const element = rootRef.current;
@@ -40,13 +41,15 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
   }, [model]);
 
   return (
-    <div className="thumb-fallback" ref={rootRef}>
+    <div className={`thumb-fallback${isArchive ? " archive-thumb-fallback" : ""}`} ref={rootRef}>
       {thumbnailUrl ? (
         <img className="thumbnail-image" src={thumbnailUrl} alt="" draggable={false} />
       ) : (
         <>
-          <Box size={30} />
-          <span>{model.extension.toUpperCase()}</span>
+          {isArchive ? <FileArchive size={34} strokeWidth={1.7} /> : <Box size={30} />}
+          <span className={isArchive ? "archive-extension" : undefined}>
+            {model.extension.toUpperCase()}
+          </span>
         </>
       )}
     </div>

@@ -5,6 +5,7 @@ import {
   type ThumbnailRequest
 } from "./thumbnailScheduler";
 import type { ModelFile } from "../shared/types";
+import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
 
 const thumbnailScheduler = createThumbnailScheduler({
   concurrency: 1,
@@ -15,7 +16,7 @@ export function requestRenderedModelThumbnail(
   model: ModelFile,
   priority: ThumbnailPriority = "nearby"
 ): ThumbnailRequest<string | null> {
-  const cacheKey = `${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
+  const cacheKey = `${THUMBNAIL_RENDER_VERSION}:${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
 
   return thumbnailScheduler.enqueue(cacheKey, priority, async () => {
     try {

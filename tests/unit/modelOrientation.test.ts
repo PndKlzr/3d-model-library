@@ -1,0 +1,45 @@
+import { describe, expect, it } from "vitest";
+import * as THREE from "three";
+import { orientModelForBed } from "../../src/lib/modelOrientation";
+
+describe("orientModelForBed", () => {
+  it("converts Z-up models to Y-up and places their lowest point on the bed", () => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(10, 20, 30));
+    mesh.position.set(12, 7, 40);
+
+    const oriented = orientModelForBed(mesh);
+    const box = new THREE.Box3().setFromObject(oriented);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+
+    expect(size.x).toBeCloseTo(10);
+    expect(size.y).toBeCloseTo(30);
+    expect(size.z).toBeCloseTo(20);
+    expect(box.min.y).toBeCloseTo(0);
+    expect(center.x).toBeCloseTo(0);
+    expect(center.z).toBeCloseTo(0);
+  });
+
+  it("preserves spacing between parts while centering the complete model", () => {
+    const source = new THREE.Group();
+    const left = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 6));
+    const right = new THREE.Mesh(new THREE.BoxGeometry(2, 4, 6));
+    left.position.x = -10;
+    right.position.x = 20;
+    source.add(left, right);
+
+    const distanceBefore = left.getWorldPosition(new THREE.Vector3()).distanceTo(
+      right.getWorldPosition(new THREE.Vector3())
+    );
+    const oriented = orientModelForBed(source);
+    const distanceAfter = left.getWorldPosition(new THREE.Vector3()).distanceTo(
+      right.getWorldPosition(new THREE.Vector3())
+    );
+    const box = new THREE.Box3().setFromObject(oriented);
+
+    expect(distanceAfter).toBeCloseTo(distanceBefore);
+    expect(box.min.y).toBeCloseTo(0);
+    expect(box.getCenter(new THREE.Vector3()).x).toBeCloseTo(0);
+    expect(box.getCenter(new THREE.Vector3()).z).toBeCloseTo(0);
+  });
+});

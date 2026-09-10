@@ -4,7 +4,8 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createThumbnailCache,
-  createThumbnailCacheKey
+  createThumbnailCacheKey,
+  THUMBNAIL_RENDER_VERSION
 } from "../../electron/services/thumbnailCache";
 import type { ThumbnailSignature } from "../../src/shared/types";
 
@@ -21,6 +22,10 @@ afterEach(async () => {
 });
 
 describe("thumbnailCache", () => {
+  it("uses the bed-orientation renderer version", () => {
+    expect(THUMBNAIL_RENDER_VERSION).toBe(2);
+  });
+
   it("changes keys when a model signature or renderer version changes", () => {
     expect(createThumbnailCacheKey(model({ sizeBytes: 10 }), 1)).not.toBe(
       createThumbnailCacheKey(model({ sizeBytes: 11 }), 1)

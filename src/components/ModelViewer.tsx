@@ -5,6 +5,7 @@ import { RotateCcw } from "lucide-react";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { parseThreeMfPreview } from "../lib/threeMfPreview";
+import { orientModelForBed } from "../lib/modelOrientation";
 import type { ModelFile } from "../shared/types";
 
 type ModelViewerProps = {
@@ -48,11 +49,17 @@ export function ModelViewer({ model }: ModelViewerProps) {
       if (model.extension === ".stl") {
         const geometry = new STLLoader().parse(modelBytes);
         geometry.computeVertexNormals();
-        geometry.center();
-
-        return <mesh geometry={geometry} castShadow receiveShadow>
-          <meshStandardMaterial color="#78aaa6" roughness={0.62} metalness={0.08} />
-        </mesh>;
+        const mesh = new THREE.Mesh(
+          geometry,
+          new THREE.MeshStandardMaterial({
+            color: "#78aaa6",
+            roughness: 0.62,
+            metalness: 0.08
+          })
+        );
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        return orientModelForBed(mesh);
       }
 
       if (model.extension !== ".3mf") {
@@ -61,8 +68,8 @@ export function ModelViewer({ model }: ModelViewerProps) {
         };
       }
 
-      const group = parseThreeMfPreview(modelBytes);
-      return <primitive object={group} />;
+      const group = parseThreeMfPreview(modelBytes, { center: false });
+      return orientModelForBed(group);
     } catch (error) {
       return {
         error: error instanceof Error ? error.message : String(error)
@@ -78,7 +85,7 @@ export function ModelViewer({ model }: ModelViewerProps) {
     return <div className="viewer-message">Carregando preview...</div>;
   }
 
-  if (parsedModel && typeof parsedModel === "object" && "error" in parsedModel) {
+  if (parsedModel && "error" in parsedModel) {
     return <div className="viewer-message">{parsedModel.error}</div>;
   }
 
@@ -104,7 +111,7 @@ export function ModelViewer({ model }: ModelViewerProps) {
         <directionalLight position={[80, 120, 70]} intensity={1.3} castShadow />
         <directionalLight position={[-70, -40, -60]} intensity={0.3} />
         <Bounds fit clip observe margin={1.2}>
-          {parsedModel}
+          {parsedModel instanceof THREE.Object3D ? <primitive object={parsedModel} /> : null}
         </Bounds>
         <gridHelper args={[160, 16, "#9eb2b5", "#d1dbde"]} />
         <OrbitControls
