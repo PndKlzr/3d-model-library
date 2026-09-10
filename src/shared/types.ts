@@ -66,6 +66,15 @@ export type LibraryMetadata = {
   slicerHistory: SlicerHistoryEntry[];
 };
 
+export type LibraryMetadataAvailability = "ready" | "read-only" | "unavailable";
+
+export type LibraryMetadataStatus = {
+  availability: LibraryMetadataAvailability;
+  writable: boolean;
+  source: "primary" | "backup" | "legacy" | "empty" | "mirror";
+  message: string | null;
+};
+
 export type SlicerLaunchResult = {
   ok: boolean;
   message: string;

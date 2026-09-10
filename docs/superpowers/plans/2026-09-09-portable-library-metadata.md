@@ -39,7 +39,7 @@
 - Produces: `PortableLibraryManifestV1`, `PORTABLE_METADATA_DIRECTORY`, `PORTABLE_METADATA_FILENAME`, `MAX_PORTABLE_METADATA_BYTES`, `encodePortableMetadata(rootPath, libraryId, metadata, updatedAt)`, and `decodePortableMetadata(rootPath, value)`.
 - `decodePortableMetadata` returns `{ libraryId: string; updatedAt: string; metadata: LibraryMetadata }`, where all model and history paths are absolute runtime paths.
 
-- [ ] **Step 1: Add failing codec tests**
+- [x] **Step 1: Add failing codec tests**
 
 Create `tests/unit/portableMetadataCodec.test.ts` with tests that exercise a Windows-style root through `path.resolve`, round-trip tags/notes/favorites/history, and reject unsafe paths:
 
@@ -108,13 +108,13 @@ describe("portableMetadataCodec", () => {
 });
 ```
 
-- [ ] **Step 2: Run the codec test and verify it fails**
+- [x] **Step 2: Run the codec test and verify it fails**
 
 Run: `npm test -- tests/unit/portableMetadataCodec.test.ts`
 
 Expected: FAIL because `portableMetadataCodec.ts` and its exports do not exist.
 
-- [ ] **Step 3: Define the shared metadata status**
+- [x] **Step 3: Define the shared metadata status**
 
 Add these types to `src/shared/types.ts`:
 
@@ -129,7 +129,7 @@ export type LibraryMetadataStatus = {
 };
 ```
 
-- [ ] **Step 4: Implement the codec with bounded validation**
+- [x] **Step 4: Implement the codec with bounded validation**
 
 Create `electron/services/portableMetadataCodec.ts` with these public constants and types:
 
@@ -167,13 +167,13 @@ export function decodePortableMetadata(
 
 Use `path.relative` for encoding and `path.resolve` for decoding. Normalize manifest separators to `/`; reject empty paths, absolute paths, `..` escapes, NUL bytes, model keys over 1024 characters, tags over 80 characters, notes over 20,000 characters, IDs over 120 characters, malformed timestamps, non-object model values, and manifests whose schema is not exactly `1`. Limit the decoded history to the existing 100-entry behavior. Rename and export the existing private `normalizeMetadata` and `cloneMetadata` helpers as `normalizeLibraryMetadata` and `cloneLibraryMetadata`, update the pure reducer to call those names, and reuse them in the codec rather than creating a second normalization implementation.
 
-- [ ] **Step 5: Run the codec and existing metadata tests**
+- [x] **Step 5: Run the codec and existing metadata tests**
 
 Run: `npm test -- tests/unit/portableMetadataCodec.test.ts tests/unit/libraryMetadataStore.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit the codec boundary**
+- [x] **Step 6: Commit the codec boundary**
 
 ```bash
 git add electron/services/portableMetadataCodec.ts src/shared/types.ts tests/unit/portableMetadataCodec.test.ts electron/services/libraryMetadataStore.ts

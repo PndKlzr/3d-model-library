@@ -34,11 +34,11 @@ export function createLibraryMetadataStore(
   let memoryMetadata = backend ? undefined : createDefaultLibraryMetadata();
 
   function getMetadata() {
-    return cloneMetadata(backend?.get() ?? memoryMetadata ?? createDefaultLibraryMetadata());
+    return cloneLibraryMetadata(backend?.get() ?? memoryMetadata ?? createDefaultLibraryMetadata());
   }
 
   function saveMetadata(metadata: LibraryMetadata) {
-    const nextMetadata = normalizeMetadata(metadata);
+    const nextMetadata = normalizeLibraryMetadata(metadata);
 
     if (backend) {
       backend.set(nextMetadata);
@@ -46,7 +46,7 @@ export function createLibraryMetadataStore(
       memoryMetadata = nextMetadata;
     }
 
-    return cloneMetadata(nextMetadata);
+    return cloneLibraryMetadata(nextMetadata);
   }
 
   function updateModel(modelPath: string, updater: (metadata: ModelUserMetadata) => ModelUserMetadata) {
@@ -202,7 +202,7 @@ function createEmptyModelMetadata(): ModelUserMetadata {
   };
 }
 
-function normalizeMetadata(metadata: LibraryMetadata): LibraryMetadata {
+export function normalizeLibraryMetadata(metadata: LibraryMetadata): LibraryMetadata {
   return {
     models: Object.fromEntries(
       Object.entries(metadata.models ?? {}).map(([modelPath, modelMetadata]) => [
@@ -223,8 +223,8 @@ function normalizeMetadata(metadata: LibraryMetadata): LibraryMetadata {
   };
 }
 
-function cloneMetadata(metadata: LibraryMetadata): LibraryMetadata {
-  return normalizeMetadata(metadata);
+export function cloneLibraryMetadata(metadata: LibraryMetadata): LibraryMetadata {
+  return normalizeLibraryMetadata(metadata);
 }
 
 function normalizeTags(tags: string[]): string[] {
