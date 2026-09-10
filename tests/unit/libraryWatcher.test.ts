@@ -74,6 +74,31 @@ describe("libraryWatcher", () => {
     expect(fakeWatcher.close).toHaveBeenCalledOnce();
     vi.useRealTimers();
   });
+
+  it("ignores every event beneath the internal metadata directory", async () => {
+    vi.useFakeTimers();
+    const fakeWatcher = createFakeWatcher();
+    const onBatch = vi.fn();
+    const rootPath = path.resolve("C:\\Models");
+    const watcher = createLibraryWatcher({
+      rootPath,
+      debounceMs: 25,
+      onBatch,
+      watchFactory: () => fakeWatcher
+    });
+    const internalDirectory = path.join(rootPath, ".3d-model-library");
+
+    fakeWatcher.emit("all", "addDir", internalDirectory);
+    fakeWatcher.emit("all", "add", path.join(internalDirectory, "hidden.stl"));
+    fakeWatcher.emit("all", "change", path.join(internalDirectory, "data.3mf"));
+    fakeWatcher.emit("all", "unlink", path.join(internalDirectory, "old.stl"));
+    fakeWatcher.emit("all", "unlinkDir", path.join(internalDirectory, "nested"));
+    await vi.advanceTimersByTimeAsync(30);
+
+    expect(onBatch).not.toHaveBeenCalled();
+    await watcher.close();
+    vi.useRealTimers();
+  });
 });
 
 function createFakeWatcher() {

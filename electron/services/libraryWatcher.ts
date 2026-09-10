@@ -1,6 +1,7 @@
 import path from "node:path";
 import chokidar from "chokidar";
 import type { LibraryWatchEvent } from "../../src/shared/types.js";
+import { isInternalLibraryPath } from "./portableMetadataCodec.js";
 
 const SUPPORTED_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
 
@@ -42,6 +43,10 @@ export function createLibraryWatcher({
     const absolutePath = path.resolve(filePath);
 
     if (!isInsideRoot(normalizedRoot, absolutePath)) {
+      return;
+    }
+
+    if (isInternalLibraryPath(normalizedRoot, absolutePath)) {
       return;
     }
 
@@ -90,6 +95,7 @@ export function createLibraryWatcher({
 
 function createChokidarWatcher(rootPath: string): LibraryWatcherLike {
   return chokidar.watch(rootPath, {
+    ignored: (candidatePath) => isInternalLibraryPath(rootPath, candidatePath),
     ignoreInitial: true,
     atomic: true,
     awaitWriteFinish: {

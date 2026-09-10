@@ -68,6 +68,22 @@ describe("scanLibrary", () => {
     expect(result.folders).toEqual(["new-folder", "new-folder/nested"]);
   });
 
+  it("never scans the internal portable metadata directory", async () => {
+    const internalDirectory = path.join(tempRoot, ".3d-model-library", "nested");
+    await mkdir(internalDirectory, { recursive: true });
+    await writeFile(path.join(internalDirectory, "hidden.stl"), "solid hidden\nendsolid hidden");
+    await writeFile(
+      path.join(tempRoot, ".3d-model-library", "3D_LIBRARY_DATA_DO_NOT_DELETE.json"),
+      "{}"
+    );
+    await writeFile(path.join(tempRoot, "visible.stl"), "solid visible\nendsolid visible");
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models.map((model) => model.name)).toEqual(["visible.stl"]);
+    expect(result.folders.some((folder) => folder.startsWith(".3d-model-library"))).toBe(false);
+  });
+
   it("keeps scanning when a child directory cannot be read", async () => {
     const missingRoot = path.join(tempRoot, "missing");
 
@@ -124,5 +140,18 @@ describe("scanLibrary", () => {
 
     expect(result.models.map((model) => model.name)).toEqual(["next.3mf"]);
     expect(result.folders).toEqual(["new-folder"]);
+  });
+
+  it("defensively ignores internal metadata watcher events", async () => {
+    const initial = await scanLibrary(tempRoot);
+    const internalDirectory = path.join(tempRoot, ".3d-model-library");
+
+    const result = await applyLibraryWatchEvents(initial, [
+      { type: "addDir", absolutePath: internalDirectory },
+      { type: "add", absolutePath: path.join(internalDirectory, "hidden.stl") }
+    ]);
+
+    expect(result.models).toEqual([]);
+    expect(result.folders).toEqual([]);
   });
 });

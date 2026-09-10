@@ -2,6 +2,7 @@ import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryScanResult, LibraryWatchEvent, ModelFile } from "../../src/shared/types.js";
 import { runBounded } from "./boundedTaskPool.js";
+import { isInternalLibraryPath } from "./portableMetadataCodec.js";
 
 const LIBRARY_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
 const FILE_STAT_CONCURRENCY = 8;
@@ -19,6 +20,10 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
   const candidates: ModelCandidate[] = [];
 
   async function scanDirectory(directoryPath: string) {
+    if (isInternalLibraryPath(rootPath, directoryPath)) {
+      return;
+    }
+
     const relativeDirectory = normalizeRelativeFolder(path.relative(rootPath, directoryPath));
 
     if (relativeDirectory) {
@@ -118,6 +123,10 @@ export async function applyLibraryWatchEvents(
 
   for (const event of events) {
     if (!isPathInsideRoot(current.rootPath, event.absolutePath)) {
+      continue;
+    }
+
+    if (isInternalLibraryPath(current.rootPath, event.absolutePath)) {
       continue;
     }
 

@@ -532,7 +532,7 @@ git commit -m "feat: integrate portable metadata lifecycle"
 - Consumes: `PORTABLE_METADATA_DIRECTORY` from Task 1.
 - Produces: `isInternalLibraryPath(rootPath, candidatePath): boolean` in `portableMetadataCodec.ts`, shared by scanner and watcher.
 
-- [ ] **Step 1: Add failing scanner and watcher exclusions**
+- [x] **Step 1: Add failing scanner and watcher exclusions**
 
 Add a scanner test that creates `.3d-model-library/nested/hidden.stl` and the JSON manifest, then confirms neither the folder nor model appears:
 
@@ -543,23 +543,23 @@ expect(result.models.map((model) => model.name)).not.toContain("hidden.stl");
 
 Add watcher tests that emit `add`, `change`, `unlink`, `addDir`, and `unlinkDir` beneath the internal directory and assert `onBatch` is never called. Add an `applyLibraryWatchEvents` test confirming a defensive injected internal event is ignored.
 
-- [ ] **Step 2: Run scanner/watcher tests and verify they fail**
+- [x] **Step 2: Run scanner/watcher tests and verify they fail**
 
 Run: `npm test -- tests/unit/libraryScanner.test.ts tests/unit/libraryWatcher.test.ts`
 
 Expected: FAIL because the scanner currently recurses into every directory and the watcher accepts internal directory events.
 
-- [ ] **Step 3: Exclude the internal tree at every boundary**
+- [x] **Step 3: Exclude the internal tree at every boundary**
 
 In `scanDirectory`, return before adding a folder or calling `readdir` when `isInternalLibraryPath(rootPath, directoryPath)` is true. In `applyLibraryWatchEvents`, skip internal candidates before mutating models/folders. In `createLibraryWatcher.schedule`, skip candidates beneath the internal directory before extension checks and before adding pending events. Also pass Chokidar an `ignored` callback for the same path so metadata writes do not wake the watcher at all.
 
-- [ ] **Step 4: Run scanner/watcher and performance tests**
+- [x] **Step 4: Run scanner/watcher and performance tests**
 
 Run: `npm test -- tests/unit/libraryScanner.test.ts tests/unit/libraryWatcher.test.ts tests/unit/performanceContract.test.ts`
 
 Expected: PASS, with no metadata-directory events or count changes.
 
-- [ ] **Step 5: Commit the exclusions**
+- [x] **Step 5: Commit the exclusions**
 
 ```bash
 git add electron/services/portableMetadataCodec.ts electron/services/libraryScanner.ts electron/services/libraryWatcher.ts tests/unit/libraryScanner.test.ts tests/unit/libraryWatcher.test.ts
