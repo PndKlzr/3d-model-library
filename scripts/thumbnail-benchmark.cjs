@@ -100,13 +100,8 @@ function spawnElectron({ library, scenario, output, userData }, overrides = {}) 
   const spawn = overrides.spawn ?? childProcess.spawn;
   const timeoutMs = overrides.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const electronPath = overrides.electronPath ?? require("electron");
-  const mainPath = overrides.mainPath ?? path.resolve(
-    process.cwd(),
-    "dist-electron",
-    "electron",
-    "main.js"
-  );
-  const child = spawn(electronPath, [mainPath], {
+  const appPath = overrides.appPath ?? process.cwd();
+  const child = spawn(electronPath, [appPath], {
     cwd: process.cwd(),
     env: {
       ...process.env,

@@ -88,6 +88,32 @@ describe("thumbnail benchmark command", () => {
     })).rejects.toThrow("timed out");
     expect(child.kill).toHaveBeenCalled();
   });
+
+  it("launches the project root so Electron reports the application version", async () => {
+    const child = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
+    child.kill = vi.fn();
+    const spawn = vi.fn(() => child);
+    const running = spawnElectron({
+      library: "C:\\library",
+      scenario: "cold",
+      output: "C:\\output.json",
+      userData: "C:\\temp\\profile"
+    }, {
+      spawn,
+      electronPath: "electron.exe",
+      appPath: "C:\\project",
+      timeoutMs: 1_000
+    });
+
+    child.emit("exit", 0, null);
+    await running;
+
+    expect(spawn).toHaveBeenCalledWith(
+      "electron.exe",
+      ["C:\\project"],
+      expect.objectContaining({ cwd: expect.any(String) })
+    );
+  });
 });
 
 describe("thumbnail benchmark runner", () => {
