@@ -721,21 +721,21 @@ git commit -m "feat: show and copy model location"
 **Interfaces:**
 - Verifies all interfaces produced in Tasks 1-7 without adding a new production API.
 
-- [ ] **Step 1: Add cross-boundary security tests**
+- [x] **Step 1: Add cross-boundary security tests**
 
 Create `portableMetadataSecurity.test.ts` to verify: oversized JSON is rejected before parsing; absolute/traversal paths cannot be decoded; model paths outside the active root cannot be mutated; library switching waits for queued writes; portable JSON does not contain a configured slicer path, theme preference, Windows username, thumbnail URL, or model hash. Build a representative metadata/settings fixture and assert forbidden strings are absent from serialized JSON.
 
-- [ ] **Step 2: Run the security test and verify it exposes any missing guards**
+- [x] **Step 2: Run the security test and verify it exposes any missing guards**
 
 Run: `npm test -- tests/unit/portableMetadataSecurity.test.ts`
 
 Expected before final hardening: FAIL on any guard omitted by Tasks 1-7; otherwise PASS and continue without manufacturing a failure.
 
-- [ ] **Step 3: Harden only the failing boundaries**
+- [x] **Step 3: Harden only the failing boundaries**
 
 Make the smallest changes required by the concrete failing assertions. Keep authorization for file operations based on current renderer requests plus existing main-process root validation; never derive a file operation target from an untrusted manifest entry alone.
 
-- [ ] **Step 4: Document storage and backup behavior**
+- [x] **Step 4: Document storage and backup behavior**
 
 Add a `Dados e backup` section to `README.md` stating in Portuguese:
 
@@ -746,7 +746,7 @@ Add a `Dados e backup` section to `README.md` stating in Portuguese:
 - metadata editing is blocked while the library is disconnected or read-only;
 - the old AppData metadata file is retained after migration.
 
-- [ ] **Step 5: Run the entire automated baseline**
+- [x] **Step 5: Run the entire automated baseline**
 
 Run: `npm test`
 
@@ -754,7 +754,7 @@ Run: `npm run build`
 
 Expected: every existing and new unit/contract test passes; Electron and renderer builds complete without warnings promoted to errors.
 
-- [ ] **Step 6: Perform the manual portability and recovery checks**
+- [x] **Step 6: Perform the manual portability and recovery checks**
 
 Use two temporary model-library folders, not the user's live library:
 
@@ -769,7 +769,7 @@ Use two temporary model-library folders, not the user's live library:
 9. Confirm `.3d-model-library` never appears in the sidebar, grid, search, counts, or watcher refresh activity.
 10. Recheck internal folder drag and native external drag to Cura/Creality Print.
 
-- [ ] **Step 7: Inspect repository hygiene**
+- [x] **Step 7: Inspect repository hygiene**
 
 Run: `git status --short`
 
@@ -777,7 +777,7 @@ Run: `git diff --check`
 
 Expected: only intentional files are changed and `git diff --check` prints nothing.
 
-- [ ] **Step 8: Commit documentation and final coverage**
+- [x] **Step 8: Commit documentation and final coverage**
 
 ```bash
 git add README.md tests/unit/portableMetadataSecurity.test.ts tests/unit/productFlowContract.test.ts

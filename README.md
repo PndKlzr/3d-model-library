@@ -56,6 +56,22 @@ Generated thumbnails are cached locally and reused until the model's size or mod
 
 Folder monitoring is enabled by default and can be turned off in Settings. The Refresh button always performs a manual reconciliation, including when monitoring is disabled or unavailable.
 
+## Dados e backup
+
+As notas, tags, favoritos e o histórico recente de abertura nos slicers ficam junto da própria biblioteca, no arquivo oculto:
+
+```text
+.3d-model-library\3D_LIBRARY_DATA_DO_NOT_DELETE.json
+```
+
+- Ao copiar ou fazer backup da biblioteca, leve a pasta `.3d-model-library` junto com os arquivos STL e 3MF.
+- O arquivo com final `.bak` é uma recuperação automática do último estado válido; ele não representa uma segunda biblioteca.
+- Caminhos dos slicers, tema, preferências, miniaturas e índices continuam locais ao Windows porque podem ser recriados ou pertencem apenas àquele computador.
+- Se a biblioteca estiver desconectada ou sem permissão de escrita, notas, tags e favoritos ficam bloqueados para evitar alterações que aparentem estar salvas.
+- A migração mantém o arquivo antigo de metadados no AppData; ele não é apagado automaticamente.
+
+Na aba **Info** do modelo selecionado, a linha **Localização** mostra o caminho dentro da biblioteca e oferece ações para copiar o caminho completo ou revelar o arquivo no Explorer.
+
 ## Privacy And Safety
 
 - The library folder is selected on first launch and stored locally in the app settings.
