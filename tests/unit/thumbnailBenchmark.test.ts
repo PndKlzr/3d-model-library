@@ -7,6 +7,7 @@ import {
   type ThumbnailBenchmarkRequest
 } from "../../src/lib/thumbnailBenchmark";
 import type { ThumbnailDiagnosticsSnapshot, ThumbnailPriority } from "../../src/lib/thumbnailDiagnostics";
+import { createThumbnailScheduler } from "../../src/lib/thumbnailScheduler";
 import type { ModelFile } from "../../src/shared/types";
 
 const require = createRequire(import.meta.url);
@@ -73,20 +74,70 @@ describe("thumbnail benchmark command", () => {
     expect(rm).toHaveBeenCalledWith("C:\\temp\\profile", { recursive: true, force: true });
   });
 
-  it("kills an unresponsive Electron child when the watchdog expires", async () => {
+  it("waits for confirmed Electron exit before rejecting a watchdog timeout", async () => {
+    vi.useFakeTimers();
     const child = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
-    child.kill = vi.fn();
+    child.kill = vi.fn(() => true);
 
-    await expect(spawnElectron({
-      library: "C:\\library",
-      scenario: "cold",
-      output: "C:\\output.json",
-      userData: "C:\\temp\\profile"
-    }, {
-      spawn: () => child,
-      timeoutMs: 1
-    })).rejects.toThrow("timed out");
-    expect(child.kill).toHaveBeenCalled();
+    try {
+      const running = spawnElectron({
+        library: "C:\\library",
+        scenario: "cold",
+        output: "C:\\output.json",
+        userData: "C:\\temp\\profile"
+      }, {
+        spawn: () => child,
+        timeoutMs: 10,
+        terminationGraceMs: 20
+      });
+      let settled = false;
+      void running.then(
+        () => { settled = true; },
+        () => { settled = true; }
+      );
+
+      await vi.advanceTimersByTimeAsync(10);
+      expect(child.kill).toHaveBeenCalledWith();
+      expect(settled).toBe(false);
+
+      child.emit("exit", null, "SIGTERM");
+      await expect(running).rejects.toThrow("timed out");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("escalates termination and leaves user data intact when exit cannot be confirmed", async () => {
+    vi.useFakeTimers();
+    const child = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
+    child.kill = vi.fn(() => true);
+    const rm = vi.fn(async () => undefined);
+
+    try {
+      const running = run(["--library", "C:\\library", "--scenario", "cold"], {
+        cwd: "C:\\project",
+        tmpdir: "C:\\temp",
+        realpath: async (value: string) => value,
+        stat: async () => ({ isDirectory: () => true }),
+        mkdtemp: async () => "C:\\temp\\profile",
+        mkdir: async () => undefined,
+        rm,
+        spawnElectron: (options: Record<string, string>) => spawnElectron(options, {
+          spawn: () => child,
+          timeoutMs: 10,
+          terminationGraceMs: 20
+        })
+      });
+      const rejection = expect(running).rejects.toThrow("exit could not be confirmed");
+
+      await vi.advanceTimersByTimeAsync(50);
+      await rejection;
+      expect(child.kill).toHaveBeenNthCalledWith(1);
+      expect(child.kill).toHaveBeenNthCalledWith(2, "SIGKILL");
+      expect(rm).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("launches the project root so Electron reports the application version", async () => {
@@ -156,6 +207,7 @@ describe("thumbnail benchmark runner", () => {
       generatedAt: () => "2026-09-10T12:00:00.000Z",
       runtime: { appVersion: "0.1.0", electronVersion: "33.2.1", chromiumVersion: "130" },
       libraryScanReadyMs: 42,
+      libraryReconciliationSettledMs: 84,
       diagnostics: diagnosticsSnapshot
     });
 
@@ -165,14 +217,19 @@ describe("thumbnail benchmark runner", () => {
     expect(text).not.toContain("absolutePath");
     expect(requested).toEqual([privateModel.absolutePath]);
     expect(report).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       scenario: "cold",
       generatedAt: "2026-09-10T12:00:00.000Z",
       runtime: { appVersion: "0.1.0", electronVersion: "33.2.1", chromiumVersion: "130" },
       modelCount: 1,
       sizeBuckets: { under1MiB: 1, oneToTenMiB: 0, overTenMiB: 0 }
     });
-    expect(report.timingsMs.libraryScanReady).toBe(42);
+    expect(report.timingsMs).toMatchObject({
+      cachedIndexReady: 42,
+      libraryReconciliationSettled: 84
+    });
+    expect(report.timingsMs).not.toHaveProperty("libraryScanReady");
+    expect(report.timingsMs).not.toHaveProperty("fullReconciliation");
   });
 
   it("populates the isolated cache before measuring the warm pass", async () => {
@@ -296,9 +353,14 @@ describe("thumbnail benchmark runner", () => {
     expect((await running).timingsMs.firstVisibleThumbnail).toBe(25);
   });
 
-  it("paces scroll windows down and back by frames and completed work", async () => {
-    const visits: string[] = [];
-    const events: string[] = [];
+  it("moves scroll viewports while work is pending and reprioritizes live handles", async () => {
+    const blocker = deferred<string | null>();
+    const priorityChanges: string[] = [];
+    const releases: string[] = [];
+    let frames = 0;
+    let settled = false;
+    let requestsAtFirstTransition = 0;
+    let requestCount = 0;
     const models = Array.from({ length: 40 }, (_, index) => model({
       id: `model-${index}`,
       absolutePath: `C:\\Synthetic\\model-${index}.stl`,
@@ -309,27 +371,97 @@ describe("thumbnail benchmark runner", () => {
       scenario: "scroll",
       models,
       request: (entry, priority) => {
-        if (priority === "selected") visits.push(entry.id);
+        requestCount += 1;
         return {
-          promise: Promise.resolve().then(() => {
-            events.push(`complete:${entry.id}`);
-            return "data:image/webp;base64,test";
-          }),
-          setPriority() {},
-          release() {}
+          promise: blocker.promise.finally(() => { settled = true; }),
+          setPriority(nextPriority) {
+            priorityChanges.push(`${entry.id}:${priority}->${nextPriority}`);
+            priority = nextPriority;
+          },
+          release() { releases.push(entry.id); }
         };
       },
-      waitForFrame: async () => { events.push("frame"); },
+      waitForFrame: async () => {
+        frames += 1;
+        if (frames === 2) {
+          requestsAtFirstTransition = requestCount;
+          expect(settled).toBe(false);
+        }
+        if (frames === 5) blocker.resolve("data:image/webp;base64,test");
+      },
       now: () => 10,
       generatedAt: () => "2026-09-10T12:00:00.000Z",
       diagnostics: diagnosticsSnapshot
     });
 
     expect(report.modelCount).toBe(40);
-    expect(visits).toEqual(["model-0", "model-12", "model-16", "model-12", "model-0"]);
-    expect(events.filter((event) => event === "frame")).toHaveLength(visits.length);
-    expect(events.findIndex((event) => event.startsWith("complete:")))
-      .toBeLessThan(events.lastIndexOf("frame"));
+    expect(frames).toBe(5);
+    expect(requestsAtFirstTransition).toBe(36);
+    expect(priorityChanges).toContain("model-12:visible->selected");
+    expect(priorityChanges).toContain("model-0:selected->nearby");
+    expect(releases).toContain("model-0");
+    expect(requestCount).toBeLessThan(40 * frames);
+  });
+
+  it("creates historical pressure and lets newly selected work overtake released jobs", async () => {
+    const firstJob = deferred<string>();
+    const secondJob = deferred<string>();
+    const executionOrder: string[] = [];
+    let frame = 0;
+    let historicalPeak = 0;
+    const scheduler = createThumbnailScheduler({
+      concurrency: 1,
+      maxHistoricalJobs: 2,
+      shouldCacheResult: () => false
+    });
+    const models = Array.from({ length: 80 }, (_, index) => model({
+      id: `model-${index}`,
+      absolutePath: `C:\\Synthetic\\model-${index}.stl`
+    }));
+
+    const report = await runThumbnailBenchmark({
+      scenario: "scroll",
+      models,
+      request: (entry, priority) => {
+        const handle = scheduler.enqueue(entry.id, priority, async () => {
+          executionOrder.push(entry.id);
+          if (entry.id === "model-0") return firstJob.promise;
+          if (entry.id === "model-24") return secondJob.promise;
+          return "image";
+        });
+        return {
+          promise: handle.promise.then((value) => value ?? null),
+          setPriority: handle.setPriority,
+          release: handle.release
+        };
+      },
+      waitForFrame: async () => {
+        frame += 1;
+        if (frame === 4) {
+          firstJob.resolve("image");
+          await Promise.resolve();
+          await Promise.resolve();
+        }
+        if (frame === 11) secondJob.resolve("image");
+      },
+      now: () => 0,
+      diagnostics: () => {
+        const snapshot = scheduler.getSnapshot();
+        historicalPeak = Math.max(historicalPeak, snapshot.queued.historical);
+        return diagnosticsSnapshot({
+          queued: {
+            ...snapshot.queued,
+            total: Object.values(snapshot.queued).reduce((total, count) => total + count, 0)
+          },
+          running: { io: snapshot.active, render: 0, total: snapshot.active },
+          discardedHistorical: snapshot.discardedHistorical
+        });
+      }
+    });
+
+    expect(executionOrder.slice(0, 2)).toEqual(["model-0", "model-24"]);
+    expect(historicalPeak).toBeLessThanOrEqual(2);
+    expect(report.thumbnail.discardedHistorical).toBeGreaterThan(0);
   });
 
   it("does not include nearby work in initially visible settlement timing", async () => {

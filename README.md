@@ -67,7 +67,7 @@ npm run benchmark:thumbnails -- --library "C:\Models" --scenario warm
 npm run benchmark:thumbnails -- --library "C:\Models" --scenario scroll
 ```
 
-The benchmark uses a disposable application profile, does not start folder monitoring and does not write to the selected library. Reports are stored in the ignored `benchmark-results` directory and contain aggregate counts and timings only: no model names, filenames or library paths. The current reference run is documented in [the thumbnail benchmark baseline](docs/performance/thumbnail-benchmark-baseline.md).
+The benchmark uses a disposable application profile, restores a persisted index while reconciliation proceeds, does not start folder monitoring and does not write to the selected library. Its hidden renderer runs without background throttling. Reports are stored in the ignored `benchmark-results` directory and contain aggregate counts and timings only: no model names, filenames or library paths. The current reference run is documented in [the thumbnail benchmark baseline](docs/performance/thumbnail-benchmark-baseline.md).
 
 ## Dados e backup
 

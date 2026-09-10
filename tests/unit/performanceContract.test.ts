@@ -12,6 +12,11 @@ describe("performance contract", () => {
     expect(baseline).toContain("Cold thumbnails");
     expect(baseline).toContain("Warm thumbnails");
     expect(baseline).toContain("Scroll stress");
+    expect(baseline).toContain("Cached index ready");
+    expect(baseline).toContain("Library reconciliation settled");
+    expect(baseline).toContain("Thumbnail pass settled");
+    expect(baseline).toContain("pending controller regeneration");
+    expect(baseline).not.toContain("Full reconciliation");
     expect(baseline).not.toMatch(/[A-Z]:\\\\Users\\\\/i);
     expect(scheduler).toContain("maxCompletedEntries");
     expect(scheduler).toContain("maxHistoricalJobs");

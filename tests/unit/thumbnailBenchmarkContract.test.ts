@@ -39,6 +39,19 @@ describe("thumbnail benchmark isolation contract", () => {
     expect(preload).toContain('ipcRenderer.invoke("benchmark:fatal"');
   });
 
+  it("restores an isolated cached index while reconciliation and rendering proceed", async () => {
+    const main = await readFile("electron/main.ts", "utf8");
+
+    expect(main).toContain("benchmarkCachedIndexReadyMs");
+    expect(main).toContain("benchmarkLibraryReconciliationSettledMs");
+    expect(main).toContain("benchmarkReconciliationPromise");
+    expect(main).toContain("libraryIndexStore.get(benchmarkEnvironment.root)");
+    expect(main).toContain("libraryIndexStore.set");
+    expect(main).toContain("backgroundThrottling: !benchmarkEnvironment");
+    expect(main.indexOf("benchmarkReconciliationPromise = scanLibrary"))
+      .toBeLessThan(main.indexOf("await createWindow()"));
+  });
+
   it("builds renderer assets with file-compatible relative URLs", async () => {
     const vite = await readFile("vite.config.ts", "utf8");
 

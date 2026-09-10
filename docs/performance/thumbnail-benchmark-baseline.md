@@ -1,55 +1,46 @@
 # Thumbnail Performance Baseline
 
-This is the durable Phase 2 reference for future thumbnail-performance changes. It is not a comparison against the removed legacy queue: the benchmark harness was introduced with the bounded scheduler, so inventing a pre-change number would be misleading.
+This document is the durable Phase 2 reference for future thumbnail-performance changes. It is not a legacy comparison: the benchmark harness was introduced with the bounded scheduler, so no pre-change result exists to report.
 
-## Environment
+## Method
 
-- Recorded: 2026-09-10
-- Application: 3D Model Library 0.1.0
-- Runtime: Electron 33.2.1, Chromium 130.0.6723.137
-- Hardware: NVIDIA GeForce RTX 4060, Intel Xeon E5-2690 v4
-- Library: 449 STL/3MF models
-- Size buckets: 265 below 1 MiB, 138 from 1 to 10 MiB, 46 above 10 MiB
-- Privacy: isolated temporary profile; aggregate-only reports; no paths or filenames retained
+Each command creates a disposable application profile. Setup scans the selected library once to seed that profile's persisted index, then measurement begins. The benchmark restores the cached index, starts a fresh library reconciliation without waiting for it, and launches the hidden renderer with background throttling disabled. The selected library remains read-only and folder monitoring is not started.
 
-Times below are milliseconds, rounded to three decimal places from the generated JSON reports. `Library scan ready` is measured in the main process. `Full reconciliation` is the measured thumbnail pass and excludes process startup and the warm scenario's unmeasured cache-population pass.
+The report uses these separate milestones:
+
+- `Cached index ready`: measured startup time until the isolated persisted index has been restored.
+- `Library reconciliation settled`: measured startup time until the concurrent filesystem scan has completed.
+- `First visible thumbnail`: thumbnail-pass time until the first initially visible request succeeds.
+- `Initially visible settled`: thumbnail-pass time until all initially visible requests settle.
+- `Thumbnail pass settled`: thumbnail-pass time until all requests for the scenario settle.
+
+The scroll scenario advances viewport windows on frame boundaries while prior requests remain in flight. Overlapping handles are reprioritized, handles leaving the nearby range are released to historical priority, and the traversal moves down and back before final settlement. This creates queue pressure that can expose historical discards and whether newly selected work overtakes released work.
 
 ## Scenario Results
 
+The corrected cold, warm, and scroll measurements are pending controller regeneration. Earlier numbers were removed because the previous scroll scenario serialized complete windows and the startup fields did not describe what they measured.
+
 | Metric | Cold thumbnails | Warm thumbnails | Scroll stress |
 | --- | ---: | ---: | ---: |
-| Library scan ready | 123.439 | 122.194 | 123.840 |
-| First visible thumbnail | 327.500 | 4.200 | 353.400 |
-| Initially visible settled | 6,269.000 | 18.100 | 6,976.200 |
-| Full reconciliation | 51,053.700 | 323.200 | 54,466.500 |
-| Queue peak | 24 | 24 | 48 |
-| Retained-result peak | 8 | 0 | 8 |
-| Cache hits | 0 | 449 | 3,005 |
-| Cache misses | 449 | 0 | 449 |
-| Embedded thumbnails | 76 | 0 | 76 |
-| Generated renders | 373 | 0 | 373 |
-| Failures | 0 | 0 | 0 |
-| Discarded historical jobs | 0 | 0 | 0 |
-| Long tasks | 95 | 0 | 98 |
-| Longest task | 2,402.000 | 0 | 2,539.000 |
-| Average I/O duration | 222.788 | 9.794 | 37.553 |
-| Maximum I/O duration | 6,134.400 | 17.800 | 6,131.400 |
-| Average render duration | 1,431.553 | 0 | 906.009 |
-| Maximum render duration | 5,841.300 | 0 | 6,990.600 |
-
-## Interpretation
-
-### Cold thumbnails
-
-The first uncached thumbnail appeared in about 0.33 seconds. Rendering all 449 models took about 51.05 seconds. All models completed, no historical work was discarded and no thumbnail failed.
-
-### Warm thumbnails
-
-With the isolated cache populated, the first thumbnail appeared in 4.2 ms and all 449 models reconciled in about 0.32 seconds. Every model was a cache hit and no render work ran.
-
-### Scroll stress
-
-The scenario traverses fixed windows down and back up. The 3,005 cache hits show that revisited windows reused completed work. Its peak of 48 represents the combined bounded I/O and render stages, while retained completed results stayed capped at eight.
+| Cached index ready | pending | pending | pending |
+| Library reconciliation settled | pending | pending | pending |
+| First visible thumbnail | pending | pending | pending |
+| Initially visible settled | pending | pending | pending |
+| Thumbnail pass settled | pending | pending | pending |
+| Queue peak | pending | pending | pending |
+| Retained-result peak | pending | pending | pending |
+| Cache hits | pending | pending | pending |
+| Cache misses | pending | pending | pending |
+| Embedded thumbnails | pending | pending | pending |
+| Generated renders | pending | pending | pending |
+| Failures | pending | pending | pending |
+| Discarded historical jobs | pending | pending | pending |
+| Long tasks | pending | pending | pending |
+| Longest task | pending | pending | pending |
+| Average I/O duration | pending | pending | pending |
+| Maximum I/O duration | pending | pending | pending |
+| Average render duration | pending | pending | pending |
+| Maximum render duration | pending | pending | pending |
 
 ## Reproduction
 

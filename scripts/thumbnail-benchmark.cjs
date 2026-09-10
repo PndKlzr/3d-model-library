@@ -5,6 +5,17 @@ const childProcess = require("node:child_process");
 
 const SCENARIOS = new Set(["cold", "warm", "scroll"]);
 const DEFAULT_TIMEOUT_MS = 20 * 60_000;
+const DEFAULT_TERMINATION_GRACE_MS = 5_000;
+
+class BenchmarkProcessExitUnconfirmedError extends Error {
+  constructor(timeoutMs) {
+    super(
+      `Electron benchmark timed out after ${timeoutMs}ms and process exit could not be confirmed`
+    );
+    this.name = "BenchmarkProcessExitUnconfirmedError";
+    this.childExitConfirmed = false;
+  }
+}
 
 function parseArguments(args) {
   let library;
@@ -59,6 +70,7 @@ async function run(args = process.argv.slice(2), overrides = {}) {
     `thumbnail-${parsed.scenario}-${dependencies.now()}.json`
   );
   let userData;
+  let cleanupUserData = true;
 
   try {
     userData = await dependencies.mkdtemp(
@@ -73,8 +85,13 @@ async function run(args = process.argv.slice(2), overrides = {}) {
     });
     await dependencies.stat(output);
     process.stdout.write(`${output}\n`);
+  } catch (error) {
+    if (error?.childExitConfirmed === false) cleanupUserData = false;
+    throw error;
   } finally {
-    if (userData) await dependencies.rm(userData, { recursive: true, force: true });
+    if (userData && cleanupUserData) {
+      await dependencies.rm(userData, { recursive: true, force: true });
+    }
   }
 }
 
@@ -99,6 +116,7 @@ function assertOutsideLibrary(library, candidate, label) {
 function spawnElectron({ library, scenario, output, userData }, overrides = {}) {
   const spawn = overrides.spawn ?? childProcess.spawn;
   const timeoutMs = overrides.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const terminationGraceMs = overrides.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS;
   const electronPath = overrides.electronPath ?? require("electron");
   const appPath = overrides.appPath ?? process.cwd();
   const child = spawn(electronPath, [appPath], {
@@ -115,28 +133,51 @@ function spawnElectron({ library, scenario, output, userData }, overrides = {}) 
 
   return new Promise((resolve, reject) => {
     let settled = false;
+    let timeoutError = null;
+    let escalationTimer;
+    let exitConfirmationTimer;
     const finish = (error) => {
       if (settled) return;
       settled = true;
       clearTimeout(watchdog);
+      clearTimeout(escalationTimer);
+      clearTimeout(exitConfirmationTimer);
       if (error) reject(error);
       else resolve();
     };
     const watchdog = setTimeout(() => {
+      timeoutError = new Error(`Electron benchmark timed out after ${timeoutMs}ms`);
       child.kill();
-      finish(new Error(`Electron benchmark timed out after ${timeoutMs}ms`));
+      escalationTimer = setTimeout(() => {
+        child.kill("SIGKILL");
+        exitConfirmationTimer = setTimeout(() => {
+          finish(new BenchmarkProcessExitUnconfirmedError(timeoutMs));
+        }, terminationGraceMs);
+        exitConfirmationTimer.unref?.();
+      }, terminationGraceMs);
+      escalationTimer.unref?.();
     }, timeoutMs);
     watchdog.unref?.();
 
-    child.once("error", (error) => finish(error));
+    child.once("error", (error) => {
+      if (!timeoutError) finish(error);
+    });
     child.once("exit", (code, signal) => {
-      if (code === 0) finish();
+      if (timeoutError) finish(timeoutError);
+      else if (code === 0) finish();
       else finish(new Error(`Electron benchmark failed (${signal ?? code})`));
     });
   });
 }
 
-module.exports = { DEFAULT_TIMEOUT_MS, parseArguments, run, spawnElectron };
+module.exports = {
+  DEFAULT_TIMEOUT_MS,
+  DEFAULT_TERMINATION_GRACE_MS,
+  BenchmarkProcessExitUnconfirmedError,
+  parseArguments,
+  run,
+  spawnElectron
+};
 
 if (require.main === module) {
   run().catch((error) => {

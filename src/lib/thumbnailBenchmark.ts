@@ -12,7 +12,7 @@ export type ThumbnailBenchmarkRequest = Pick<
 >;
 
 export type ThumbnailBenchmarkReport = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   scenario: ThumbnailBenchmarkScenario;
   generatedAt: string;
   runtime: {
@@ -27,10 +27,11 @@ export type ThumbnailBenchmarkReport = {
     overTenMiB: number;
   };
   timingsMs: {
-    libraryScanReady: number;
+    cachedIndexReady: number;
+    libraryReconciliationSettled: number;
     firstVisibleThumbnail: number | null;
     initiallyVisibleSettled: number;
-    fullReconciliation: number;
+    thumbnailPassSettled: number;
   };
   queuePeak: number;
   thumbnail: ThumbnailDiagnosticsSnapshot;
@@ -46,11 +47,15 @@ type BenchmarkOptions = {
   generatedAt?: () => string;
   runtime?: ThumbnailBenchmarkReport["runtime"];
   libraryScanReadyMs?: number;
+  libraryReconciliationSettledMs?: number;
   waitForFrame?: () => Promise<void>;
 };
 
 type PassResult = {
-  timingsMs: ThumbnailBenchmarkReport["timingsMs"];
+  timingsMs: Pick<
+    ThumbnailBenchmarkReport["timingsMs"],
+    "firstVisibleThumbnail" | "initiallyVisibleSettled" | "thumbnailPassSettled"
+  >;
   queuePeak: number;
 };
 
@@ -82,7 +87,7 @@ export async function runThumbnailBenchmark(
     : await runStandardPass(supportedModels, options.request, options.diagnostics, now);
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     scenario: options.scenario,
     generatedAt: (options.generatedAt ?? (() => new Date().toISOString()))(),
     runtime: sanitizeRuntime(options.runtime),
@@ -90,7 +95,10 @@ export async function runThumbnailBenchmark(
     sizeBuckets: countSizeBuckets(supportedModels),
     timingsMs: {
       ...pass.timingsMs,
-      libraryScanReady: normalizeDuration(options.libraryScanReadyMs ?? 0)
+      cachedIndexReady: normalizeDuration(options.libraryScanReadyMs ?? 0),
+      libraryReconciliationSettled: normalizeDuration(
+        options.libraryReconciliationSettledMs ?? options.libraryScanReadyMs ?? 0
+      )
     },
     queuePeak: pass.queuePeak,
     thumbnail: sanitizeDiagnostics(options.diagnostics())
@@ -135,27 +143,72 @@ async function runScrollPass(
 ): Promise<PassResult> {
   const tracker = createPassTracker(now, diagnostics);
   const positions = createScrollPositions(models.length);
+  const liveHandles = new Map<number, {
+    handle: ThumbnailBenchmarkRequest;
+    priority: ThumbnailPriority;
+  }>();
+  const allPromises: Promise<string | null>[] = [];
+  let initialSettlement: Promise<void> = Promise.resolve();
 
-  for (let visit = 0; visit < positions.length; visit += 1) {
-    await waitForFrame();
-    const windowStart = positions[visit];
-    const windowEnd = Math.min(models.length, windowStart + INITIAL_VISIBLE_COUNT);
-    const nearbyStart = Math.max(0, windowStart - SCROLL_STEP);
-    const nearbyEnd = Math.min(models.length, windowEnd + SCROLL_STEP);
-    const handles = models.slice(nearbyStart, nearbyEnd).map((model, localIndex) => {
-      const index = nearbyStart + localIndex;
-      const priority: ThumbnailPriority = index === windowStart
-        ? "selected"
-        : index >= windowStart && index < windowEnd
-          ? "visible"
-          : "nearby";
-      return request(model, priority);
-    });
-    try {
-      await settleWindow(handles, tracker, visit === 0, windowEnd - windowStart);
-    } finally {
-      handles.forEach((handle) => handle.release());
+  try {
+    for (let visit = 0; visit < positions.length; visit += 1) {
+      await waitForFrame();
+      const windowStart = positions[visit];
+      const windowEnd = Math.min(models.length, windowStart + INITIAL_VISIBLE_COUNT);
+      const nearbyStart = Math.max(0, windowStart - SCROLL_STEP);
+      const nearbyEnd = Math.min(models.length, windowEnd + SCROLL_STEP);
+      const desiredPriorities = new Map<number, ThumbnailPriority>();
+
+      for (let index = nearbyStart; index < nearbyEnd; index += 1) {
+        desiredPriorities.set(index, index === windowStart
+          ? "selected"
+          : index >= windowStart && index < windowEnd
+            ? "visible"
+            : "nearby");
+      }
+
+      for (const [index, live] of liveHandles) {
+        if (desiredPriorities.has(index)) continue;
+        live.handle.release();
+        liveHandles.delete(index);
+      }
+
+      const initiallyVisiblePromises: Promise<string | null>[] = [];
+      for (const [index, priority] of desiredPriorities) {
+        const live = liveHandles.get(index);
+        if (live) {
+          if (live.priority !== priority) {
+            live.handle.setPriority(priority);
+            live.priority = priority;
+          }
+          continue;
+        }
+
+        const handle = request(models[index], priority);
+        liveHandles.set(index, { handle, priority });
+        allPromises.push(handle.promise);
+        if (visit === 0 && index >= windowStart && index < windowEnd) {
+          initiallyVisiblePromises.push(handle.promise.then((thumbnail) => {
+            if (thumbnail !== null) tracker.recordSuccess();
+            return thumbnail;
+          }));
+        }
+      }
+
+      if (visit === 0) {
+        initialSettlement = Promise.all(initiallyVisiblePromises).then(() => {
+          tracker.settleInitial();
+        });
+      }
+
+      await Promise.resolve();
+      tracker.sampleQueue();
     }
+
+    await Promise.all([initialSettlement, Promise.all(allPromises)]);
+    tracker.sampleQueue();
+  } finally {
+    for (const live of liveHandles.values()) live.handle.release();
   }
 
   return tracker.finish();
@@ -182,10 +235,9 @@ function createPassTracker(now: () => number, diagnostics: BenchmarkOptions["dia
     finish(): PassResult {
       return {
         timingsMs: {
-          libraryScanReady: 0,
           firstVisibleThumbnail,
           initiallyVisibleSettled,
-          fullReconciliation: elapsed(now(), startedAt)
+          thumbnailPassSettled: elapsed(now(), startedAt)
         },
         queuePeak
       };
@@ -275,13 +327,4 @@ function elapsed(current: number, startedAt: number) {
 
 function normalizeDuration(value: number) {
   return Number.isFinite(value) ? Math.max(0, value) : 0;
-}
-
-function emptyTimings(): ThumbnailBenchmarkReport["timingsMs"] {
-  return {
-    libraryScanReady: 0,
-    firstVisibleThumbnail: null,
-    initiallyVisibleSettled: 0,
-    fullReconciliation: 0
-  };
 }
