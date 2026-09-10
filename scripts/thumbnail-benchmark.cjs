@@ -4,7 +4,7 @@ const path = require("node:path");
 const childProcess = require("node:child_process");
 
 const SCENARIOS = new Set(["cold", "warm", "scroll"]);
-const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_TIMEOUT_MS = 20 * 60_000;
 
 function parseArguments(args) {
   let library;
@@ -141,7 +141,7 @@ function spawnElectron({ library, scenario, output, userData }, overrides = {}) 
   });
 }
 
-module.exports = { parseArguments, run, spawnElectron };
+module.exports = { DEFAULT_TIMEOUT_MS, parseArguments, run, spawnElectron };
 
 if (require.main === module) {
   run().catch((error) => {

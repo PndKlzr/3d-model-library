@@ -10,13 +10,18 @@ import type { ThumbnailDiagnosticsSnapshot, ThumbnailPriority } from "../../src/
 import type { ModelFile } from "../../src/shared/types";
 
 const require = createRequire(import.meta.url);
-const { parseArguments, run, spawnElectron } = require("../../scripts/thumbnail-benchmark.cjs") as {
+const { DEFAULT_TIMEOUT_MS, parseArguments, run, spawnElectron } = require("../../scripts/thumbnail-benchmark.cjs") as {
+  DEFAULT_TIMEOUT_MS: number;
   parseArguments: (args: string[]) => { library: string; scenario: string };
   run: (args: string[], dependencies: Record<string, unknown>) => Promise<void>;
   spawnElectron: (options: Record<string, string>, dependencies: Record<string, unknown>) => Promise<void>;
 };
 
 describe("thumbnail benchmark command", () => {
+  it("allows enough time for large real-world libraries", () => {
+    expect(DEFAULT_TIMEOUT_MS).toBeGreaterThanOrEqual(15 * 60_000);
+  });
+
   it("rejects a missing or relative benchmark library path", () => {
     expect(() => parseArguments(["--scenario", "warm"])).toThrow("--library is required");
     expect(() => parseArguments(["--library", "models", "--scenario", "warm"]))
@@ -227,6 +232,42 @@ describe("thumbnail benchmark runner", () => {
     });
 
     expect(report.timingsMs.firstVisibleThumbnail).toBe(25);
+  });
+
+  it("does not count a nearby thumbnail as the first visible thumbnail", async () => {
+    let time = 0;
+    let nearbyCompleted = false;
+    const visible = deferred<string | null>();
+    const models = Array.from({ length: 25 }, (_, index) => model({
+      id: `model-${index}`,
+      absolutePath: `C:\\Synthetic\\model-${index}.stl`
+    }));
+
+    const running = runThumbnailBenchmark({
+      scenario: "scroll",
+      models,
+      request: (_entry, priority) => ({
+        promise: Promise.resolve().then(() => {
+          if (priority === "nearby") {
+            time = 5;
+            nearbyCompleted = true;
+            return "nearby-image";
+          }
+          return visible.promise;
+        }),
+        setPriority() {},
+        release() {}
+      }),
+      waitForFrame: async () => undefined,
+      now: () => time,
+      diagnostics: diagnosticsSnapshot
+    });
+
+    await vi.waitFor(() => expect(nearbyCompleted).toBe(true));
+    time = 25;
+    visible.resolve("visible-image");
+
+    expect((await running).timingsMs.firstVisibleThumbnail).toBe(25);
   });
 
   it("paces scroll windows down and back by frames and completed work", async () => {

@@ -201,8 +201,8 @@ async function settleWindow(
 ) {
   await Promise.resolve();
   tracker.sampleQueue();
-  const promises = handles.map((handle) => handle.promise.then((thumbnail) => {
-    if (thumbnail !== null) tracker.recordSuccess();
+  const promises = handles.map((handle, index) => handle.promise.then((thumbnail) => {
+    if (initial && index < initiallyVisibleCount && thumbnail !== null) tracker.recordSuccess();
     return thumbnail;
   }));
   if (promises.length > 0) await Promise.race(promises);
