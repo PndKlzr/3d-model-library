@@ -23,6 +23,9 @@ describe("performance contract", () => {
     expect(thumbnailSource).toContain("thumbnailScheduler");
     expect(thumbnailSource).toContain("renderThumbnail");
     expect(thumbnailSource).toContain("shouldCacheResult: (thumbnail) => thumbnail !== null");
+    expect(cardThumbnailSource).not.toContain('"background"');
+    expect(cardThumbnailSource).toContain('requestModelThumbnail(model, "historical")');
+    expect(thumbnailSource).toContain("thumbnail ?? null");
   });
 
   it("reuses one GPU renderer for generated thumbnails", async () => {

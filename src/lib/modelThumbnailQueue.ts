@@ -7,6 +7,10 @@ import {
 import type { ModelFile } from "../shared/types";
 import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
 
+export type RenderedModelThumbnailRequest = Omit<ThumbnailRequest<string | null>, "promise"> & {
+  promise: Promise<string | null>;
+};
+
 const thumbnailScheduler = createThumbnailScheduler({
   concurrency: 1,
   shouldCacheResult: (thumbnail) => thumbnail !== null
@@ -15,10 +19,10 @@ const thumbnailScheduler = createThumbnailScheduler({
 export function requestRenderedModelThumbnail(
   model: ModelFile,
   priority: ThumbnailPriority = "nearby"
-): ThumbnailRequest<string | null> {
+): RenderedModelThumbnailRequest {
   const cacheKey = `${THUMBNAIL_RENDER_VERSION}:${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
 
-  return thumbnailScheduler.enqueue(cacheKey, priority, async () => {
+  const request = thumbnailScheduler.enqueue(cacheKey, priority, async () => {
     try {
       await waitForIdle();
       const modelBytes = await window.modelLibrary.readModelFile(model.absolutePath);
@@ -28,6 +32,10 @@ export function requestRenderedModelThumbnail(
       return null;
     }
   });
+  return {
+    ...request,
+    promise: request.promise.then((thumbnail) => thumbnail ?? null)
+  };
 }
 
 function waitForIdle(): Promise<void> {

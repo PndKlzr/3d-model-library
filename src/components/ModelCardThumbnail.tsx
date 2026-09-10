@@ -1,7 +1,10 @@
 import { Box, FileArchive } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { requestRenderedModelThumbnail } from "../lib/modelThumbnailQueue";
-import type { ThumbnailPriority, ThumbnailRequest } from "../lib/thumbnailScheduler";
+import {
+  requestRenderedModelThumbnail,
+  type RenderedModelThumbnailRequest
+} from "../lib/modelThumbnailQueue";
+import type { ThumbnailPriority } from "../lib/thumbnailScheduler";
 import type { ModelFile } from "../shared/types";
 
 type ModelCardThumbnailProps = {
@@ -57,20 +60,20 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
 }
 
 export async function loadModelThumbnail(model: ModelFile): Promise<string | null> {
-  const request = requestModelThumbnail(model, "background");
+  const request = requestModelThumbnail(model, "historical");
   return request.promise.finally(request.release);
 }
 
 function requestModelThumbnail(
   model: ModelFile,
   initialPriority: ThumbnailPriority
-): ThumbnailRequest<string | null> {
+): RenderedModelThumbnailRequest {
   let priority = initialPriority;
   let released = false;
-  let renderRequest: ThumbnailRequest<string | null> | null = null;
+  let renderRequest: RenderedModelThumbnailRequest | null = null;
 
   const promise = resolveModelThumbnail(model, () => {
-    renderRequest = requestRenderedModelThumbnail(model, released ? "background" : priority);
+    renderRequest = requestRenderedModelThumbnail(model, released ? "historical" : priority);
     if (released) renderRequest.release();
     return renderRequest;
   });
@@ -90,7 +93,7 @@ function requestModelThumbnail(
 
 async function resolveModelThumbnail(
   model: ModelFile,
-  createRenderRequest: () => ThumbnailRequest<string | null>
+  createRenderRequest: () => RenderedModelThumbnailRequest
 ) {
   if ([".zip", ".rar", ".7z"].includes(model.extension)) return null;
 
