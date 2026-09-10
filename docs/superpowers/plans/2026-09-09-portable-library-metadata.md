@@ -653,17 +653,17 @@ git commit -m "feat: show portable metadata availability"
 - Reuses: `showModelInFolder(absolutePath)` and its existing library-bound path validation.
 - Adds `Copy` and `FolderSearch` Lucide icons to the details information row.
 
-- [ ] **Step 1: Add failing path action contracts**
+- [x] **Step 1: Add failing path action contracts**
 
 Extend preload tests for `copyText` and its exact channel. Extend the details contract to require the `Localização` label, the computed relative path including filename, copy action, and Explorer reveal action in the info tab.
 
-- [ ] **Step 2: Run contract tests and verify they fail**
+- [x] **Step 2: Run contract tests and verify they fail**
 
 Run: `npm test -- tests/unit/preloadContract.test.ts tests/unit/interactionFlowContract.test.ts`
 
 Expected: FAIL on missing `copyText` and location row.
 
-- [ ] **Step 3: Add a narrow clipboard boundary**
+- [x] **Step 3: Add a narrow clipboard boundary**
 
 Import Electron `clipboard` in `main.ts` and register:
 
@@ -678,7 +678,7 @@ ipcMain.handle("system:copy-text", (_event, value: string) => {
 
 Expose only `copyText`, not the clipboard object. Add the matching typed preload signature.
 
-- [ ] **Step 4: Add the complete location row**
+- [x] **Step 4: Add the complete location row**
 
 Compute:
 
@@ -690,11 +690,11 @@ const relativeLocation = model
 
 Add a `Localização` definition-list row after `Pasta`. Set the value and its wrapper `title` to `model.absolutePath`. Place two icon-only buttons beside the path: copy calls `window.modelLibrary.copyText(model.absolutePath)` and reveal calls `onShowModelInFolder(model.absolutePath)`. Use `aria-label` and `title` values `Copiar caminho completo` and `Mostrar no Explorer`. Remove the duplicate text-based Explorer action from the Actions tab so the command has one predictable home.
 
-- [ ] **Step 5: Style long paths without resizing the panel**
+- [x] **Step 5: Style long paths without resizing the panel**
 
 Add a two-column `.metadata-location-value` layout with `min-width: 0`; use `overflow-wrap: anywhere` for the path and stable 30px icon buttons. At the root, show only the filename. Preserve the absolute path in the native tooltip.
 
-- [ ] **Step 6: Run location contracts, layout tests, and build**
+- [x] **Step 6: Run location contracts, layout tests, and build**
 
 Run: `npm test -- tests/unit/preloadContract.test.ts tests/unit/interactionFlowContract.test.ts tests/unit/layoutContract.test.ts`
 
@@ -702,7 +702,7 @@ Run: `npm run build`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the location UI**
+- [x] **Step 7: Commit the location UI**
 
 ```bash
 git add electron/main.ts electron/preload.cjs src/shared/preload.d.ts src/components/DetailsPanel.tsx src/styles.css tests/unit/preloadContract.test.ts tests/unit/interactionFlowContract.test.ts

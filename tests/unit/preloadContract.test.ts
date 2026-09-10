@@ -41,6 +41,8 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("removeCatalogTag");
     expect(preloadSource).toContain("setModelNotes");
     expect(preloadSource).toContain("showModelInFolder");
+    expect(preloadSource).toContain("copyText");
+    expect(preloadSource).toContain('ipcRenderer.invoke("system:copy-text"');
     expect(preloadSource).not.toContain("import ");
   });
 });

@@ -1706,6 +1706,31 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.metadata-location-value {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.metadata-location-value > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.metadata-location-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.metadata-location-actions .icon-only {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+  min-height: 30px;
+}
+
 .notice {
   display: flex;
   align-items: flex-start;

@@ -1,4 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, nativeImage, shell, type WebContents } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeImage,
+  shell,
+  type WebContents
+} from "electron";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -301,6 +310,14 @@ function registerIpcHandlers() {
   ipcMain.handle("model:show-in-folder", (_event, absolutePath: string) => {
     assertPathInsideLibrary(absolutePath);
     shell.showItemInFolder(absolutePath);
+  });
+
+  ipcMain.handle("system:copy-text", (_event, value: string) => {
+    if (typeof value !== "string" || value.length > 4096 || value.includes("\0")) {
+      throw new Error("Texto inválido para copiar.");
+    }
+
+    clipboard.writeText(value);
   });
 
   ipcMain.on("model:start-file-drag", (event, request: FileDragRequest) => {

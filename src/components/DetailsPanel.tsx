@@ -1,8 +1,10 @@
 import {
   Archive,
   Calendar,
+  Copy,
   Eye,
   FolderOpen,
+  FolderSearch,
   LoaderCircle,
   Pencil,
   Scissors,
@@ -77,6 +79,9 @@ export function DetailsPanel({
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const favorite = modelMetadata?.favorite ?? false;
   const isArchive = Boolean(model && isArchiveExtension(model.extension));
+  const relativeLocation = model
+    ? [model.relativeFolder, model.name].filter(Boolean).join("/")
+    : "";
 
   useEffect(() => {
     setShowPreview(false);
@@ -280,6 +285,35 @@ export function DetailsPanel({
                   </div>
                   <div>
                     <dt>
+                      <FolderSearch size={15} />
+                      Localização
+                    </dt>
+                    <dd className="metadata-location-value" title={model.absolutePath}>
+                      <span>{relativeLocation}</span>
+                      <span className="metadata-location-actions">
+                        <button
+                          className="icon-only"
+                          type="button"
+                          onClick={() => void window.modelLibrary.copyText(model.absolutePath)}
+                          aria-label="Copiar caminho completo"
+                          title="Copiar caminho completo"
+                        >
+                          <Copy size={15} />
+                        </button>
+                        <button
+                          className="icon-only"
+                          type="button"
+                          onClick={() => void onShowModelInFolder(model.absolutePath)}
+                          aria-label="Mostrar no Explorer"
+                          title="Mostrar no Explorer"
+                        >
+                          <FolderSearch size={15} />
+                        </button>
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>
                       <Weight size={15} />
                       Tamanho
                     </dt>
@@ -369,14 +403,6 @@ export function DetailsPanel({
             {activeTab === "actions" ? (
               <div className="details-actions-tab">
                 <div className="quick-actions">
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => onShowModelInFolder(model.absolutePath)}
-                  >
-                    <FolderOpen size={16} />
-                    Mostrar no Explorer
-                  </button>
                   <button className="secondary-button" type="button" onClick={onRenameModelFile}>
                     <Pencil size={16} />
                     Renomear arquivo
