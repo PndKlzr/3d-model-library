@@ -15,9 +15,18 @@ import type {
   ThumbnailSignature,
   SlicerLaunchResult
 } from "./types";
+import type {
+  ThumbnailBenchmarkReport,
+  ThumbnailBenchmarkScenario
+} from "../lib/thumbnailBenchmark";
 
 export type ModelLibraryApi = {
   version: string;
+  getThumbnailBenchmark: () => Promise<{
+    scenario: ThumbnailBenchmarkScenario;
+    models: ModelFile[];
+  } | null>;
+  submitThumbnailBenchmark: (report: ThumbnailBenchmarkReport) => Promise<void>;
   getRuntimeVersions: () => Promise<{
     appVersion: string;
     electronVersion: string;

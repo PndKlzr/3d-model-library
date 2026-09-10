@@ -34,6 +34,10 @@ import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { modelThumbnailService } from "./lib/modelThumbnailService";
 import {
+  runThumbnailBenchmark,
+  type ThumbnailBenchmarkScenario
+} from "./lib/thumbnailBenchmark";
+import {
   observeThumbnailLongTasks,
   type ThumbnailDiagnosticsSnapshot
 } from "./lib/thumbnailDiagnostics";
@@ -71,7 +75,62 @@ type LocalActionLogEntry = LibraryActionLogEntry & {
   restorePairs?: FileRestorePair[];
 };
 
+type BenchmarkConfiguration = {
+  scenario: ThumbnailBenchmarkScenario;
+  models: ModelFile[];
+};
+
 function App() {
+  const [benchmark, setBenchmark] = useState<BenchmarkConfiguration | null | undefined>();
+
+  useEffect(() => {
+    let mounted = true;
+    window.modelLibrary.getThumbnailBenchmark()
+      .then((configuration) => {
+        if (mounted) setBenchmark(configuration);
+      })
+      .catch(() => {
+        if (mounted) setBenchmark(null);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  if (benchmark === undefined) return null;
+  if (benchmark) return <ThumbnailBenchmark configuration={benchmark} />;
+  return <LibraryApp />;
+}
+
+function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfiguration }) {
+  useEffect(() => {
+    const longTaskObserver = observeThumbnailLongTasks(modelThumbnailService);
+    let active = true;
+    longTaskObserver.start();
+
+    void window.modelLibrary.getRuntimeVersions()
+      .then((runtime) => runThumbnailBenchmark({
+        scenario: configuration.scenario,
+        models: configuration.models,
+        request: (model, priority) => modelThumbnailService.request(model, priority),
+        diagnostics: () => modelThumbnailService.getDiagnostics(),
+        resetDiagnostics: () => modelThumbnailService.resetDiagnostics(),
+        runtime
+      }))
+      .then((report) => active ? window.modelLibrary.submitThumbnailBenchmark(report) : undefined)
+      .catch((error) => {
+        console.error("[thumbnail-benchmark]", error);
+        window.close();
+      });
+
+    return () => {
+      active = false;
+      longTaskObserver.stop();
+    };
+  }, [configuration]);
+
+  return null;
+}
+
+function LibraryApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [scanResult, setScanResult] = useState<LibraryScanResult | null>(null);
   const [selectedFolder, setSelectedFolder] = useState(ALL_FOLDERS_ID);

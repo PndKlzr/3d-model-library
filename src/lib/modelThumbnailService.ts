@@ -25,6 +25,7 @@ export type ModelThumbnailService = {
   retry: (model: ModelFile) => void;
   subscribe: (listener: (snapshot: ThumbnailDiagnosticsSnapshot) => void) => () => void;
   getDiagnostics: () => ThumbnailDiagnosticsSnapshot;
+  resetDiagnostics: () => void;
   recordLongTask: (durationMs: number) => void;
   onIdle: () => Promise<void>;
 };
@@ -250,6 +251,12 @@ export function createModelThumbnailService(
     for (const listener of listeners) deliverDiagnostics(listener, snapshot);
   }
 
+  function resetDiagnostics() {
+    peakRetainedResults = 0;
+    diagnostics.reset();
+    publishDiagnostics();
+  }
+
   async function onIdle() {
     while (pipelineEntries.size > 0) {
       await Promise.all([...pipelineEntries.values()].map((entry) => entry.promise));
@@ -262,6 +269,7 @@ export function createModelThumbnailService(
     retry,
     subscribe,
     getDiagnostics,
+    resetDiagnostics,
     recordLongTask: diagnostics.recordLongTask,
     onIdle
   };

@@ -9,6 +9,22 @@ const WEBP = "data:image/webp;base64,UklGRgAAAABXRUJQ";
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 
 describe("modelThumbnailService", () => {
+  it("resets aggregate diagnostics between warm-up and measured passes", async () => {
+    const service = createModelThumbnailService(dependencies());
+
+    await service.request(model(), "visible").promise;
+    expect(service.getDiagnostics().renders).toBe(1);
+
+    service.resetDiagnostics();
+
+    expect(service.getDiagnostics()).toMatchObject({
+      cacheHits: 0,
+      cacheMisses: 0,
+      renders: 0,
+      failures: 0
+    });
+  });
+
   it("records long-task durations in the shared diagnostics stream", () => {
     const service = createModelThumbnailService(dependencies());
 

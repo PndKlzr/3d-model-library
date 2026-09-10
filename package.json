@@ -8,6 +8,7 @@
     "dev": "vite --host 127.0.0.1 --strictPort",
     "electron:dev": "node scripts/electron-dev.cjs",
     "build": "tsc -p tsconfig.node.json && node scripts/copy-preload.cjs && vite build",
+    "benchmark:thumbnails": "node scripts/thumbnail-benchmark.cjs",
     "probe:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/native-drop-probe/build.ps1",
     "test": "vitest run",
     "test:watch": "vitest"

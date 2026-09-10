@@ -7,3 +7,4 @@ dist-renderer/
 tools/native-drop-probe/bin/
 *.obj
 .worktrees/
+benchmark-results/

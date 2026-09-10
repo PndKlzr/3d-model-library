@@ -2,6 +2,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("modelLibrary", {
   version: "0.1.0",
+  getThumbnailBenchmark: () => ipcRenderer.invoke("benchmark:get-config"),
+  submitThumbnailBenchmark: (report) => ipcRenderer.invoke("benchmark:submit-report", report),
   getRuntimeVersions: () => ipcRenderer.invoke("system:runtime-versions"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),

@@ -8,7 +8,7 @@ import {
   shell,
   type WebContents
 } from "electron";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -64,6 +64,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isDev = !app.isPackaged;
+const benchmarkEnvironment = readBenchmarkEnvironment();
+
+if (benchmarkEnvironment) {
+  app.setPath("userData", benchmarkEnvironment.userData);
+}
+
 let settingsStore: SettingsStore;
 let libraryIndexStore: LibraryIndexStore;
 let libraryMetadataStore: ActiveLibraryMetadataStore;
@@ -71,9 +77,52 @@ let modelHashStore: ModelHashStore;
 let libraryWatcher: LibraryWatcherHandle | null = null;
 let thumbnailCache: ThumbnailCache;
 let watcherGeneration = 0;
+let benchmarkScanResult: Awaited<ReturnType<typeof scanLibrary>> | null = null;
+let benchmarkReportWritten = false;
 const dragIcon = createFileDragIcon();
 
+type BenchmarkEnvironment = {
+  root: string;
+  scenario: "cold" | "warm" | "scroll";
+  output: string;
+  userData: string;
+};
+
+function readBenchmarkEnvironment(): BenchmarkEnvironment | null {
+  const root = process.env.MODEL_LIBRARY_BENCHMARK_ROOT;
+  const scenario = process.env.MODEL_LIBRARY_BENCHMARK_SCENARIO;
+  const output = process.env.MODEL_LIBRARY_BENCHMARK_OUTPUT;
+  const userData = process.env.MODEL_LIBRARY_BENCHMARK_USER_DATA;
+  const values = [root, scenario, output, userData];
+
+  if (values.every((value) => value === undefined)) return null;
+  if (!root || !path.isAbsolute(root)) throw new Error("Invalid benchmark library root");
+  if (scenario !== "cold" && scenario !== "warm" && scenario !== "scroll") {
+    throw new Error("Invalid benchmark scenario");
+  }
+  if (!output || !path.isAbsolute(output) || path.extname(output).toLowerCase() !== ".json") {
+    throw new Error("Invalid benchmark output path");
+  }
+  if (!userData || !path.isAbsolute(userData)) throw new Error("Invalid benchmark userData path");
+  if (isPathAtOrInside(root, output) || isPathAtOrInside(root, userData)) {
+    throw new Error("Benchmark writable paths must be outside the library");
+  }
+
+  return {
+    root: path.resolve(root),
+    scenario,
+    output: path.resolve(output),
+    userData: path.resolve(userData)
+  };
+}
+
+function isPathAtOrInside(root: string, candidate: string) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate));
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
 function registerIpcHandlers() {
+  ipcMain.handle("benchmark:get-config", () => null);
   ipcMain.handle("system:runtime-versions", () => ({
     appVersion: app.getVersion(),
     electronVersion: process.versions.electron,
@@ -411,6 +460,147 @@ function registerIpcHandlers() {
   });
 }
 
+function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
+  ipcMain.handle("system:runtime-versions", () => getRuntimeVersions());
+  ipcMain.handle("benchmark:get-config", () => ({
+    scenario: environment.scenario,
+    models: benchmarkScanResult?.models ?? []
+  }));
+  ipcMain.handle("model:thumbnail", async (_event, absolutePath: string) => {
+    assertPathInsideLibrary(absolutePath);
+    return readEmbeddedThumbnail(absolutePath);
+  });
+  ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
+    assertThumbnailSignature(model);
+    assertPathInsideLibrary(model.absolutePath);
+    return thumbnailCache.read(model);
+  });
+  ipcMain.handle("thumbnail:cache-write", async (_event, model, dataUrl: string) => {
+    assertThumbnailSignature(model);
+    assertPathInsideLibrary(model.absolutePath);
+    if (typeof dataUrl !== "string") throw new Error("Invalid thumbnail data");
+    await thumbnailCache.write(model, dataUrl);
+  });
+  ipcMain.handle("model:read-file", async (_event, absolutePath: string) => {
+    assertPathInsideLibrary(absolutePath);
+    const buffer = await readFile(absolutePath);
+    return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  });
+  ipcMain.handle("benchmark:submit-report", async (_event, submittedReport: unknown) => {
+    if (benchmarkReportWritten) throw new Error("Benchmark report was already submitted");
+    const report = sanitizeBenchmarkReport(submittedReport, environment);
+    benchmarkReportWritten = true;
+    await writeFile(environment.output, `${JSON.stringify(report, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: "wx"
+    });
+    setImmediate(() => app.quit());
+  });
+}
+
+function sanitizeBenchmarkReport(value: unknown, environment: BenchmarkEnvironment) {
+  const report = requireRecord(value, "benchmark report");
+  if (report.schemaVersion !== 1) throw new Error("Invalid benchmark report schema");
+  if (report.scenario !== environment.scenario) throw new Error("Invalid benchmark report scenario");
+
+  const sizeBuckets = requireRecord(report.sizeBuckets, "size buckets");
+  const timings = requireRecord(report.timingsMs, "timings");
+  const thumbnail = requireRecord(report.thumbnail, "thumbnail diagnostics");
+  const queued = requireRecord(thumbnail.queued, "queued diagnostics");
+  const queuedByStage = requireRecord(thumbnail.queuedByStage, "queued stage diagnostics");
+  const running = requireRecord(thumbnail.running, "running diagnostics");
+  const longTasks = requireRecord(thumbnail.longTasks, "long task diagnostics");
+  const retainedResults = requireRecord(thumbnail.retainedResults, "retained diagnostics");
+  const durationMs = requireRecord(thumbnail.durationMs, "duration diagnostics");
+
+  return {
+    schemaVersion: 1,
+    scenario: environment.scenario,
+    generatedAt: new Date().toISOString(),
+    runtime: getRuntimeVersions(),
+    modelCount: aggregateNumber(report.modelCount, "modelCount", true),
+    sizeBuckets: {
+      under1MiB: aggregateNumber(sizeBuckets.under1MiB, "under1MiB", true),
+      oneToTenMiB: aggregateNumber(sizeBuckets.oneToTenMiB, "oneToTenMiB", true),
+      overTenMiB: aggregateNumber(sizeBuckets.overTenMiB, "overTenMiB", true)
+    },
+    timingsMs: {
+      cachedGridVisible: aggregateNumber(timings.cachedGridVisible, "cachedGridVisible"),
+      firstVisibleThumbnail: aggregateNumber(timings.firstVisibleThumbnail, "firstVisibleThumbnail"),
+      initiallyVisibleSettled: aggregateNumber(
+        timings.initiallyVisibleSettled,
+        "initiallyVisibleSettled"
+      ),
+      fullReconciliation: aggregateNumber(timings.fullReconciliation, "fullReconciliation")
+    },
+    queuePeak: aggregateNumber(report.queuePeak, "queuePeak", true),
+    thumbnail: {
+      queued: sanitizeCounters(queued, ["selected", "visible", "nearby", "mosaic", "historical", "total"]),
+      queuedByStage: sanitizeCounters(queuedByStage, ["io", "render", "total"]),
+      running: sanitizeCounters(running, ["io", "render", "total"]),
+      cacheHits: aggregateNumber(thumbnail.cacheHits, "cacheHits", true),
+      cacheMisses: aggregateNumber(thumbnail.cacheMisses, "cacheMisses", true),
+      embeddedHits: aggregateNumber(thumbnail.embeddedHits, "embeddedHits", true),
+      renders: aggregateNumber(thumbnail.renders, "renders", true),
+      failures: aggregateNumber(thumbnail.failures, "failures", true),
+      discardedHistorical: aggregateNumber(
+        thumbnail.discardedHistorical,
+        "discardedHistorical",
+        true
+      ),
+      longTasks: {
+        count: aggregateNumber(longTasks.count, "longTasks.count", true),
+        maximumMs: aggregateNumber(longTasks.maximumMs, "longTasks.maximumMs")
+      },
+      retainedResults: {
+        current: aggregateNumber(retainedResults.current, "retainedResults.current", true),
+        peak: aggregateNumber(retainedResults.peak, "retainedResults.peak", true)
+      },
+      durationMs: {
+        io: sanitizeDuration(durationMs.io, "io"),
+        render: sanitizeDuration(durationMs.render, "render"),
+        total: sanitizeDuration(durationMs.total, "total")
+      }
+    }
+  };
+}
+
+function getRuntimeVersions() {
+  return {
+    appVersion: app.getVersion(),
+    electronVersion: process.versions.electron,
+    chromiumVersion: process.versions.chrome
+  };
+}
+
+function requireRecord(value: unknown, label: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Invalid ${label}`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function aggregateNumber(value: unknown, label: string, integer = false) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(`Invalid aggregate ${label}`);
+  }
+  if (integer && !Number.isInteger(value)) throw new Error(`Invalid aggregate ${label}`);
+  return value;
+}
+
+function sanitizeCounters(record: Record<string, unknown>, keys: string[]) {
+  return Object.fromEntries(keys.map((key) => [key, aggregateNumber(record[key], key, true)]));
+}
+
+function sanitizeDuration(value: unknown, label: string) {
+  const duration = requireRecord(value, `${label} duration`);
+  return {
+    count: aggregateNumber(duration.count, `${label}.count`, true),
+    average: aggregateNumber(duration.average, `${label}.average`),
+    maximum: aggregateNumber(duration.maximum, `${label}.maximum`)
+  };
+}
+
 function assertPathInsideLibrary(absolutePath: string) {
   const libraryPath = requireLibraryPath();
 
@@ -451,6 +641,7 @@ function assertThumbnailSignature(value: unknown): asserts value is {
 }
 
 function requireLibraryPath(): string {
+  if (benchmarkEnvironment) return benchmarkEnvironment.root;
   const settings = settingsStore.getSettings();
 
   if (!settings.libraryPath) {
@@ -573,6 +764,7 @@ function sameOptionalPath(left: string | null, right: string | null): boolean {
 
 async function createWindow() {
   const window = new BrowserWindow({
+    show: !benchmarkEnvironment,
     width: 1320,
     height: 820,
     minWidth: 980,
@@ -598,14 +790,24 @@ async function createWindow() {
     console.error(`[renderer:gone] ${details.reason}`);
   });
 
-  if (isDev) {
+  if (isDev && !benchmarkEnvironment) {
     await window.loadURL("http://127.0.0.1:5173");
   } else {
-    await window.loadFile(path.join(__dirname, "..", "dist-renderer", "index.html"));
+    await window.loadFile(path.join(__dirname, "..", "..", "dist-renderer", "index.html"));
   }
 }
 
 app.whenReady().then(async () => {
+  if (benchmarkEnvironment) {
+    thumbnailCache = createThumbnailCache({
+      cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")
+    });
+    benchmarkScanResult = await scanLibrary(benchmarkEnvironment.root);
+    registerBenchmarkIpcHandlers(benchmarkEnvironment);
+    await createWindow();
+    return;
+  }
+
   settingsStore = await createElectronSettingsStore();
   libraryIndexStore = await createElectronLibraryIndexStore();
   const legacyMetadataStore = await createLegacyElectronLibraryMetadataStore();
