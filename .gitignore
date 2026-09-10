@@ -6,3 +6,4 @@ dist-renderer/
 .env.local
 tools/native-drop-probe/bin/
 *.obj
+.worktrees/
