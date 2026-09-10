@@ -6,7 +6,10 @@ import {
 } from "./thumbnailScheduler";
 import type { ModelFile } from "../shared/types";
 
-const thumbnailScheduler = createThumbnailScheduler({ concurrency: 1 });
+const thumbnailScheduler = createThumbnailScheduler({
+  concurrency: 1,
+  shouldCacheResult: (thumbnail) => thumbnail !== null
+});
 
 export function requestRenderedModelThumbnail(
   model: ModelFile,

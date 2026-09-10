@@ -15,46 +15,27 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
   useEffect(() => {
     const element = rootRef.current;
     let isMounted = true;
-    let isNearby = false;
-    let isVisible = false;
-    let request: ThumbnailRequest<string | null> | null = null;
 
     setThumbnailUrl(null);
     if (!element) return;
 
-    const updatePriority = () => {
-      request?.setPriority(isVisible ? "visible" : isNearby ? "nearby" : "background");
-    };
-    const ensureRequested = () => {
-      if (request) return;
-      request = requestModelThumbnail(model, isVisible ? "visible" : "nearby");
-      void request.promise.then((imageUrl) => {
+    let request = requestModelThumbnail(model, "nearby");
+    void request.promise
+      .then((imageUrl) => {
         if (isMounted && imageUrl) setThumbnailUrl(imageUrl);
-      });
-    };
+      })
+      .catch(() => undefined);
 
-    const nearbyObserver = new IntersectionObserver(
-      ([entry]) => {
-        isNearby = entry.isIntersecting;
-        if (isNearby) ensureRequested();
-        updatePriority();
-      },
-      { rootMargin: "240px" }
-    );
     const visibleObserver = new IntersectionObserver(([entry]) => {
-      isVisible = entry.isIntersecting;
-      if (isVisible) ensureRequested();
-      updatePriority();
+      request.setPriority(entry.isIntersecting ? "visible" : "nearby");
     });
 
-    nearbyObserver.observe(element);
     visibleObserver.observe(element);
 
     return () => {
       isMounted = false;
-      nearbyObserver.disconnect();
       visibleObserver.disconnect();
-      request?.release();
+      request.release();
     };
   }, [model]);
 
@@ -87,6 +68,7 @@ function requestModelThumbnail(
 
   const promise = resolveModelThumbnail(model, () => {
     renderRequest = requestRenderedModelThumbnail(model, released ? "background" : priority);
+    if (released) renderRequest.release();
     return renderRequest;
   });
 

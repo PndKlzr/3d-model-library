@@ -13,11 +13,16 @@ describe("performance contract", () => {
     expect(modelGridSource).toContain("ModelCardThumbnail");
     expect(cardThumbnailSource).toContain("readModelThumbnail");
     expect(cardThumbnailSource).toContain("requestRenderedModelThumbnail");
+    expect(cardThumbnailSource).toContain(
+      'let request = requestModelThumbnail(model, "nearby")'
+    );
+    expect(cardThumbnailSource).not.toContain("nearbyObserver");
     expect(cardThumbnailSource).not.toContain("setDidQueue");
     expect(thumbnailSource).not.toContain("readModelThumbnail");
     expect(thumbnailSource).toContain("readModelFile");
     expect(thumbnailSource).toContain("thumbnailScheduler");
     expect(thumbnailSource).toContain("renderThumbnail");
+    expect(thumbnailSource).toContain("shouldCacheResult: (thumbnail) => thumbnail !== null");
   });
 
   it("reuses one GPU renderer for generated thumbnails", async () => {

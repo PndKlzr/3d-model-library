@@ -708,7 +708,7 @@ function VirtualizedRows({ items, mode, scrollElementRef, renderItem }: Virtuali
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: () => (mode === "grid" ? 224 : 71),
+    estimateSize: () => (mode === "grid" ? 252 : 71),
     overscan: 2,
     scrollMargin
   });

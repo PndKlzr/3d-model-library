@@ -31,9 +31,11 @@ describe("layout scroll contract", () => {
   it("keeps thumbnail media separate from readable card names", async () => {
     const css = await readFile("src/styles.css", "utf8");
 
-    expect(css).toContain("grid-template-rows: 130px minmax(64px, auto)");
+    expect(css).toMatch(/\.model-card,\s*\n\.folder-card\s*\{[\s\S]*?height:\s*238px;/);
+    expect(css).toContain("grid-template-rows: 130px 108px");
     expect(css).toContain("-webkit-line-clamp: 2");
     expect(css).toContain(".model-card-meta strong");
+    expect(css).toMatch(/\.card-tags\s*\{[\s\S]*?overflow:\s*hidden;/);
   });
 
   it("virtualizes only collection rows inside the existing scrolling panel", async () => {

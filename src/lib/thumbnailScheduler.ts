@@ -25,8 +25,12 @@ const PRIORITY_WEIGHT: Record<ThumbnailPriority, number> = {
   background: 0
 };
 
-export function createThumbnailScheduler(options: { concurrency?: number } = {}) {
+export function createThumbnailScheduler(options: {
+  concurrency?: number;
+  shouldCacheResult?: (value: unknown) => boolean;
+} = {}) {
   const concurrency = Math.max(1, options.concurrency ?? 1);
+  const shouldCacheResult = options.shouldCacheResult ?? (() => true);
   const jobs = new Map<string, Job<unknown>>();
   const idleWaiters = new Set<() => void>();
   let activeJobs = 0;
@@ -101,13 +105,24 @@ export function createThumbnailScheduler(options: { concurrency?: number } = {})
 
       nextJob.state = "running";
       activeJobs += 1;
-      void nextJob.run().then(nextJob.resolve, nextJob.reject).finally(() => {
-        activeJobs -= 1;
-        nextJob.state = "completed";
-        nextJob.subscribers.clear();
-        runNext();
-        resolveIdleWaiters();
-      });
+      void nextJob.run()
+        .then(
+          (value) => {
+            nextJob.resolve(value);
+            if (!shouldCacheResult(value)) jobs.delete(nextJob.key);
+          },
+          (reason) => {
+            nextJob.reject(reason);
+            jobs.delete(nextJob.key);
+          }
+        )
+        .finally(() => {
+          activeJobs -= 1;
+          nextJob.state = "completed";
+          nextJob.subscribers.clear();
+          runNext();
+          resolveIdleWaiters();
+        });
     }
     resolveIdleWaiters();
   }

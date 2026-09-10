@@ -44,8 +44,11 @@ describe("thumbnailScheduler", () => {
     expect(order).toEqual(["active", "current", "released"]);
   });
 
-  it("reuses completed results instead of retrying failed thumbnails in the session", async () => {
-    const scheduler = createThumbnailScheduler({ concurrency: 1 });
+  it("retries completed results rejected by the cache policy", async () => {
+    const scheduler = createThumbnailScheduler({
+      concurrency: 1,
+      shouldCacheResult: (value) => value !== null
+    });
     let attempts = 0;
     const first = scheduler.enqueue("broken", "visible", async () => {
       attempts += 1;
@@ -55,11 +58,11 @@ describe("thumbnailScheduler", () => {
     await expect(first.promise).resolves.toBeNull();
     const second = scheduler.enqueue("broken", "visible", async () => {
       attempts += 1;
-      return "unexpected";
+      return "recovered";
     });
 
-    await expect(second.promise).resolves.toBeNull();
-    expect(attempts).toBe(1);
+    await expect(second.promise).resolves.toBe("recovered");
+    expect(attempts).toBe(2);
   });
 });
 
