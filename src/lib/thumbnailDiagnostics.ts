@@ -1,0 +1,274 @@
+export type ThumbnailPriority = "selected" | "visible" | "nearby" | "mosaic" | "historical";
+export type ThumbnailStage = "io" | "render";
+export type ThumbnailResultSource = "cache" | "embedded" | "render";
+
+type DurationSummary = { count: number; average: number; maximum: number };
+
+export type ThumbnailDiagnosticsSnapshot = {
+  queued: Record<ThumbnailPriority | "total", number>;
+  running: Record<ThumbnailStage | "total", number>;
+  cacheHits: number;
+  cacheMisses: number;
+  embeddedHits: number;
+  renders: number;
+  failures: number;
+  discardedHistorical: number;
+  longTasks: { count: number; maximumMs: number };
+  retainedResults: { current: number; peak: number };
+  durationMs: Record<ThumbnailStage | "total", DurationSummary>;
+};
+
+type ThumbnailSnapshotListener = (snapshot: ThumbnailDiagnosticsSnapshot) => void;
+type DurationTotals = Record<ThumbnailStage | "total", number>;
+
+const durationTotalsBySnapshot = new WeakMap<ThumbnailDiagnosticsSnapshot, DurationTotals>();
+const generationBySnapshot = new WeakMap<ThumbnailDiagnosticsSnapshot, number>();
+
+const defaultPerformanceObserverFactory = (callback: PerformanceObserverCallback) =>
+  new PerformanceObserver(callback);
+
+export function createThumbnailDiagnostics(now: () => number = () => performance.now()) {
+  const listeners = new Set<ThumbnailSnapshotListener>();
+  const snapshot = createEmptyThumbnailDiagnosticsSnapshot();
+  return {
+    start(stage: ThumbnailStage, priority: ThumbnailPriority) {
+      return createTrackedThumbnailOperation(snapshot, listeners, now, stage, priority);
+    },
+    recordLongTask(durationMs: number) {
+      snapshot.longTasks.count += 1;
+      snapshot.longTasks.maximumMs = Math.max(
+        snapshot.longTasks.maximumMs,
+        normalizeDuration(durationMs)
+      );
+      publishThumbnailSnapshot(snapshot, listeners);
+    },
+    getSnapshot: () => structuredClone(snapshot),
+    subscribe(listener: ThumbnailSnapshotListener) {
+      listeners.add(listener);
+      listener(structuredClone(snapshot));
+      return () => listeners.delete(listener);
+    },
+    reset: () => resetThumbnailDiagnosticsSnapshot(snapshot, listeners)
+  };
+}
+
+export function formatThumbnailDiagnosticReport(
+  snapshot: ThumbnailDiagnosticsSnapshot,
+  runtime: { appVersion: string; electronVersion: string; chromiumVersion: string }
+): string {
+  return JSON.stringify({
+    generatedAt: new Date().toISOString(),
+    runtime: {
+      appVersion: runtime.appVersion,
+      electronVersion: runtime.electronVersion,
+      chromiumVersion: runtime.chromiumVersion
+    },
+    thumbnail: sanitizeThumbnailSnapshot(snapshot)
+  }, null, 2);
+}
+
+export function observeThumbnailLongTasks(
+  diagnostics: Pick<ReturnType<typeof createThumbnailDiagnostics>, "recordLongTask">,
+  createObserver: (callback: PerformanceObserverCallback) => PerformanceObserver =
+    defaultPerformanceObserverFactory
+) {
+  let observer: PerformanceObserver | null = null;
+  return {
+    start() {
+      if (observer) return;
+      if (
+        createObserver === defaultPerformanceObserverFactory &&
+        typeof PerformanceObserver === "undefined"
+      ) return;
+      observer = createObserver((list) => {
+        for (const entry of list.getEntries()) diagnostics.recordLongTask(entry.duration);
+      });
+      observer.observe({ entryTypes: ["longtask"] });
+    },
+    stop() {
+      observer?.disconnect();
+      observer = null;
+    }
+  };
+}
+
+function createEmptyThumbnailDiagnosticsSnapshot(): ThumbnailDiagnosticsSnapshot {
+  const snapshot: ThumbnailDiagnosticsSnapshot = {
+    queued: { selected: 0, visible: 0, nearby: 0, mosaic: 0, historical: 0, total: 0 },
+    running: { io: 0, render: 0, total: 0 },
+    cacheHits: 0,
+    cacheMisses: 0,
+    embeddedHits: 0,
+    renders: 0,
+    failures: 0,
+    discardedHistorical: 0,
+    longTasks: { count: 0, maximumMs: 0 },
+    retainedResults: { current: 0, peak: 0 },
+    durationMs: {
+      io: { count: 0, average: 0, maximum: 0 },
+      render: { count: 0, average: 0, maximum: 0 },
+      total: { count: 0, average: 0, maximum: 0 }
+    }
+  };
+  durationTotalsBySnapshot.set(snapshot, { io: 0, render: 0, total: 0 });
+  generationBySnapshot.set(snapshot, 0);
+  return snapshot;
+}
+
+function createTrackedThumbnailOperation(
+  snapshot: ThumbnailDiagnosticsSnapshot,
+  listeners: Set<ThumbnailSnapshotListener>,
+  now: () => number,
+  stage: ThumbnailStage,
+  priority: ThumbnailPriority
+) {
+  const startedAt = now();
+  const generation = generationBySnapshot.get(snapshot);
+  let state: "queued" | "running" | "settled" = "queued";
+  increment(snapshot.queued, priority);
+  increment(snapshot.queued, "total");
+  publishThumbnailSnapshot(snapshot, listeners);
+
+  function settle(result?: ThumbnailResultSource, failed = false) {
+    if (generationBySnapshot.get(snapshot) !== generation) return;
+    if (state === "settled") return;
+    if (state === "queued") {
+      decrement(snapshot.queued, priority);
+      decrement(snapshot.queued, "total");
+    } else {
+      decrement(snapshot.running, stage);
+      decrement(snapshot.running, "total");
+    }
+    state = "settled";
+
+    if (failed) {
+      snapshot.failures += 1;
+    } else if (result) {
+      recordResult(snapshot, result);
+    }
+    recordDuration(snapshot, stage, normalizeDuration(now() - startedAt));
+    publishThumbnailSnapshot(snapshot, listeners);
+  }
+
+  return {
+    running() {
+      if (generationBySnapshot.get(snapshot) !== generation) return;
+      if (state !== "queued") return;
+      decrement(snapshot.queued, priority);
+      decrement(snapshot.queued, "total");
+      increment(snapshot.running, stage);
+      increment(snapshot.running, "total");
+      state = "running";
+      publishThumbnailSnapshot(snapshot, listeners);
+    },
+    succeeded(source: ThumbnailResultSource) {
+      settle(source);
+    },
+    failed() {
+      settle(undefined, true);
+    }
+  };
+}
+
+function recordResult(snapshot: ThumbnailDiagnosticsSnapshot, source: ThumbnailResultSource) {
+  if (source === "cache") {
+    snapshot.cacheHits += 1;
+    return;
+  }
+  snapshot.cacheMisses += 1;
+  if (source === "embedded") snapshot.embeddedHits += 1;
+  if (source === "render") snapshot.renders += 1;
+}
+
+function recordDuration(
+  snapshot: ThumbnailDiagnosticsSnapshot,
+  stage: ThumbnailStage,
+  durationMs: number
+) {
+  const totals = durationTotalsBySnapshot.get(snapshot);
+  if (!totals) return;
+  updateDurationSummary(snapshot.durationMs[stage], totals, stage, durationMs);
+  updateDurationSummary(snapshot.durationMs.total, totals, "total", durationMs);
+}
+
+function updateDurationSummary(
+  summary: DurationSummary,
+  totals: DurationTotals,
+  key: ThumbnailStage | "total",
+  durationMs: number
+) {
+  totals[key] += durationMs;
+  summary.count += 1;
+  summary.average = totals[key] / summary.count;
+  summary.maximum = Math.max(summary.maximum, durationMs);
+}
+
+function publishThumbnailSnapshot(
+  snapshot: ThumbnailDiagnosticsSnapshot,
+  listeners: Set<ThumbnailSnapshotListener>
+) {
+  for (const listener of listeners) listener(structuredClone(snapshot));
+}
+
+function resetThumbnailDiagnosticsSnapshot(
+  snapshot: ThumbnailDiagnosticsSnapshot,
+  listeners: Set<ThumbnailSnapshotListener>
+) {
+  const nextGeneration = (generationBySnapshot.get(snapshot) ?? 0) + 1;
+  const empty = createEmptyThumbnailDiagnosticsSnapshot();
+  Object.assign(snapshot, empty);
+  durationTotalsBySnapshot.set(snapshot, { io: 0, render: 0, total: 0 });
+  generationBySnapshot.set(snapshot, nextGeneration);
+  publishThumbnailSnapshot(snapshot, listeners);
+}
+
+function sanitizeThumbnailSnapshot(
+  snapshot: ThumbnailDiagnosticsSnapshot
+): ThumbnailDiagnosticsSnapshot {
+  return {
+    queued: {
+      selected: snapshot.queued.selected,
+      visible: snapshot.queued.visible,
+      nearby: snapshot.queued.nearby,
+      mosaic: snapshot.queued.mosaic,
+      historical: snapshot.queued.historical,
+      total: snapshot.queued.total
+    },
+    running: {
+      io: snapshot.running.io,
+      render: snapshot.running.render,
+      total: snapshot.running.total
+    },
+    cacheHits: snapshot.cacheHits,
+    cacheMisses: snapshot.cacheMisses,
+    embeddedHits: snapshot.embeddedHits,
+    renders: snapshot.renders,
+    failures: snapshot.failures,
+    discardedHistorical: snapshot.discardedHistorical,
+    longTasks: {
+      count: snapshot.longTasks.count,
+      maximumMs: snapshot.longTasks.maximumMs
+    },
+    retainedResults: {
+      current: snapshot.retainedResults.current,
+      peak: snapshot.retainedResults.peak
+    },
+    durationMs: {
+      io: { ...snapshot.durationMs.io },
+      render: { ...snapshot.durationMs.render },
+      total: { ...snapshot.durationMs.total }
+    }
+  };
+}
+
+function increment<T extends string>(counters: Record<T, number>, key: T) {
+  counters[key] = Math.max(0, Math.trunc(counters[key])) + 1;
+}
+
+function decrement<T extends string>(counters: Record<T, number>, key: T) {
+  counters[key] = Math.max(0, Math.trunc(counters[key]) - 1);
+}
+
+function normalizeDuration(durationMs: number) {
+  return Number.isFinite(durationMs) ? Math.max(0, durationMs) : 0;
+}
