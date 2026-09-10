@@ -118,6 +118,26 @@ describe("modelThumbnailService", () => {
     expect(renderThumbnail).toHaveBeenCalledTimes(3);
   });
 
+  it("yields before reading model bytes for generated rendering", async () => {
+    const events: string[] = [];
+    const service = createModelThumbnailService(dependencies({
+      yieldBeforeRender: async () => {
+        events.push("frame");
+      },
+      readModelFile: async () => {
+        events.push("read");
+        return new ArrayBuffer(8);
+      },
+      renderThumbnail: () => {
+        events.push("render");
+        return WEBP;
+      }
+    }));
+
+    await expect(service.request(model(), "visible").promise).resolves.toBe(WEBP);
+    expect(events).toEqual(["frame", "read", "render"]);
+  });
+
   it("runs no more than four I/O jobs concurrently", async () => {
     const gates = Array.from({ length: 5 }, () => deferred<string | null>());
     let active = 0;

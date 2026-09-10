@@ -32,6 +32,7 @@ import { getDragModelIds, getDragOutFilePaths } from "./lib/dragFiles";
 import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
+import { modelThumbnailService } from "./lib/modelThumbnailService";
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
 import { convertThreeMfToStlInWorker } from "./lib/threeMfToStlWorker";
@@ -88,6 +89,9 @@ function App() {
     x: number;
     y: number;
   } | null>(null);
+  const [thumbnailRetryGenerations, setThumbnailRetryGenerations] = useState<
+    Record<string, number>
+  >({});
   const [tagPickerDialog, setTagPickerDialog] = useState<{ model: ModelFile } | null>(null);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() =>
     readExpandedFolders()
@@ -841,6 +845,15 @@ function App() {
     }
   }
 
+  function retryModelThumbnail(model: ModelFile) {
+    modelThumbnailService.retry(model);
+    setThumbnailRetryGenerations((current) => ({
+      ...current,
+      [model.absolutePath]: (current[model.absolutePath] ?? 0) + 1
+    }));
+    setModelContextMenu(null);
+  }
+
   function toggleModelSelection(model: ModelFile, selected: boolean) {
     setLastFocusedItem("model");
     setFolderContextMenu(null);
@@ -1410,6 +1423,7 @@ function App() {
         selectedTags={selectedTagFilters}
         metadataByPath={libraryMetadata.models}
         duplicateModelIds={duplicateModelIds}
+        thumbnailRetryGenerations={thumbnailRetryGenerations}
         isScanning={isScanning}
         monitorStatus={monitorStatus}
         isFilteringStale={isFilteringStale}
@@ -1637,6 +1651,13 @@ function App() {
             onClick={() => openModel(modelContextMenu.model, { ctrlKey: false, shiftKey: false })}
           >
             Carregar no painel
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => retryModelThumbnail(modelContextMenu.model)}
+          >
+            Tentar miniatura novamente
           </button>
           <button
             type="button"

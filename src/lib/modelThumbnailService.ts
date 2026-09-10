@@ -5,6 +5,7 @@ import {
   type ThumbnailRequest
 } from "./thumbnailScheduler";
 import { renderThumbnail } from "./thumbnailRenderer";
+import { yieldBeforeThumbnailRender } from "./thumbnailFrameGate";
 import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
 import type { ModelFile } from "../shared/types";
 
@@ -46,7 +47,7 @@ type PipelineEntry = {
 type ThumbnailLookup =
   | { kind: "cache"; thumbnail: string }
   | { kind: "embedded"; thumbnail: string }
-  | { kind: "render"; modelBytes: ArrayBuffer };
+  | { kind: "render" };
 
 const ARCHIVE_EXTENSIONS = new Set<ModelFile["extension"]>([".zip", ".rar", ".7z"]);
 const PRIORITY_WEIGHT: Record<ThumbnailPriority, number> = {
@@ -130,8 +131,7 @@ export function createModelThumbnailService(
           if (embedded) return { kind: "embedded", thumbnail: embedded } as const;
         }
 
-        const modelBytes = await dependencies.readModelFile(entry.model.absolutePath);
-        return { kind: "render", modelBytes } as const;
+        return { kind: "render" } as const;
       }, (result) => result.kind === "render" ? undefined : result.kind);
 
       if (!lookup) return;
@@ -142,7 +142,7 @@ export function createModelThumbnailService(
 
       thumbnail = lookup.kind === "embedded"
         ? lookup.thumbnail
-        : await runRenderStage(entry, lookup.modelBytes);
+        : await runRenderStage(entry);
       if (!thumbnail) return;
 
       try {
@@ -186,7 +186,7 @@ export function createModelThumbnailService(
     }
   }
 
-  async function runRenderStage(entry: PipelineEntry, modelBytes: ArrayBuffer) {
+  async function runRenderStage(entry: PipelineEntry) {
     const operation = diagnostics.start("render", getEffectivePriority(entry));
     const stageRequest = renderScheduler.enqueue(
       `render:${entry.key}`,
@@ -194,6 +194,7 @@ export function createModelThumbnailService(
       async () => {
         operation.running();
         await dependencies.yieldBeforeRender();
+        const modelBytes = await dependencies.readModelFile(entry.model.absolutePath);
         return dependencies.renderThumbnail(entry.model.extension, modelBytes);
       }
     );
@@ -211,8 +212,6 @@ export function createModelThumbnailService(
   function retry(model: ModelFile) {
     const key = createIdentity(model);
     failedSignatures.delete(key);
-    ioScheduler.clearCompleted(`read:${key}`);
-    ioScheduler.clearCompleted(`write:${key}`);
     renderScheduler.clearCompleted(`render:${key}`);
   }
 
@@ -299,21 +298,11 @@ function sum(total: number, value: number) {
   return total + value;
 }
 
-function waitForIdle(): Promise<void> {
-  return new Promise((resolve) => {
-    if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(() => resolve(), { timeout: 600 });
-      return;
-    }
-    globalThis.setTimeout(resolve, 32);
-  });
-}
-
 export const modelThumbnailService = createModelThumbnailService({
   readCachedThumbnail: (model) => window.modelLibrary.readCachedThumbnail(model),
   readEmbeddedThumbnail: (absolutePath) => window.modelLibrary.readModelThumbnail(absolutePath),
   readModelFile: (absolutePath) => window.modelLibrary.readModelFile(absolutePath),
   writeCachedThumbnail: (model, dataUrl) => window.modelLibrary.writeCachedThumbnail(model, dataUrl),
   renderThumbnail,
-  yieldBeforeRender: waitForIdle
+  yieldBeforeRender: yieldBeforeThumbnailRender
 });

@@ -60,6 +60,7 @@ type ModelGridProps = {
   selectedTags: Set<string>;
   metadataByPath: Record<string, ModelUserMetadata>;
   duplicateModelIds: Set<string>;
+  thumbnailRetryGenerations: Record<string, number>;
   isScanning: boolean;
   monitorStatus: "active" | "disabled" | "error";
   isFilteringStale: boolean;
@@ -121,6 +122,7 @@ export function ModelGrid({
   selectedTags,
   metadataByPath,
   duplicateModelIds,
+  thumbnailRetryGenerations,
   isScanning,
   monitorStatus,
   isFilteringStale,
@@ -674,6 +676,7 @@ export function ModelGrid({
               isDuplicate: duplicateModelIds.has(model.id),
               isSelected: selectedModelId === model.id,
               isChecked: selectedModelIds.has(model.id),
+              thumbnailRetryGeneration: thumbnailRetryGenerations[model.absolutePath] ?? 0,
               fileDragBehavior,
               onOpenModel,
               onOpenDefaultSlicer,
@@ -837,6 +840,7 @@ type ModelCardProps = {
   isDuplicate: boolean;
   isSelected: boolean;
   isChecked: boolean;
+  thumbnailRetryGeneration: number;
   fileDragBehavior: FileDragBehavior;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
   onOpenDefaultSlicer: (model: ModelFile) => void;
@@ -852,6 +856,7 @@ function ModelCard({
   isDuplicate,
   isSelected,
   isChecked,
+  thumbnailRetryGeneration,
   fileDragBehavior,
   onOpenModel,
   onOpenDefaultSlicer,
@@ -910,7 +915,7 @@ function ModelCard({
         onDoubleClick={() => void onOpenDefaultSlicer(model)}
       >
         <div className="model-thumb">
-          <ModelCardThumbnail model={model} selected={isSelected} />
+          <ModelCardThumbnail model={model} selected={isSelected} key={thumbnailRetryGeneration} />
         </div>
         <div className="model-card-meta">
           <strong title={model.name}>{model.name}</strong>
@@ -937,6 +942,7 @@ function ModelListRow({
   isDuplicate,
   isSelected,
   isChecked,
+  thumbnailRetryGeneration,
   fileDragBehavior,
   onOpenModel,
   onOpenDefaultSlicer,
@@ -990,7 +996,7 @@ function ModelListRow({
         onDoubleClick={() => void onOpenDefaultSlicer(model)}
       >
         <div className="list-thumb">
-          <ModelCardThumbnail model={model} selected={isSelected} />
+          <ModelCardThumbnail model={model} selected={isSelected} key={thumbnailRetryGeneration} />
         </div>
         <strong title={model.name}>{model.name}</strong>
         <span className="optional-column" title={model.relativeFolder || "Raiz"}>

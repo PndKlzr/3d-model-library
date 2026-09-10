@@ -33,6 +33,19 @@ describe("folder context menu contract", () => {
     expect(appSource).not.toContain("Editar tags");
   });
 
+  it("retries and remounts only the context model thumbnail", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+
+    const retryHandler = appSource.match(/function retryModelThumbnail[\s\S]*?\n  }\n/)?.[0];
+    expect(retryHandler).toBeTruthy();
+    expect(retryHandler).toContain("modelThumbnailService.retry(model)");
+    expect(retryHandler).toContain("setModelContextMenu(null)");
+    expect(appSource).toContain("Tentar miniatura novamente");
+    expect(appSource).toContain("thumbnailRetryGenerations={thumbnailRetryGenerations}");
+    expect(gridSource).toContain("key={thumbnailRetryGeneration}");
+  });
+
   it("clamps context menus to the viewport", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const stylesSource = await readFile("src/styles.css", "utf8");
