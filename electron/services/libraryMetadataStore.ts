@@ -171,7 +171,7 @@ export function createLibraryMetadataStore(
   };
 }
 
-export async function createElectronLibraryMetadataStore(): Promise<LibraryMetadataStore> {
+export async function createLegacyElectronLibraryMetadataStore(): Promise<LibraryMetadataStore> {
   const { default: Store } = await import("electron-store") as {
     default: new (options: {
       name: string;
@@ -193,6 +193,8 @@ export async function createElectronLibraryMetadataStore(): Promise<LibraryMetad
     set: (metadata) => store.set("metadata", metadata)
   });
 }
+
+export const createElectronLibraryMetadataStore = createLegacyElectronLibraryMetadataStore;
 
 function createEmptyModelMetadata(): ModelUserMetadata {
   return {

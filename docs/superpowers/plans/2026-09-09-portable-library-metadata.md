@@ -325,7 +325,7 @@ export type ActiveLibraryMetadataStore = {
 };
 ```
 
-- [ ] **Step 1: Add failing active-session tests**
+- [x] **Step 1: Add failing active-session tests**
 
 Use in-memory fakes for repository, mirror, and legacy store. Cover these exact behaviors:
 
@@ -357,13 +357,13 @@ it("serializes concurrent mutations without losing either change", async () => {
 });
 ```
 
-- [ ] **Step 2: Run the active-session test and verify it fails**
+- [x] **Step 2: Run the active-session test and verify it fails**
 
 Run: `npm test -- tests/unit/activeLibraryMetadataStore.test.ts`
 
 Expected: FAIL because the session and mirror modules do not exist.
 
-- [ ] **Step 3: Preserve the old AppData store as the legacy source**
+- [x] **Step 3: Preserve the old AppData store as the legacy source**
 
 In `libraryMetadataStore.ts`, rename only the Electron factory:
 
@@ -373,11 +373,11 @@ export async function createLegacyElectronLibraryMetadataStore(): Promise<Librar
 
 Keep its electron-store name exactly `library-metadata`, so pre-format installations can still be migrated. Reuse the `normalizeLibraryMetadata` and `cloneLibraryMetadata` exports introduced in Task 1 while preserving the current reducer tests and synchronous pure-store API.
 
-- [ ] **Step 4: Implement the AppData mirror**
+- [x] **Step 4: Implement the AppData mirror**
 
 Use a separate electron-store named `library-metadata-mirror`, keyed by a normalized lowercase root path. Store a clone of the absolute-path runtime metadata plus `libraryId` and `updatedAt`. The mirror factory must also accept an in-memory backend for tests. Never write to the mirror before the portable repository save succeeds.
 
-- [ ] **Step 5: Implement active-library opening and migration**
+- [x] **Step 5: Implement active-library opening and migration**
 
 `open(rootPath)` must first drain the current mutation queue, reset active state, and then:
 
@@ -393,7 +393,7 @@ If both primary and backup are invalid, retain both files, fall back to matching
 
 The portable file wins whenever it exists. Reopening after migration sees the primary and therefore cannot duplicate tags or history.
 
-- [ ] **Step 6: Implement serialized transactional mutations**
+- [x] **Step 6: Implement serialized transactional mutations**
 
 Maintain one promise tail per session generation. Each mutation must:
 
@@ -415,13 +415,13 @@ return enqueue(async () => {
 
 Use the same transaction helper for every mutation, including path moves and slicer history. A failed portable save must reject, skip the mirror, and leave `currentMetadata` untouched. `retry()` reopens the current requested root and is the only explicit permission/connectivity retry path.
 
-- [ ] **Step 7: Run active-session and reducer tests**
+- [x] **Step 7: Run active-session and reducer tests**
 
 Run: `npm test -- tests/unit/activeLibraryMetadataStore.test.ts tests/unit/libraryMetadataStore.test.ts tests/unit/portableMetadataCodec.test.ts tests/unit/portableMetadataRepository.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit the active session**
+- [x] **Step 8: Commit the active session**
 
 ```bash
 git add electron/services/libraryMetadataStore.ts electron/services/libraryMetadataMirrorStore.ts electron/services/activeLibraryMetadataStore.ts tests/unit/activeLibraryMetadataStore.test.ts

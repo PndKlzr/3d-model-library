@@ -191,7 +191,7 @@ function validateMetadataStrings(metadata: LibraryMetadata) {
 
   for (const [modelPath, modelMetadata] of Object.entries(metadata.models ?? {})) {
     assertBoundedString(modelPath, "model path", MAX_MODEL_PATH_LENGTH * 4);
-    assertBoundedString(modelMetadata.notes ?? "", "notes", MAX_NOTES_LENGTH);
+    assertBoundedOptionalString(modelMetadata.notes ?? "", "notes", MAX_NOTES_LENGTH);
     for (const tag of modelMetadata.tags ?? []) {
       assertBoundedString(tag, "tag", MAX_TAG_LENGTH);
     }
@@ -234,6 +234,12 @@ function requireBoundedString(value: unknown, label: string, maximumLength: numb
 
 function assertBoundedString(value: string, label: string, maximumLength: number) {
   if (!value || value.includes("\0") || value.length > maximumLength) {
+    throw new Error(`${label} exceeds the portable metadata limit`);
+  }
+}
+
+function assertBoundedOptionalString(value: string, label: string, maximumLength: number) {
+  if (value.includes("\0") || value.length > maximumLength) {
     throw new Error(`${label} exceeds the portable metadata limit`);
   }
 }
