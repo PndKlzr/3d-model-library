@@ -6,6 +6,7 @@ type DurationSummary = { count: number; average: number; maximum: number };
 
 export type ThumbnailDiagnosticsSnapshot = {
   queued: Record<ThumbnailPriority | "total", number>;
+  queuedByStage: Record<ThumbnailStage | "total", number>;
   running: Record<ThumbnailStage | "total", number>;
   cacheHits: number;
   cacheMisses: number;
@@ -95,6 +96,7 @@ export function observeThumbnailLongTasks(
 function createEmptyThumbnailDiagnosticsSnapshot(): ThumbnailDiagnosticsSnapshot {
   const snapshot: ThumbnailDiagnosticsSnapshot = {
     queued: { selected: 0, visible: 0, nearby: 0, mosaic: 0, historical: 0, total: 0 },
+    queuedByStage: { io: 0, render: 0, total: 0 },
     running: { io: 0, render: 0, total: 0 },
     cacheHits: 0,
     cacheMisses: 0,
@@ -127,6 +129,8 @@ function createTrackedThumbnailOperation(
   let state: "queued" | "running" | "settled" = "queued";
   increment(snapshot.queued, priority);
   increment(snapshot.queued, "total");
+  increment(snapshot.queuedByStage, stage);
+  increment(snapshot.queuedByStage, "total");
   publishThumbnailSnapshot(snapshot, listeners);
 
   function settle(result?: ThumbnailResultSource, failed = false) {
@@ -135,6 +139,8 @@ function createTrackedThumbnailOperation(
     if (state === "queued") {
       decrement(snapshot.queued, priority);
       decrement(snapshot.queued, "total");
+      decrement(snapshot.queuedByStage, stage);
+      decrement(snapshot.queuedByStage, "total");
     } else {
       decrement(snapshot.running, stage);
       decrement(snapshot.running, "total");
@@ -156,6 +162,8 @@ function createTrackedThumbnailOperation(
       if (state !== "queued") return;
       decrement(snapshot.queued, priority);
       decrement(snapshot.queued, "total");
+      decrement(snapshot.queuedByStage, stage);
+      decrement(snapshot.queuedByStage, "total");
       increment(snapshot.running, stage);
       increment(snapshot.running, "total");
       state = "running";
@@ -233,6 +241,11 @@ function sanitizeThumbnailSnapshot(
       mosaic: snapshot.queued.mosaic,
       historical: snapshot.queued.historical,
       total: snapshot.queued.total
+    },
+    queuedByStage: {
+      io: snapshot.queuedByStage.io,
+      render: snapshot.queuedByStage.render,
+      total: snapshot.queuedByStage.total
     },
     running: {
       io: snapshot.running.io,

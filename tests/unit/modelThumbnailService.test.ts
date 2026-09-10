@@ -9,6 +9,34 @@ const WEBP = "data:image/webp;base64,UklGRgAAAABXRUJQ";
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 
 describe("modelThumbnailService", () => {
+  it("records long-task durations in the shared diagnostics stream", () => {
+    const service = createModelThumbnailService(dependencies());
+
+    service.recordLongTask(142);
+
+    expect(service.getDiagnostics().longTasks).toEqual({ count: 1, maximumMs: 142 });
+  });
+
+  it("preserves queued stage counts alongside priority aggregates", async () => {
+    const renderGate = deferred<void>();
+    const service = createModelThumbnailService(dependencies({
+      yieldBeforeRender: () => renderGate.promise
+    }));
+    const first = service.request(model({ absolutePath: "C:\\Models\\first.stl" }), "selected");
+    const second = service.request(model({ absolutePath: "C:\\Models\\second.stl" }), "visible");
+
+    await vi.waitFor(() => {
+      expect(service.getDiagnostics()).toMatchObject({
+        queued: { visible: 1, total: 1 },
+        queuedByStage: { io: 0, render: 1, total: 1 },
+        running: { render: 1, total: 1 }
+      });
+    });
+
+    renderGate.resolve(undefined);
+    await Promise.all([first.promise, second.promise]);
+  });
+
   it("coalesces requests before reading the disk cache", async () => {
     const cacheRead = vi.fn(async () => WEBP);
     const service = createModelThumbnailService(dependencies({ readCachedThumbnail: cacheRead }));

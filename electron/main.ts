@@ -74,6 +74,11 @@ let watcherGeneration = 0;
 const dragIcon = createFileDragIcon();
 
 function registerIpcHandlers() {
+  ipcMain.handle("system:runtime-versions", () => ({
+    appVersion: app.getVersion(),
+    electronVersion: process.versions.electron,
+    chromiumVersion: process.versions.chrome
+  }));
   ipcMain.handle("settings:get", () => settingsStore.getSettings());
 
   ipcMain.handle("settings:save", async (_event, settings: AppSettings) => {

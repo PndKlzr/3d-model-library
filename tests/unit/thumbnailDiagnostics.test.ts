@@ -194,6 +194,7 @@ function performanceEntry(duration: number, name: string, startTime: number): Pe
 function emptySnapshot() {
   return {
     queued: { selected: 0, visible: 0, nearby: 0, mosaic: 0, historical: 0, total: 0 },
+    queuedByStage: { io: 0, render: 0, total: 0 },
     running: { io: 0, render: 0, total: 0 },
     cacheHits: 0,
     cacheMisses: 0,

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 describe("Electron preload contract", () => {
   it("uses a CommonJS preload file so Electron can load the bridge", async () => {
     const preloadSource = await readFile("electron/preload.cjs", "utf8");
+    const mainSource = await readFile("electron/main.ts", "utf8");
 
     expect(preloadSource).toContain("require(\"electron\")");
     expect(preloadSource).toContain("contextBridge.exposeInMainWorld(\"modelLibrary\"");
@@ -42,6 +43,12 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("setModelNotes");
     expect(preloadSource).toContain("showModelInFolder");
     expect(preloadSource).toContain("copyText");
+    expect(preloadSource).toContain("getRuntimeVersions");
+    expect(preloadSource).toContain('ipcRenderer.invoke("system:runtime-versions")');
+    expect(mainSource).toContain('ipcMain.handle("system:runtime-versions"');
+    expect(mainSource).toContain("app.getVersion()");
+    expect(mainSource).toContain("process.versions.electron");
+    expect(mainSource).toContain("process.versions.chrome");
     expect(preloadSource).toContain('ipcRenderer.invoke("system:copy-text"');
     expect(preloadSource).not.toContain("import ");
   });

@@ -33,6 +33,10 @@ import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { modelThumbnailService } from "./lib/modelThumbnailService";
+import {
+  observeThumbnailLongTasks,
+  type ThumbnailDiagnosticsSnapshot
+} from "./lib/thumbnailDiagnostics";
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
 import { convertThreeMfToStlInWorker } from "./lib/threeMfToStlWorker";
@@ -92,6 +96,9 @@ function App() {
   const [thumbnailRetryGenerations, setThumbnailRetryGenerations] = useState<
     Record<string, number>
   >({});
+  const [thumbnailDiagnostics, setThumbnailDiagnostics] = useState<ThumbnailDiagnosticsSnapshot>(
+    () => modelThumbnailService.getDiagnostics()
+  );
   const [tagPickerDialog, setTagPickerDialog] = useState<{ model: ModelFile } | null>(null);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() =>
     readExpandedFolders()
@@ -163,6 +170,14 @@ function App() {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => modelThumbnailService.subscribe(setThumbnailDiagnostics), []);
+
+  useEffect(() => {
+    const longTaskObserver = observeThumbnailLongTasks(modelThumbnailService);
+    longTaskObserver.start();
+    return () => longTaskObserver.stop();
   }, []);
 
   useEffect(() => {
@@ -1424,6 +1439,7 @@ function App() {
         metadataByPath={libraryMetadata.models}
         duplicateModelIds={duplicateModelIds}
         thumbnailRetryGenerations={thumbnailRetryGenerations}
+        thumbnailDiagnostics={thumbnailDiagnostics}
         isScanning={isScanning}
         monitorStatus={monitorStatus}
         isFilteringStale={isFilteringStale}
@@ -1488,6 +1504,7 @@ function App() {
           tagCatalog={libraryMetadata.tagCatalog}
           metadataWritable={metadataStatus.writable}
           metadataMessage={metadataStatus.message}
+          thumbnailDiagnostics={thumbnailDiagnostics}
           onClose={() => setIsSettingsOpen(false)}
           onSaveSettings={saveSettings}
           onChooseLibraryFolder={chooseFolder}

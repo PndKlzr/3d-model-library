@@ -28,6 +28,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { FolderCardThumbnail } from "./FolderCardThumbnail";
+import { ThumbnailQueueStatus } from "./ThumbnailQueueStatus";
 import {
   ALL_FOLDERS_ID,
   type ModelSortMode,
@@ -40,6 +41,7 @@ import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
 import { buildVirtualRows } from "../lib/virtualGrid";
 import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
+import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 
 type ModelGridProps = {
   models: ModelFile[];
@@ -61,6 +63,7 @@ type ModelGridProps = {
   metadataByPath: Record<string, ModelUserMetadata>;
   duplicateModelIds: Set<string>;
   thumbnailRetryGenerations: Record<string, number>;
+  thumbnailDiagnostics: ThumbnailDiagnosticsSnapshot;
   isScanning: boolean;
   monitorStatus: "active" | "disabled" | "error";
   isFilteringStale: boolean;
@@ -123,6 +126,7 @@ export function ModelGrid({
   metadataByPath,
   duplicateModelIds,
   thumbnailRetryGenerations,
+  thumbnailDiagnostics,
   isScanning,
   monitorStatus,
   isFilteringStale,
@@ -397,23 +401,26 @@ export function ModelGrid({
           >
             <Settings size={17} />
           </button>
-          <span
-            className={`library-status ${isScanning ? "scanning" : monitorStatus}`}
-            title={
-              isScanning
-                ? "Atualizando biblioteca"
+          <div className="toolbar-statuses">
+            <ThumbnailQueueStatus snapshot={thumbnailDiagnostics} />
+            <span
+              className={`library-status ${isScanning ? "scanning" : monitorStatus}`}
+              title={
+                isScanning
+                  ? "Atualizando biblioteca"
+                  : monitorStatus === "active"
+                    ? "Monitoramento ativo"
+                    : "Atualização manual"
+              }
+            >
+              <i aria-hidden="true" />
+              {isScanning
+                ? "Atualizando biblioteca..."
                 : monitorStatus === "active"
                   ? "Monitoramento ativo"
-                  : "Atualização manual"
-            }
-          >
-            <i aria-hidden="true" />
-            {isScanning
-              ? "Atualizando biblioteca..."
-              : monitorStatus === "active"
-                ? "Monitoramento ativo"
-                : "Atualização manual"}
-          </span>
+                  : "Atualização manual"}
+            </span>
+          </div>
           <button
             className="icon-only"
             type="button"

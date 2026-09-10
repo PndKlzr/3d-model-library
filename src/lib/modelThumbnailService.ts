@@ -25,6 +25,7 @@ export type ModelThumbnailService = {
   retry: (model: ModelFile) => void;
   subscribe: (listener: (snapshot: ThumbnailDiagnosticsSnapshot) => void) => () => void;
   getDiagnostics: () => ThumbnailDiagnosticsSnapshot;
+  recordLongTask: (durationMs: number) => void;
   onIdle: () => Promise<void>;
 };
 
@@ -230,6 +231,9 @@ export function createModelThumbnailService(
     }
     snapshot.queued.total = Object.values(io.queued).reduce(sum, 0) +
       Object.values(render.queued).reduce(sum, 0);
+    snapshot.queuedByStage.io = Object.values(io.queued).reduce(sum, 0);
+    snapshot.queuedByStage.render = Object.values(render.queued).reduce(sum, 0);
+    snapshot.queuedByStage.total = snapshot.queuedByStage.io + snapshot.queuedByStage.render;
     snapshot.running.io = io.active;
     snapshot.running.render = render.active;
     snapshot.running.total = io.active + render.active;
@@ -253,7 +257,14 @@ export function createModelThumbnailService(
     await Promise.all([ioScheduler.onIdle(), renderScheduler.onIdle()]);
   }
 
-  return { request, retry, subscribe, getDiagnostics, onIdle };
+  return {
+    request,
+    retry,
+    subscribe,
+    getDiagnostics,
+    recordLongTask: diagnostics.recordLongTask,
+    onIdle
+  };
 }
 
 function createIdentity(model: ModelFile) {

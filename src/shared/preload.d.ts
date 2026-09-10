@@ -18,6 +18,11 @@ import type {
 
 export type ModelLibraryApi = {
   version: string;
+  getRuntimeVersions: () => Promise<{
+    appVersion: string;
+    electronVersion: string;
+    chromiumVersion: string;
+  }>;
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: AppSettings) => Promise<AppSettings>;
   chooseLibraryFolder: () => Promise<string | null>;

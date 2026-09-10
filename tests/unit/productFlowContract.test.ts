@@ -159,7 +159,7 @@ describe("product flow contract", () => {
     const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
     const stylesSource = await readFile("src/styles.css", "utf8");
 
-    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations"');
+    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations" | "diagnostics"');
     expect(settingsSource).toContain('role="tablist"');
     expect(settingsSource).toContain('role="tab"');
     expect(settingsSource).toContain('role="tabpanel"');

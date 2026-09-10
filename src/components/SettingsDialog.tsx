@@ -1,14 +1,17 @@
-import { Archive, FolderOpen, Plug, Settings, Tags, X } from "lucide-react";
+import { Activity, Archive, FolderOpen, Plug, Settings, Tags, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { DialogShell } from "./DialogShell";
 import type { ThemeMode } from "../lib/viewPreferences";
 import type { AppSettings, SlicerConfig } from "../shared/types";
+import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
+import { PerformanceDiagnostics } from "./PerformanceDiagnostics";
 
 type SettingsDialogProps = {
   settings: AppSettings;
   tagCatalog: string[];
   metadataWritable: boolean;
   metadataMessage: string | null;
+  thumbnailDiagnostics: ThumbnailDiagnosticsSnapshot;
   onClose: () => void;
   onSaveSettings: (settings: AppSettings) => Promise<void>;
   onChooseLibraryFolder: () => Promise<void>;
@@ -20,13 +23,14 @@ type SettingsDialogProps = {
   onThemeModeChange: (themeMode: ThemeMode) => void;
 };
 
-type SettingsTab = "library" | "organization" | "integrations";
+type SettingsTab = "library" | "organization" | "integrations" | "diagnostics";
 
 export function SettingsDialog({
   settings,
   tagCatalog,
   metadataWritable,
   metadataMessage,
+  thumbnailDiagnostics,
   onClose,
   onSaveSettings,
   onChooseLibraryFolder,
@@ -76,6 +80,12 @@ export function SettingsDialog({
           label="Integrações"
           onClick={() => setActiveTab("integrations")}
         />
+        <SettingsTabButton
+          active={activeTab === "diagnostics"}
+          icon={<Activity size={16} />}
+          label="Desempenho"
+          onClick={() => setActiveTab("diagnostics")}
+        />
       </nav>
 
       <div className="settings-content" role="tabpanel">
@@ -108,6 +118,10 @@ export function SettingsDialog({
             onChooseArchiveExtractor={onChooseArchiveExtractor}
             onChooseSlicerExecutable={onChooseSlicerExecutable}
           />
+        ) : null}
+
+        {activeTab === "diagnostics" ? (
+          <PerformanceDiagnostics snapshot={thumbnailDiagnostics} />
         ) : null}
       </div>
     </DialogShell>

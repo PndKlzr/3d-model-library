@@ -66,4 +66,25 @@ describe("layout scroll contract", () => {
     expect(folderTreeSource).toContain("drag-target-ready");
     expect(folderTreeSource).not.toContain("paddingLeft: 10 + depth * 14");
   });
+
+  it("reserves toolbar status space and collapses diagnostics responsively", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain("ThumbnailQueueStatus");
+    expect(gridSource).toContain('className="toolbar-statuses"');
+    expect(css).toMatch(/\.toolbar-statuses\s*\{[\s\S]*?height:\s*18px;/);
+    expect(css).toMatch(/\.thumbnail-queue-status\.complete i\s*\{[\s\S]*?background:\s*var\(--accent\);/);
+    expect(css).toMatch(/\.thumbnail-queue-status\.failed\s*\{[\s\S]*?color:\s*var\(--warn\);/);
+    expect(css).toMatch(/\.thumbnail-queue-status\.failed i\s*\{[\s\S]*?background:\s*var\(--warn\);/);
+    expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.diagnostics-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/);
+    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations" | "diagnostics"');
+    expect(settingsSource).toContain("Desempenho");
+    expect(appSource).toContain("modelThumbnailService.subscribe(setThumbnailDiagnostics)");
+    expect(appSource).toContain("observeThumbnailLongTasks(modelThumbnailService)");
+    expect(appSource).toContain("longTaskObserver.start()");
+    expect(appSource).toContain("longTaskObserver.stop()");
+  });
 });

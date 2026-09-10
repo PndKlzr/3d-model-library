@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("modelLibrary", {
   version: "0.1.0",
+  getRuntimeVersions: () => ipcRenderer.invoke("system:runtime-versions"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   chooseLibraryFolder: () => ipcRenderer.invoke("settings:choose-library-folder"),
