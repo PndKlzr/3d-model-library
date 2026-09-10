@@ -194,8 +194,6 @@ export async function createLegacyElectronLibraryMetadataStore(): Promise<Librar
   });
 }
 
-export const createElectronLibraryMetadataStore = createLegacyElectronLibraryMetadataStore;
-
 function createEmptyModelMetadata(): ModelUserMetadata {
   return {
     favorite: false,

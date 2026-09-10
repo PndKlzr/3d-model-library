@@ -36,6 +36,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   trashModels: (sourcePaths) => ipcRenderer.invoke("library:trash-models", sourcePaths),
   restoreLibraryPaths: (pathPairs) => ipcRenderer.invoke("library:restore-paths", pathPairs),
   getLibraryMetadata: () => ipcRenderer.invoke("metadata:get"),
+  getLibraryMetadataStatus: () => ipcRenderer.invoke("metadata:status"),
+  retryLibraryMetadata: () => ipcRenderer.invoke("metadata:retry"),
   toggleFavorite: (modelPath) => ipcRenderer.invoke("metadata:toggle-favorite", modelPath),
   setModelTags: (modelPath, tags) => ipcRenderer.invoke("metadata:set-tags", modelPath, tags),
   addCatalogTag: (tag) => ipcRenderer.invoke("metadata:add-catalog-tag", tag),

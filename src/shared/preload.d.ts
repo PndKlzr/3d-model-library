@@ -6,6 +6,7 @@ import type {
   FileRestorePair,
   FileDragStatus,
   LibraryMetadata,
+  LibraryMetadataStatus,
   LibraryScanResult,
   LibraryWatchEvent,
   ModelHashInput,
@@ -50,6 +51,8 @@ export type ModelLibraryApi = {
   trashModels: (sourcePaths: string[]) => Promise<FileOperationResult>;
   restoreLibraryPaths: (pathPairs: FileRestorePair[]) => Promise<FileOperationResult>;
   getLibraryMetadata: () => Promise<LibraryMetadata>;
+  getLibraryMetadataStatus: () => Promise<LibraryMetadataStatus>;
+  retryLibraryMetadata: () => Promise<LibraryMetadataStatus>;
   toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
   setModelTags: (modelPath: string, tags: string[]) => Promise<LibraryMetadata>;
   addCatalogTag: (tag: string) => Promise<LibraryMetadata>;

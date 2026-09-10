@@ -445,7 +445,7 @@ git commit -m "feat: bind portable metadata to active library"
 - Adds preload calls: `getLibraryMetadataStatus(): Promise<LibraryMetadataStatus>` and `retryLibraryMetadata(): Promise<LibraryMetadataStatus>`.
 - Keeps existing metadata method names and renderer-facing `Promise<LibraryMetadata>` return values.
 
-- [ ] **Step 1: Add failing IPC contract assertions**
+- [x] **Step 1: Add failing IPC contract assertions**
 
 Extend `preloadContract.test.ts` to require both bridge functions and exact channels:
 
@@ -458,13 +458,13 @@ expect(preloadSource).toContain('ipcRenderer.invoke("metadata:retry")');
 
 Extend `interactionFlowContract.test.ts` to assert `settings:save` awaits metadata activation when `libraryPath` changes and that metadata move/history calls are awaited.
 
-- [ ] **Step 2: Run contract tests and verify they fail**
+- [x] **Step 2: Run contract tests and verify they fail**
 
 Run: `npm test -- tests/unit/preloadContract.test.ts tests/unit/interactionFlowContract.test.ts`
 
 Expected: FAIL on missing status/retry APIs and synchronous metadata calls.
 
-- [ ] **Step 3: Initialize and bind the active store before creating the window**
+- [x] **Step 3: Initialize and bind the active store before creating the window**
 
 Replace the global `LibraryMetadataStore` with `ActiveLibraryMetadataStore`. During `app.whenReady()` create the legacy store, mirror, portable repository, and active store, then call:
 
@@ -474,11 +474,11 @@ await libraryMetadataStore.open(settingsStore.getSettings().libraryPath);
 
 Do this before `registerIpcHandlers()` and `createWindow()`, so the renderer's initial metadata request cannot race initialization.
 
-- [ ] **Step 4: Make library changes transactional at the settings boundary**
+- [x] **Step 4: Make library changes transactional at the settings boundary**
 
 Change `settings:save` to an async handler. Save settings, compare normalized old/new library paths, close monitoring before a root change, await `libraryMetadataStore.open(saved.libraryPath)`, then restore monitoring according to saved settings. If metadata activation fails, retain the selected path but expose read-only/unavailable status; do not silently bind metadata from the previous root.
 
-- [ ] **Step 5: Convert metadata IPC and file-operation hooks to async**
+- [x] **Step 5: Convert metadata IPC and file-operation hooks to async**
 
 Await every metadata mutation handler. Convert `movePathMetadataSafely` to:
 
@@ -499,11 +499,11 @@ ipcMain.handle("metadata:retry", async () => {
 });
 ```
 
-- [ ] **Step 6: Extend the typed preload bridge**
+- [x] **Step 6: Extend the typed preload bridge**
 
 Add `LibraryMetadataStatus` to imports and both methods to `ModelLibraryApi`; expose the matching `ipcRenderer.invoke` calls in `preload.cjs`. Keep context isolation enabled and do not expose filesystem primitives.
 
-- [ ] **Step 7: Run the IPC contracts and build**
+- [x] **Step 7: Run the IPC contracts and build**
 
 Run: `npm test -- tests/unit/preloadContract.test.ts tests/unit/interactionFlowContract.test.ts`
 
@@ -511,7 +511,7 @@ Run: `npm run build`
 
 Expected: both commands PASS.
 
-- [ ] **Step 8: Commit the Electron integration**
+- [x] **Step 8: Commit the Electron integration**
 
 ```bash
 git add electron/main.ts electron/preload.cjs src/shared/preload.d.ts src/shared/types.ts tests/unit/preloadContract.test.ts tests/unit/interactionFlowContract.test.ts

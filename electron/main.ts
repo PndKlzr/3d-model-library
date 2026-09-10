@@ -10,6 +10,10 @@ import type {
   FileRestorePair,
   ModelHashInput
 } from "../src/shared/types.js";
+import {
+  createActiveLibraryMetadataStore,
+  type ActiveLibraryMetadataStore
+} from "./services/activeLibraryMetadataStore.js";
 import { extractArchiveEntries, listArchiveEntries } from "./services/archiveManager.js";
 import {
   createLibraryFolder,
@@ -30,9 +34,10 @@ import {
 import { readModelMetadata } from "./services/modelMetadata.js";
 import { readEmbeddedThumbnail } from "./services/modelThumbnail.js";
 import {
-  createElectronLibraryMetadataStore,
-  type LibraryMetadataStore
+  createLegacyElectronLibraryMetadataStore
 } from "./services/libraryMetadataStore.js";
+import { createElectronLibraryMetadataMirrorStore } from "./services/libraryMetadataMirrorStore.js";
+import { createPortableMetadataRepository } from "./services/portableMetadataRepository.js";
 import {
   createNativeFileDragPayload,
   resolveDraggableFilePathsSync
@@ -52,7 +57,7 @@ const __dirname = path.dirname(__filename);
 const isDev = !app.isPackaged;
 let settingsStore: SettingsStore;
 let libraryIndexStore: LibraryIndexStore;
-let libraryMetadataStore: LibraryMetadataStore;
+let libraryMetadataStore: ActiveLibraryMetadataStore;
 let modelHashStore: ModelHashStore;
 let libraryWatcher: LibraryWatcherHandle | null = null;
 let thumbnailCache: ThumbnailCache;
@@ -62,9 +67,21 @@ const dragIcon = createFileDragIcon();
 function registerIpcHandlers() {
   ipcMain.handle("settings:get", () => settingsStore.getSettings());
 
-  ipcMain.handle("settings:save", (_event, settings: AppSettings) =>
-    settingsStore.saveSettings(settings)
-  );
+  ipcMain.handle("settings:save", async (_event, settings: AppSettings) => {
+    const previousSettings = settingsStore.getSettings();
+    const savedSettings = settingsStore.saveSettings(settings);
+
+    if (!sameOptionalPath(previousSettings.libraryPath, savedSettings.libraryPath)) {
+      await setLibraryMonitoring(false);
+      await libraryMetadataStore.open(savedSettings.libraryPath);
+
+      if (savedSettings.libraryPath && savedSettings.monitorLibrary) {
+        await setLibraryMonitoring(true);
+      }
+    }
+
+    return savedSettings;
+  });
 
   ipcMain.handle("settings:choose-library-folder", async () => {
     const result = await dialog.showOpenDialog({
@@ -122,10 +139,10 @@ function registerIpcHandlers() {
 
       for (const sourcePath of sourcePaths) {
         metadataWarnings.push(
-          ...movePathMetadataSafely(
+          ...(await movePathMetadataSafely(
             sourcePath,
             resolveMovedModelPath(libraryPath, sourcePath, destinationRelativeFolder)
-          )
+          ))
         );
       }
 
@@ -145,7 +162,10 @@ function registerIpcHandlers() {
       );
 
       if (result.path) {
-        return withMetadataWarnings(result, movePathMetadataSafely(sourcePath, result.path));
+        return withMetadataWarnings(
+          result,
+          await movePathMetadataSafely(sourcePath, result.path)
+        );
       }
 
       return result;
@@ -160,7 +180,10 @@ function registerIpcHandlers() {
       const result = await renameLibraryFolder(libraryPath, folderRelativePath, newName);
 
       if (result.path) {
-        return withMetadataWarnings(result, movePathMetadataSafely(sourcePath, result.path));
+        return withMetadataWarnings(
+          result,
+          await movePathMetadataSafely(sourcePath, result.path)
+        );
       }
 
       return result;
@@ -173,7 +196,10 @@ function registerIpcHandlers() {
       const result = await renameModelFile(requireLibraryPath(), sourcePath, newName);
 
       if (result.path) {
-        return withMetadataWarnings(result, movePathMetadataSafely(sourcePath, result.path));
+        return withMetadataWarnings(
+          result,
+          await movePathMetadataSafely(sourcePath, result.path)
+        );
       }
 
       return result;
@@ -199,13 +225,20 @@ function registerIpcHandlers() {
     const metadataWarnings: string[] = [];
 
     for (const pair of pathPairs) {
-      metadataWarnings.push(...movePathMetadataSafely(pair.sourcePath, pair.destinationPath));
+      metadataWarnings.push(
+        ...(await movePathMetadataSafely(pair.sourcePath, pair.destinationPath))
+      );
     }
 
     return withMetadataWarnings(result, metadataWarnings);
   });
 
   ipcMain.handle("metadata:get", () => libraryMetadataStore.getMetadata());
+  ipcMain.handle("metadata:status", () => libraryMetadataStore.getStatus());
+  ipcMain.handle("metadata:retry", async () => {
+    await libraryMetadataStore.retry();
+    return libraryMetadataStore.getStatus();
+  });
 
   ipcMain.handle("metadata:toggle-favorite", (_event, modelPath: string) => {
     assertPathInsideLibrary(modelPath);
@@ -332,8 +365,16 @@ function registerIpcHandlers() {
     const result = await launchSlicer(slicer, launchPaths);
 
     if (result.ok) {
-      for (const modelPath of launchPaths) {
-        libraryMetadataStore.recordSlicerOpen(modelPath, slicerId);
+      try {
+        for (const modelPath of launchPaths) {
+          await libraryMetadataStore.recordSlicerOpen(modelPath, slicerId);
+        }
+      } catch (error) {
+        console.error("[metadata] failed to save slicer history", error);
+        return {
+          ...result,
+          message: `${result.message} O modelo foi aberto, mas o histórico recente não foi salvo.`
+        };
       }
     }
 
@@ -467,9 +508,12 @@ function resolveMovedModelPath(
   );
 }
 
-function movePathMetadataSafely(sourcePath: string, destinationPath: string): string[] {
+async function movePathMetadataSafely(
+  sourcePath: string,
+  destinationPath: string
+): Promise<string[]> {
   try {
-    libraryMetadataStore.movePathMetadata(sourcePath, destinationPath);
+    await libraryMetadataStore.movePathMetadata(sourcePath, destinationPath);
     return [];
   } catch (error) {
     console.error("[metadata] failed to migrate path metadata", {
@@ -495,6 +539,14 @@ function withMetadataWarnings(
     ...result,
     message: `${result.message} ${uniqueWarnings.join(" ")}`
   };
+}
+
+function sameOptionalPath(left: string | null, right: string | null): boolean {
+  if (!left || !right) {
+    return left === right;
+  }
+
+  return path.resolve(left).toLowerCase() === path.resolve(right).toLowerCase();
 }
 
 async function createWindow() {
@@ -534,7 +586,14 @@ async function createWindow() {
 app.whenReady().then(async () => {
   settingsStore = await createElectronSettingsStore();
   libraryIndexStore = await createElectronLibraryIndexStore();
-  libraryMetadataStore = await createElectronLibraryMetadataStore();
+  const legacyMetadataStore = await createLegacyElectronLibraryMetadataStore();
+  const metadataMirrorStore = await createElectronLibraryMetadataMirrorStore();
+  libraryMetadataStore = createActiveLibraryMetadataStore({
+    repository: createPortableMetadataRepository(),
+    mirror: metadataMirrorStore,
+    legacyStore: legacyMetadataStore
+  });
+  await libraryMetadataStore.open(settingsStore.getSettings().libraryPath);
   modelHashStore = await createElectronModelHashStore();
   thumbnailCache = createThumbnailCache({
     cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")

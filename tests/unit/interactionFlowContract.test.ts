@@ -253,4 +253,26 @@ describe("interaction flow contract", () => {
     expect(mainSource).toContain("withMetadataWarnings");
     expect(mainSource).toContain("[metadata] failed to migrate path metadata");
   });
+
+  it("binds portable metadata before the window opens and when the library changes", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(mainSource).toContain("createActiveLibraryMetadataStore");
+    expect(mainSource).toContain(
+      "await libraryMetadataStore.open(settingsStore.getSettings().libraryPath)"
+    );
+    expect(mainSource.indexOf("await libraryMetadataStore.open(")).toBeLessThan(
+      mainSource.indexOf("await createWindow()")
+    );
+    expect(mainSource).toContain('ipcMain.handle("metadata:status"');
+    expect(mainSource).toContain('ipcMain.handle("metadata:retry"');
+  });
+
+  it("awaits portable metadata updates after move, rename, restore, and slicer launch", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(mainSource).toContain("async function movePathMetadataSafely");
+    expect(mainSource).toContain("await movePathMetadataSafely(");
+    expect(mainSource).toContain("await libraryMetadataStore.recordSlicerOpen(");
+  });
 });

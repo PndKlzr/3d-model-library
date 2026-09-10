@@ -31,6 +31,10 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("trashModels");
     expect(preloadSource).toContain("restoreLibraryPaths");
     expect(preloadSource).toContain("getLibraryMetadata");
+    expect(preloadSource).toContain("getLibraryMetadataStatus");
+    expect(preloadSource).toContain('ipcRenderer.invoke("metadata:status")');
+    expect(preloadSource).toContain("retryLibraryMetadata");
+    expect(preloadSource).toContain('ipcRenderer.invoke("metadata:retry")');
     expect(preloadSource).toContain("toggleFavorite");
     expect(preloadSource).toContain("setModelTags");
     expect(preloadSource).toContain("addCatalogTag");
