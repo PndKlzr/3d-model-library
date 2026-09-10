@@ -5,26 +5,29 @@ describe("performance contract", () => {
   it("does not auto-render model thumbnails in the grid", async () => {
     const modelGridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
     const cardThumbnailSource = await readFile("src/components/ModelCardThumbnail.tsx", "utf8");
-    const thumbnailSource = await readFile("src/lib/modelThumbnailQueue.ts", "utf8");
+    const thumbnailSource = await readFile("src/lib/modelThumbnailService.ts", "utf8");
 
     expect(modelGridSource).not.toContain("../components/ModelThumbnail");
     expect(modelGridSource).not.toContain("<ModelThumbnail");
     expect(modelGridSource).not.toContain("readModelFile");
     expect(modelGridSource).toContain("ModelCardThumbnail");
-    expect(cardThumbnailSource).toContain("readModelThumbnail");
-    expect(cardThumbnailSource).toContain("requestRenderedModelThumbnail");
-    expect(cardThumbnailSource).toContain(
-      'let request = requestModelThumbnail(model, "nearby")'
-    );
+    expect(cardThumbnailSource).toContain('from "../lib/modelThumbnailService"');
+    expect(cardThumbnailSource).toContain('modelThumbnailService.request(model, "nearby")');
+    expect(cardThumbnailSource).not.toContain("readCachedThumbnail");
+    expect(cardThumbnailSource).not.toContain("readModelThumbnail");
+    expect(cardThumbnailSource).not.toContain("writeCachedThumbnail");
     expect(cardThumbnailSource).not.toContain("nearbyObserver");
     expect(cardThumbnailSource).not.toContain("setDidQueue");
-    expect(thumbnailSource).not.toContain("readModelThumbnail");
+    expect(thumbnailSource).toContain("readCachedThumbnail");
+    expect(thumbnailSource).toContain("readEmbeddedThumbnail");
+    expect(thumbnailSource).toContain("writeCachedThumbnail");
     expect(thumbnailSource).toContain("readModelFile");
-    expect(thumbnailSource).toContain("thumbnailScheduler");
+    expect(thumbnailSource).toContain("ioScheduler");
+    expect(thumbnailSource).toContain("renderScheduler");
     expect(thumbnailSource).toContain("renderThumbnail");
-    expect(thumbnailSource).toContain("shouldCacheResult: (thumbnail) => thumbnail !== null");
+    expect(thumbnailSource).toContain("concurrency: 4");
+    expect(thumbnailSource).toContain("concurrency: 1");
     expect(cardThumbnailSource).not.toContain('"background"');
-    expect(cardThumbnailSource).toContain('requestModelThumbnail(model, "historical")');
     expect(thumbnailSource).toContain("thumbnail ?? null");
   });
 

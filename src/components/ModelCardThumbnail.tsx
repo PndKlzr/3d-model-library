@@ -1,10 +1,6 @@
 import { Box, FileArchive } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import {
-  requestRenderedModelThumbnail,
-  type RenderedModelThumbnailRequest
-} from "../lib/modelThumbnailQueue";
-import type { ThumbnailPriority } from "../lib/thumbnailScheduler";
+import { modelThumbnailService } from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
 
 type ModelCardThumbnailProps = {
@@ -23,7 +19,7 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
     setThumbnailUrl(null);
     if (!element) return;
 
-    let request = requestModelThumbnail(model, "nearby");
+    const request = modelThumbnailService.request(model, "nearby");
     void request.promise
       .then((imageUrl) => {
         if (isMounted && imageUrl) setThumbnailUrl(imageUrl);
@@ -60,52 +56,6 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
 }
 
 export async function loadModelThumbnail(model: ModelFile): Promise<string | null> {
-  const request = requestModelThumbnail(model, "historical");
+  const request = modelThumbnailService.request(model, "historical");
   return request.promise.finally(request.release);
-}
-
-function requestModelThumbnail(
-  model: ModelFile,
-  initialPriority: ThumbnailPriority
-): RenderedModelThumbnailRequest {
-  let priority = initialPriority;
-  let released = false;
-  let renderRequest: RenderedModelThumbnailRequest | null = null;
-
-  const promise = resolveModelThumbnail(model, () => {
-    renderRequest = requestRenderedModelThumbnail(model, released ? "historical" : priority);
-    if (released) renderRequest.release();
-    return renderRequest;
-  });
-
-  return {
-    promise,
-    setPriority(nextPriority) {
-      priority = nextPriority;
-      renderRequest?.setPriority(nextPriority);
-    },
-    release() {
-      released = true;
-      renderRequest?.release();
-    }
-  };
-}
-
-async function resolveModelThumbnail(
-  model: ModelFile,
-  createRenderRequest: () => RenderedModelThumbnailRequest
-) {
-  if ([".zip", ".rar", ".7z"].includes(model.extension)) return null;
-
-  const cachedThumbnail = await window.modelLibrary.readCachedThumbnail(model);
-  if (cachedThumbnail) return cachedThumbnail;
-
-  let thumbnail: string | null = null;
-  if (model.extension === ".3mf") {
-    thumbnail = await window.modelLibrary.readModelThumbnail(model.absolutePath);
-  }
-
-  thumbnail ??= await createRenderRequest().promise;
-  if (thumbnail) void window.modelLibrary.writeCachedThumbnail(model, thumbnail).catch(() => undefined);
-  return thumbnail;
 }

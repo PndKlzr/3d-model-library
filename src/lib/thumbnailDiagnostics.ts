@@ -161,7 +161,7 @@ function createTrackedThumbnailOperation(
       state = "running";
       publishThumbnailSnapshot(snapshot, listeners);
     },
-    succeeded(source: ThumbnailResultSource) {
+    succeeded(source?: ThumbnailResultSource) {
       settle(source);
     },
     failed() {
