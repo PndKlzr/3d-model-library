@@ -842,20 +842,11 @@ function LibraryApp() {
     }));
   }
 
-  function clearFilters() {
+  function clearFolderExclusions() {
     updateLibraryViewPreferences((current) => ({
       ...current,
-      visibleExtensions: [...SUPPORTED_FILE_EXTENSIONS],
       excludedFolders: []
     }));
-    setSearchQuery("");
-    setOnlySelected(false);
-    setOnlyFavorites(false);
-    setOnlyDuplicates(false);
-    setUsageFilter("all");
-    setNotesFilter("all");
-    setTagMatchMode("all");
-    setSelectedTagFilters(new Set());
   }
 
   async function activateLibrary(rootPath: string, monitoring: boolean) {
@@ -1672,8 +1663,11 @@ function LibraryApp() {
   );
   const includeSubfolders = settings?.includeSubfolders ?? true;
   const folderCards = useMemo(
-    () => getGridFolderCards(folders, models, selectedFolder, includeSubfolders),
-    [folders, includeSubfolders, models, selectedFolder]
+    () => getGridFolderCards(folders, models, selectedFolder, includeSubfolders, {
+      visibleExtensions,
+      excludedFolders
+    }),
+    [excludedFolders, folders, includeSubfolders, models, selectedFolder, visibleExtensions]
   );
   const availableTags = useMemo(
     () => getAvailableTags(models, libraryMetadata),
@@ -1815,7 +1809,7 @@ function LibraryApp() {
         onSearchChange={setSearchQuery}
         onVisibleExtensionsChange={updateVisibleExtensions}
         onRemoveFolderExclusion={removeFolderExclusion}
-        onClearFilters={clearFilters}
+        onClearFolderExclusions={clearFolderExclusions}
         onSortModeChange={setSortMode}
         onOnlySelectedChange={setOnlySelected}
         onOnlyFavoritesChange={setOnlyFavorites}

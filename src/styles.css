@@ -528,11 +528,23 @@ button:disabled {
   transform: translate(-50%, 0);
 }
 
-.toolbar {
+.library-sticky-header {
   position: sticky;
   z-index: 20;
   top: calc(0px - var(--library-padding));
   isolation: isolate;
+  margin: calc(0px - var(--library-padding)) 0 18px;
+  padding-top: var(--library-padding);
+  padding-bottom: 14px;
+  background: var(--panel);
+  box-shadow: 0 8px 14px rgba(30, 40, 45, 0.06);
+}
+
+.library-sticky-header > :last-child {
+  margin-bottom: 0;
+}
+
+.toolbar {
   display: flex;
   min-height: 112px;
   align-items: center;
@@ -542,7 +554,6 @@ button:disabled {
   border-bottom: 1px solid var(--line);
   padding: 18px 22px 14px;
   background: var(--panel);
-  box-shadow: 0 8px 14px rgba(30, 40, 45, 0.06);
 }
 
 .toolbar > :first-child {
@@ -2719,6 +2730,18 @@ button:disabled {
 
   .toolbar {
     align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .toolbar > :first-child {
+    flex-basis: 100%;
+  }
+
+  .toolbar-actions {
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .library-status {

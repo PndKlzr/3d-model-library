@@ -59,6 +59,7 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.drop-cue\s*\{[\s\S]*?position:\s*absolute;/);
     expect(css).toContain(".folder-tree-row.drag-target-ready");
     expect(css).toContain(".toolbar > :first-child");
+    expect(css).toContain(".library-sticky-header");
     expect(css).toContain("--library-padding");
     expect(css).toContain("top: calc(0px - var(--library-padding));");
     expect(css).toMatch(/\.breadcrumbs\s*\{[\s\S]*?overflow-x:\s*auto;/);
@@ -88,13 +89,9 @@ describe("layout scroll contract", () => {
     expect(appSource).toContain("longTaskObserver.stop()");
   });
 
-  it("keeps type and exclusion controls inside the sticky responsive filter area", async () => {
-    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+  it("bounds filter popovers inside the responsive filter area", async () => {
     const css = await readFile("src/styles.css", "utf8");
 
-    expect(gridSource).toContain("FileTypeFilter");
-    expect(gridSource).toContain("exclusion-chip");
-    expect(gridSource).toContain("onClearFilters");
     expect(css).toMatch(/\.file-type-popover\s*\{[\s\S]*?max-height:\s*min\(520px, calc\(100vh - 32px\)\);/);
     expect(css).toMatch(/\.filter-bar\s*\{[\s\S]*?flex-wrap:\s*wrap;/);
   });

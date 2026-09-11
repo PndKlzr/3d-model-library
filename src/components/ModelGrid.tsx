@@ -80,7 +80,7 @@ type ModelGridProps = {
   onSearchChange: (query: string) => void;
   onVisibleExtensionsChange: (visibleExtensions: ReadonlySet<SupportedFileExtension>) => void;
   onRemoveFolderExclusion: (folderId: string) => void;
-  onClearFilters: () => void;
+  onClearFolderExclusions: () => void;
   onSortModeChange: (sortMode: ModelSortMode) => void;
   onOnlySelectedChange: (onlySelected: boolean) => void;
   onOnlyFavoritesChange: (onlyFavorites: boolean) => void;
@@ -146,7 +146,7 @@ export function ModelGrid({
   onSearchChange,
   onVisibleExtensionsChange,
   onRemoveFolderExclusion,
-  onClearFilters,
+  onClearFolderExclusions,
   onSortModeChange,
   onOnlySelectedChange,
   onOnlyFavoritesChange,
@@ -294,7 +294,16 @@ export function ModelGrid({
   }
 
   function clearFilters() {
-    onClearFilters();
+    onSearchChange("");
+    onVisibleExtensionsChange(new Set(SUPPORTED_FILE_EXTENSIONS));
+    onClearFolderExclusions();
+    onOnlySelectedChange(false);
+    onOnlyFavoritesChange(false);
+    onOnlyDuplicatesChange(false);
+    onUsageFilterChange("all");
+    onNotesFilterChange("all");
+    onTagMatchModeChange("all");
+    selectedTags.forEach(onToggleTagFilter);
   }
 
   return (
@@ -313,6 +322,7 @@ export function ModelGrid({
           <small>Solte o modelo em uma pasta</small>
         </span>
       </div>
+      <div className="library-sticky-header">
       <header className="toolbar">
         <div>
           <p className="eyebrow">STL / 3MF</p>
@@ -594,6 +604,7 @@ export function ModelGrid({
           ))}
         </div>
       ) : null}
+      </div>
 
       {scanErrors.length > 0 ? (
         <div className="scan-errors" role="status">
@@ -618,7 +629,13 @@ export function ModelGrid({
         </div>
       ) : null}
 
-      {!hasGridContent ? (
+      {visibleExtensions.size === 0 ? (
+        <div className="empty-state" role="status">
+          <Box size={28} />
+          <strong>Todos os tipos estão ocultos</strong>
+          <span>Selecione ao menos um tipo de arquivo para mostrar resultados.</span>
+        </div>
+      ) : !hasGridContent ? (
         <div className="empty-state">
           <Box size={28} />
           <strong>Nenhum item nesta visão</strong>

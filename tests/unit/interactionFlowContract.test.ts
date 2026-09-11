@@ -86,7 +86,7 @@ describe("interaction flow contract", () => {
     expect(gridSource).toContain("Enviar para outro programa");
     expect(appSource).toContain("updateFileDragBehavior");
     expect(appSource).toContain("onFileDragBehaviorChange={updateFileDragBehavior}");
-    expect(stylesSource).toMatch(/\.toolbar\s*\{[\s\S]*?position:\s*sticky;/);
+    expect(stylesSource).toMatch(/\.library-sticky-header\s*\{[\s\S]*?position:\s*sticky;/);
     expect(stylesSource).toContain(".drag-behavior-toggle");
   });
 
