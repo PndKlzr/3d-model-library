@@ -4,6 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { unzipSync } from "fflate";
 import type { ArchiveEntry, ArchiveListResult, FileOperationResult } from "../../src/shared/types.js";
+import { isPathAtOrInside, isPathInside } from "./pathContainment.js";
 
 const ARCHIVE_EXTENSIONS = new Set([".zip", ".rar", ".7z"]);
 const PRINTABLE_EXTENSIONS = new Set([".stl", ".3mf"]);
@@ -471,11 +472,11 @@ function normalizeRelativeFolder(relativeFolder: string): string {
 }
 
 function assertInsideRoot(rootPath: string, candidatePath: string, allowRoot: boolean) {
-  const relativePath = path.relative(rootPath, candidatePath);
-  const isRoot = relativePath === "";
-  const isOutside = relativePath.startsWith("..") || path.isAbsolute(relativePath);
+  const isAllowed = allowRoot
+    ? isPathAtOrInside(rootPath, candidatePath)
+    : isPathInside(rootPath, candidatePath);
 
-  if (isOutside || (!allowRoot && isRoot)) {
+  if (!isAllowed) {
     throw new Error("Caminho fora da biblioteca.");
   }
 }

@@ -23,9 +23,9 @@ import type {
 } from "../src/shared/types.js";
 import {
   createActiveLibrarySession,
-  isAbsolutePathInside,
   type ActiveLibrarySession
 } from "./services/activeLibrarySession.js";
+import { isPathAtOrInside, isPathInside } from "./services/pathContainment.js";
 import {
   createActiveLibraryMetadataStore,
   type ActiveLibraryMetadataStore
@@ -130,11 +130,6 @@ function readBenchmarkEnvironment(): BenchmarkEnvironment | null {
     output: canonicalOutput,
     userData: canonicalUserData
   };
-}
-
-function isPathAtOrInside(root: string, candidate: string) {
-  const relative = path.relative(path.resolve(root), path.resolve(candidate));
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 function registerIpcHandlers() {
@@ -673,7 +668,7 @@ function sanitizeDuration(value: unknown, label: string) {
 function assertPathInsideLibrary(absolutePath: string) {
   const libraryPath = requireLibraryPath();
 
-  if (!isAbsolutePathInside(libraryPath, absolutePath)) {
+  if (!isPathInside(libraryPath, absolutePath)) {
     throw new Error("Model file is outside the configured library folder");
   }
 }
@@ -699,13 +694,13 @@ function assertThumbnailSignature(value: unknown): asserts value is {
 
 function requireLibraryPath(): string {
   if (benchmarkEnvironment) return benchmarkEnvironment.root;
-  const settings = settingsStore.getSettings();
+  const currentSession = activeLibrarySession!.current();
 
-  if (!settings.libraryPath) {
-    throw new Error("Library folder is not configured");
+  if (!currentSession) {
+    throw new Error("Library session is not active");
   }
 
-  return settings.libraryPath;
+  return currentSession.rootPath;
 }
 
 function getArchiveToolOptions() {

@@ -16,7 +16,7 @@ import {
   encodePortableMetadata
 } from "./portableMetadataCodec.js";
 import type { PortableMetadataRepository } from "./portableMetadataRepository.js";
-import { isAbsolutePathInside } from "./activeLibrarySession.js";
+import { isPathInside } from "./pathContainment.js";
 
 export type ActiveLibraryMetadataStoreOptions = {
   repository: PortableMetadataRepository;
@@ -219,7 +219,7 @@ export function createActiveLibraryMetadataStore({
       throw new Error("O caminho do modelo não pertence à biblioteca ativa.");
     }
 
-    if (!isAbsolutePathInside(activeRoot, candidatePath)) {
+    if (!isPathInside(activeRoot, candidatePath)) {
       throw new Error("O caminho do modelo não pertence à biblioteca ativa.");
     }
   }
@@ -254,11 +254,11 @@ export function createActiveLibraryMetadataStore({
 function filterLegacyMetadata(metadata: LibraryMetadata, rootPath: string): LibraryMetadata {
   return {
     models: Object.fromEntries(
-      Object.entries(metadata.models).filter(([modelPath]) => isAbsolutePathInside(rootPath, modelPath))
+      Object.entries(metadata.models).filter(([modelPath]) => isPathInside(rootPath, modelPath))
     ),
     tagCatalog: [...metadata.tagCatalog],
     slicerHistory: metadata.slicerHistory.filter((entry) =>
-      isAbsolutePathInside(rootPath, entry.modelPath)
+      isPathInside(rootPath, entry.modelPath)
     )
   };
 }

@@ -6,6 +6,7 @@ import {
 } from "../../src/shared/fileCapabilities.js";
 import type { LibraryScanResult, LibraryWatchEvent, ModelFile } from "../../src/shared/types.js";
 import { runBounded } from "./boundedTaskPool.js";
+import { isPathInside } from "./pathContainment.js";
 import { isInternalLibraryPath } from "./portableMetadataCodec.js";
 
 const LIBRARY_FILE_EXTENSIONS = new Set<string>(SUPPORTED_FILE_EXTENSIONS);
@@ -224,8 +225,7 @@ function compareModels(left: ModelFile, right: ModelFile): number {
 }
 
 function isPathInsideRoot(rootPath: string, absolutePath: string): boolean {
-  const relative = path.relative(rootPath, absolutePath);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+  return isPathInside(rootPath, absolutePath);
 }
 
 function normalizePathKey(filePath: string): string {

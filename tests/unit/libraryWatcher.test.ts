@@ -32,6 +32,29 @@ describe("libraryWatcher", () => {
     vi.useRealTimers();
   });
 
+  it("accepts dot-prefixed child segments and rejects exact parent traversal", async () => {
+    vi.useFakeTimers();
+    const fakeWatcher = createFakeWatcher();
+    const batches: LibraryWatchEvent[][] = [];
+    const rootPath = path.resolve("C:\\Models");
+    const watcher = createLibraryWatcher({
+      rootPath,
+      debounceMs: 25,
+      onBatch: (batch) => batches.push(batch),
+      watchFactory: () => fakeWatcher
+    });
+    const validPath = path.join(rootPath, "..draft", "..part.stl");
+    const outsidePath = path.resolve(rootPath, "..", "outside.stl");
+
+    fakeWatcher.emit("all", "add", validPath);
+    fakeWatcher.emit("all", "add", outsidePath);
+    await vi.advanceTimersByTimeAsync(26);
+
+    expect(batches).toEqual([[{ type: "add", absolutePath: validPath }]]);
+    await watcher.close();
+    vi.useRealTimers();
+  });
+
   it("keeps only the latest event for the same path in a debounce window", async () => {
     vi.useFakeTimers();
     const fakeWatcher = createFakeWatcher();

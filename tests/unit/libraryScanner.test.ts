@@ -160,6 +160,28 @@ describe("scanLibrary", () => {
     expect(result.folders).toEqual(["new-folder"]);
   });
 
+  it("applies watcher events in dot-prefixed child segments but ignores parent traversal", async () => {
+    const initial = await scanLibrary(tempRoot);
+    const validFolder = path.join(tempRoot, "..draft");
+    const validPath = path.join(validFolder, "..part.stl");
+    const outsidePath = path.resolve(tempRoot, "..", "outside.stl");
+    await mkdir(validFolder);
+    await writeFile(validPath, "solid draft\nendsolid draft");
+    await writeFile(outsidePath, "solid outside\nendsolid outside");
+
+    try {
+      const result = await applyLibraryWatchEvents(initial, [
+        { type: "add", absolutePath: validPath },
+        { type: "add", absolutePath: outsidePath }
+      ]);
+
+      expect(result.models.map((model) => model.absolutePath)).toContain(validPath);
+      expect(result.models.map((model) => model.absolutePath)).not.toContain(outsidePath);
+    } finally {
+      await rm(outsidePath, { force: true });
+    }
+  });
+
   it("defensively ignores internal metadata watcher events", async () => {
     const initial = await scanLibrary(tempRoot);
     const internalDirectory = path.join(tempRoot, ".3d-model-library");

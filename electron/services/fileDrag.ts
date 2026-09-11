@@ -2,6 +2,7 @@ import { realpathSync, statSync } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { SUPPORTED_FILE_EXTENSIONS } from "../../src/shared/fileCapabilities.js";
+import { isPathInside } from "./pathContainment.js";
 
 const DRAGGABLE_FILE_EXTENSIONS = new Set<string>(SUPPORTED_FILE_EXTENSIONS);
 
@@ -96,11 +97,7 @@ function assertHasFiles(filePaths: string[]) {
 }
 
 function assertInsideRoot(rootPath: string, candidatePath: string) {
-  const relativePath = path.relative(rootPath, candidatePath);
-  const isOutside =
-    relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
-
-  if (isOutside) {
+  if (!isPathInside(rootPath, candidatePath)) {
     throw new Error("Arquivo fora da biblioteca.");
   }
 }

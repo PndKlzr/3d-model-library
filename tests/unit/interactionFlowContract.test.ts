@@ -278,6 +278,18 @@ describe("interaction flow contract", () => {
     expect(mainSource).not.toContain('ipcMain.handle("library:get-cached"');
   });
 
+  it("authorizes runtime file operations from active B instead of saved setting A", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+    const requireLibraryPath = mainSource.match(
+      /function requireLibraryPath\(\): string \{[\s\S]*?\n\}/
+    )?.[0];
+
+    expect(requireLibraryPath).toBeTruthy();
+    expect(requireLibraryPath).toContain("activeLibrarySession!.current()");
+    expect(requireLibraryPath).toContain("currentSession.rootPath");
+    expect(requireLibraryPath).not.toContain("settingsStore.getSettings()");
+  });
+
   it("activates a changed library before persisting its settings", async () => {
     const mainSource = await readFile("electron/main.ts", "utf8");
     const saveHandler = mainSource.match(

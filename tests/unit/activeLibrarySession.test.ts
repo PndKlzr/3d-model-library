@@ -97,6 +97,72 @@ describe("activeLibrarySession", () => {
     expect(onChanged).not.toHaveBeenCalled();
   });
 
+  it("serializes a watcher batch behind an overlapping full scan", async () => {
+    const scanStarted = createDeferred<void>();
+    const scanResultReady = createDeferred<LibraryScanResult>();
+    const applyEvents = vi.fn(async (current: LibraryScanResult) => ({
+      ...structuredClone(current),
+      folders: [...current.folders, "watcher"]
+    }));
+    const harness = createHarness({
+      scan: async () => {
+        scanStarted.resolve();
+        return scanResultReady.promise;
+      },
+      applyEvents
+    });
+    const activation = await harness.session.activate(harness.firstRoot, true);
+    const pendingScan = harness.session.scan(activation!.session);
+    await scanStarted.promise;
+
+    const pendingBatch = Promise.resolve(harness.watchers[0].onBatch([
+      { type: "addDir", absolutePath: path.join(harness.firstRoot, "watcher") }
+    ]));
+    await Promise.resolve();
+
+    expect(applyEvents).not.toHaveBeenCalled();
+    scanResultReady.resolve({ ...scanResult(harness.firstRoot), folders: ["scan"] });
+    await Promise.all([pendingScan, pendingBatch]);
+
+    expect(harness.savedResults.map((result) => result.folders)).toEqual([
+      ["scan"],
+      ["scan", "watcher"]
+    ]);
+  });
+
+  it("serializes a full scan behind an overlapping watcher batch", async () => {
+    const applyStarted = createDeferred<void>();
+    const applyResultReady = createDeferred<LibraryScanResult>();
+    const scanRoot = vi.fn(async (rootPath: string) => ({
+      ...scanResult(rootPath),
+      folders: ["scan"]
+    }));
+    const harness = createHarness({
+      scan: scanRoot,
+      applyEvents: async () => {
+        applyStarted.resolve();
+        return applyResultReady.promise;
+      }
+    });
+    const activation = await harness.session.activate(harness.firstRoot, true);
+    const pendingBatch = Promise.resolve(harness.watchers[0].onBatch([
+      { type: "addDir", absolutePath: path.join(harness.firstRoot, "watcher") }
+    ]));
+    await applyStarted.promise;
+
+    const pendingScan = harness.session.scan(activation!.session);
+    await Promise.resolve();
+
+    expect(scanRoot).not.toHaveBeenCalled();
+    applyResultReady.resolve({ ...scanResult(harness.firstRoot), folders: ["watcher"] });
+    await Promise.all([pendingBatch, pendingScan]);
+
+    expect(harness.savedResults.map((result) => result.folders)).toEqual([
+      ["watcher"],
+      ["scan"]
+    ]);
+  });
+
   it("binds metadata and its authoritative ID before activation resolves", async () => {
     const harness = createHarness();
 
@@ -120,6 +186,52 @@ describe("activeLibrarySession", () => {
 
     expect(harness.session.current()).toEqual(first!.session);
     expect(harness.watchers[0].close).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["metadata open", { failMetadataRoot: "second" }],
+    ["index load", { failIndexRoot: "second" }],
+    ["watcher construction", { failWatcherRoot: "second" }]
+  ] as const)("restores A after B fails during %s", async (_label, failure) => {
+    const harness = createHarness(failure);
+    const first = await harness.session.activate(harness.firstRoot, true);
+
+    await expect(harness.session.activate(harness.secondRoot, true)).rejects.toThrow(
+      /cannot (open metadata|load index|create watcher)/
+    );
+
+    const restored = harness.session.current();
+    expect(restored).toEqual({
+      generation: 3,
+      rootPath: harness.firstRoot,
+      libraryId: "id-first"
+    });
+    expect(restored?.generation).toBeGreaterThan(first!.session.generation);
+    expect(harness.watchers[0].close).toHaveBeenCalledOnce();
+    expect(harness.watchers.at(-1)?.rootPath).toBe(harness.firstRoot);
+    expect(harness.order.at(-2)).toBe("load:first:id-first");
+    expect(harness.order.at(-1)).toBe("watch:first");
+  });
+
+  it("does not expose failed B while A restoration is pending", async () => {
+    const restorationStarted = createDeferred<void>();
+    const restorationReady = createDeferred<void>();
+    const harness = createHarness({
+      failWatcherRoot: "second",
+      onRestoringMetadata: async () => {
+        restorationStarted.resolve();
+        await restorationReady.promise;
+      }
+    });
+    await harness.session.activate(harness.firstRoot, true);
+
+    const activation = harness.session.activate(harness.secondRoot, true);
+    await restorationStarted.promise;
+
+    expect(harness.session.current()).toBeNull();
+    restorationReady.resolve();
+    await expect(activation).rejects.toThrow("cannot create watcher");
+    expect(harness.session.current()?.rootPath).toBe(harness.firstRoot);
   });
 
   it("deactivates on null and invalidates the old session", async () => {
@@ -182,6 +294,10 @@ type HarnessOptions = {
   onChanged?: ActiveLibrarySessionOptions["onChanged"];
   onMonitoringError?: ActiveLibrarySessionOptions["onMonitoringError"];
   failCanonicalRoot?: string;
+  failMetadataRoot?: string;
+  failIndexRoot?: string;
+  failWatcherRoot?: string;
+  onRestoringMetadata?: () => Promise<void>;
 };
 
 function createHarness(options: HarnessOptions = {}) {
@@ -189,6 +305,8 @@ function createHarness(options: HarnessOptions = {}) {
   const secondRoot = path.join(tmpdir(), "library-session-second");
   const order: string[] = [];
   const saves: string[] = [];
+  const savedResults: LibraryScanResult[] = [];
+  const catalogs = new Map<string, LibraryScanResult>();
   const watchers: Array<{
     rootPath: string;
     onBatch: (events: LibraryWatchEvent[]) => void | Promise<void>;
@@ -196,13 +314,21 @@ function createHarness(options: HarnessOptions = {}) {
     close: ReturnType<typeof vi.fn>;
   }> = [];
   let metadataRoot: string | null = null;
+  let firstMetadataOpenCount = 0;
   let metadata: LibraryMetadata = { models: {}, tagCatalog: [], slicerHistory: [] };
   const metadataStore = {
     async open(rootPath: string | null) {
       metadataRoot = rootPath;
       const label = rootPath ? path.basename(rootPath).replace("library-session-", "") : "none";
+      if (label === "first") firstMetadataOpenCount += 1;
       metadata = { models: {}, tagCatalog: rootPath ? [label] : [], slicerHistory: [] };
       order.push(`metadata:${label}`);
+      if (options.failMetadataRoot === label) {
+        throw new Error("cannot open metadata");
+      }
+      if (label === "first" && firstMetadataOpenCount > 1) {
+        await options.onRestoringMetadata?.();
+      }
     },
     retry: async () => undefined,
     getLibraryId: () => metadataRoot ? `id-${path.basename(metadataRoot).replace("library-session-", "")}` : null,
@@ -220,10 +346,15 @@ function createHarness(options: HarnessOptions = {}) {
     async load(rootPath: string, libraryId?: string) {
       const label = path.basename(rootPath).replace("library-session-", "");
       order.push(`load:${label}:${libraryId}`);
-      return scanResult(rootPath);
+      if (options.failIndexRoot === label) {
+        throw new Error("cannot load index");
+      }
+      return structuredClone(catalogs.get(rootPath) ?? scanResult(rootPath));
     },
-    async save(rootPath: string, libraryId: string) {
+    async save(rootPath: string, libraryId: string, result: LibraryScanResult) {
       saves.push(`${rootPath}:${libraryId}`);
+      savedResults.push(structuredClone(result));
+      catalogs.set(rootPath, structuredClone(result));
     }
   };
   const createWatcher: ActiveLibrarySessionOptions["createWatcher"] = ({
@@ -232,6 +363,9 @@ function createHarness(options: HarnessOptions = {}) {
     onError = () => undefined
   }) => {
     const label = path.basename(rootPath).replace("library-session-", "");
+    if (options.failWatcherRoot === label) {
+      throw new Error("cannot create watcher");
+    }
     order.push(`watch:${label}`);
     const close = vi.fn(async () => {
       order.push(`close:${label}`);
@@ -255,7 +389,7 @@ function createHarness(options: HarnessOptions = {}) {
     onMonitoringError: options.onMonitoringError
   });
 
-  return { session, firstRoot, secondRoot, order, saves, watchers };
+  return { session, firstRoot, secondRoot, order, saves, savedResults, watchers };
 }
 
 function scanResult(rootPath: string): LibraryScanResult {

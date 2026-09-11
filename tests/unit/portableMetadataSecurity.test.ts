@@ -91,6 +91,17 @@ describe("portable metadata security", () => {
     expect(harness.store.getMetadata().models).toEqual({});
   });
 
+  it("accepts runtime mutations for dot-prefixed names inside the active root", async () => {
+    const harness = createSecurityHarness();
+    const rootPath = path.resolve("C:/library-a");
+    const modelPath = path.join(rootPath, "..draft", "..part.stl");
+    await harness.store.open(rootPath);
+
+    await expect(harness.store.setNotes(modelPath, "allowed")).resolves.toBeTruthy();
+
+    expect(harness.store.getMetadata().models[modelPath]?.notes).toBe("allowed");
+  });
+
   it("waits for a pending write before switching libraries", async () => {
     let releasePendingSave = () => undefined;
     const pendingSave = new Promise<void>((resolve) => {

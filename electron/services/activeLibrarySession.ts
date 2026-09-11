@@ -45,6 +45,7 @@ export function createActiveLibrarySession({
   let active: LibrarySessionRef | null = null;
   let watcher: LibraryWatcherHandle | null = null;
   let transitionTail = Promise.resolve();
+  let catalogMutationTail: Promise<void> | null = null;
 
   function enqueueTransition<T>(operation: () => Promise<T>): Promise<T> {
     const result = transitionTail.then(operation);
@@ -65,6 +66,19 @@ export function createActiveLibrarySession({
     }
   }
 
+  function setActive(session: LibrarySessionRef | null) {
+    active = session;
+    catalogMutationTail = session ? Promise.resolve() : null;
+  }
+
+  function enqueueCatalogMutation<T>(operation: () => Promise<T>): Promise<T> {
+    const tail = catalogMutationTail;
+    if (!tail) return Promise.reject(new Error("Stale session"));
+    const result = tail.then(operation);
+    catalogMutationTail = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
   async function closeWatcher() {
     const currentWatcher = watcher;
     watcher = null;
@@ -77,15 +91,18 @@ export function createActiveLibrarySession({
       rootPath: captured.rootPath,
       onBatch: async (events) => {
         if (!isCurrent(captured)) return;
-        const cached = await indexStore.load(captured.rootPath, captured.libraryId);
-        if (!isCurrent(captured)) return;
-        const current = cached ?? await scanRoot(captured.rootPath);
-        if (!isCurrent(captured)) return;
-        const result = await applyEvents(current, events);
-        if (!isCurrent(captured)) return;
-        await indexStore.save(captured.rootPath, captured.libraryId, result);
-        if (!isCurrent(captured)) return;
-        onChanged(structuredClone({ session: captured, events }));
+        await enqueueCatalogMutation(async () => {
+          if (!isCurrent(captured)) return;
+          const cached = await indexStore.load(captured.rootPath, captured.libraryId);
+          if (!isCurrent(captured)) return;
+          const current = cached ?? await scanRoot(captured.rootPath);
+          if (!isCurrent(captured)) return;
+          const result = await applyEvents(current, events);
+          if (!isCurrent(captured)) return;
+          await indexStore.save(captured.rootPath, captured.libraryId, result);
+          if (!isCurrent(captured)) return;
+          onChanged(structuredClone({ session: captured, events }));
+        });
       },
       onError: (error) => {
         if (!isCurrent(captured) || watcher !== nextWatcher) return;
@@ -105,40 +122,73 @@ export function createActiveLibrarySession({
       return enqueueTransition(async () => {
         if (rootPath === null) {
           generation += 1;
-          active = null;
+          setActive(null);
           await closeWatcher();
           await metadataStore.open(null);
           return null;
         }
 
         const canonicalRoot = await canonicalizeRoot(rootPath);
+        const previous = active ? cloneSession(active) : null;
+        const previousMonitoring = watcher !== null;
         generation += 1;
-        active = null;
-        await closeWatcher();
-        await metadataStore.open(canonicalRoot);
-        const libraryId = metadataStore.getLibraryId();
-        if (!libraryId) throw new Error("Library identity is not available");
-        const session = { generation, rootPath: canonicalRoot, libraryId };
-        const cachedResult = await indexStore.load(canonicalRoot, libraryId);
-        active = session;
-        if (monitoring) startWatcher(session);
+        setActive(null);
+        try {
+          await closeWatcher();
+          await metadataStore.open(canonicalRoot);
+          const libraryId = metadataStore.getLibraryId();
+          if (!libraryId) throw new Error("Library identity is not available");
+          const session = { generation, rootPath: canonicalRoot, libraryId };
+          const cachedResult = await indexStore.load(canonicalRoot, libraryId);
+          setActive(session);
+          if (monitoring) startWatcher(session);
 
-        return structuredClone({
-          session,
-          cachedResult,
-          metadata: metadataStore.getMetadata(),
-          metadataStatus: metadataStore.getStatus()
-        });
+          return structuredClone({
+            session,
+            cachedResult,
+            metadata: metadataStore.getMetadata(),
+            metadataStatus: metadataStore.getStatus()
+          });
+        } catch (activationError) {
+          try {
+            setActive(null);
+            await closeWatcher();
+            generation += 1;
+
+            if (!previous) {
+              setActive(null);
+              await metadataStore.open(null);
+            } else {
+              await metadataStore.open(previous.rootPath);
+              const libraryId = metadataStore.getLibraryId();
+              if (!libraryId) throw new Error("Prior library identity is not available");
+              await indexStore.load(previous.rootPath, libraryId);
+              const restored = { generation, rootPath: previous.rootPath, libraryId };
+              setActive(restored);
+              if (previousMonitoring) startWatcher(restored);
+            }
+          } catch (restoreError) {
+            throw new AggregateError(
+              [activationError, restoreError],
+              "Library activation failed and the prior session could not be restored"
+            );
+          }
+
+          throw activationError;
+        }
       });
     },
 
     async scan(expected) {
       assertCurrent(expected);
-      const result = await scanRoot(expected.rootPath);
-      assertCurrent(expected);
-      await indexStore.save(expected.rootPath, expected.libraryId, result);
-      assertCurrent(expected);
-      return structuredClone({ session: expected, result });
+      return enqueueCatalogMutation(async () => {
+        assertCurrent(expected);
+        const result = await scanRoot(expected.rootPath);
+        assertCurrent(expected);
+        await indexStore.save(expected.rootPath, expected.libraryId, result);
+        assertCurrent(expected);
+        return structuredClone({ session: expected, result });
+      });
     },
 
     setMonitoring(expected, enabled) {
@@ -157,21 +207,12 @@ export function createActiveLibrarySession({
     close() {
       return enqueueTransition(async () => {
         generation += 1;
-        active = null;
+        setActive(null);
         await closeWatcher();
         await metadataStore.open(null);
       });
     }
   };
-}
-
-export function isAbsolutePathInside(rootPath: string, candidatePath: string): boolean {
-  if (!path.isAbsolute(candidatePath)) return false;
-  const relativePath = path.relative(path.resolve(rootPath), path.resolve(candidatePath));
-  return relativePath !== "" &&
-    relativePath !== ".." &&
-    !relativePath.startsWith(`..${path.sep}`) &&
-    !path.isAbsolute(relativePath);
 }
 
 function normalizeRoot(rootPath: string): string {

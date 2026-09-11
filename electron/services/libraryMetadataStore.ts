@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { LibraryMetadata, ModelUserMetadata } from "../../src/shared/types.js";
+import { isPathAtOrInside, isPathInside } from "./pathContainment.js";
 
 export type LibraryMetadataBackend = {
   get: () => LibraryMetadata | undefined;
@@ -245,8 +246,7 @@ function movePathIfInside(
   }
 
   const relativePath = path.relative(normalizedSource, normalizedCandidate);
-  const isInside =
-    Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+  const isInside = isPathInside(normalizedSource, normalizedCandidate);
 
   return isInside ? path.join(normalizedDestination, relativePath) : null;
 }
@@ -277,11 +277,7 @@ function moveSlicerHistory(
 function isPathSameOrInside(candidatePath: string, parentPath: string): boolean {
   const normalizedCandidate = path.resolve(candidatePath);
   const normalizedParent = path.resolve(parentPath);
-  const relativePath = path.relative(normalizedParent, normalizedCandidate);
-
-  return (
-    relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
-  );
+  return isPathAtOrInside(normalizedParent, normalizedCandidate);
 }
 
 function samePath(left: string, right: string): boolean {
