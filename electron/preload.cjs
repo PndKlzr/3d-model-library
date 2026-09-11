@@ -12,16 +12,18 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   chooseLibraryFolder: () => ipcRenderer.invoke("settings:choose-library-folder"),
   chooseArchiveExtractor: () => ipcRenderer.invoke("settings:choose-archive-extractor"),
-  getCachedLibrary: (rootPath) => ipcRenderer.invoke("library:get-cached", rootPath),
-  scanLibrary: (rootPath) => ipcRenderer.invoke("library:scan", rootPath),
-  setLibraryMonitoring: (enabled) => ipcRenderer.invoke("library:set-monitoring", enabled),
+  activateLibrary: (rootPath, monitoring) =>
+    ipcRenderer.invoke("library:activate", rootPath, monitoring),
+  scanLibrary: (session) => ipcRenderer.invoke("library:scan", session),
+  setLibraryMonitoring: (session, enabled) =>
+    ipcRenderer.invoke("library:set-monitoring", session, enabled),
   onLibraryChanged: (callback) => {
-    const listener = (_event, events) => callback(events);
+    const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("library:changed", listener);
     return () => ipcRenderer.removeListener("library:changed", listener);
   },
   onLibraryMonitoringError: (callback) => {
-    const listener = (_event, message) => callback(message);
+    const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("library:monitoring-error", listener);
     return () => ipcRenderer.removeListener("library:monitoring-error", listener);
   },

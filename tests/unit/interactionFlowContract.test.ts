@@ -254,27 +254,40 @@ describe("interaction flow contract", () => {
     expect(mainSource).toContain("[metadata] failed to migrate path metadata");
   });
 
-  it("binds portable metadata before the window opens and when the library changes", async () => {
+  it("activates the saved library before the window opens", async () => {
     const mainSource = await readFile("electron/main.ts", "utf8");
 
     expect(mainSource).toContain("createActiveLibraryMetadataStore");
-    expect(mainSource).toContain(
-      "await libraryMetadataStore.open(settingsStore.getSettings().libraryPath)"
-    );
-    expect(mainSource.indexOf("await libraryMetadataStore.open(")).toBeLessThan(
-      mainSource.indexOf("await createWindow()")
+    expect(mainSource).toContain("createActiveLibrarySession");
+    expect(mainSource).toContain("await activeLibrarySession.activate(");
+    expect(mainSource.indexOf("await activeLibrarySession.activate(")).toBeLessThan(
+      mainSource.lastIndexOf("await createWindow()")
     );
     expect(mainSource).toContain('ipcMain.handle("metadata:status"');
     expect(mainSource).toContain('ipcMain.handle("metadata:retry"');
   });
 
-  it("uses the active metadata store identity for rebuildable index loads and saves", async () => {
+  it("routes scans and monitoring through session-scoped IPC", async () => {
     const mainSource = await readFile("electron/main.ts", "utf8");
 
-    expect(mainSource).toContain("libraryMetadataStore.getLibraryId()");
-    expect(mainSource).toContain("libraryIndexStore.load(rootPath, requireActiveLibraryId())");
-    expect(mainSource).not.toContain("refreshActiveLibraryId");
-    expect(mainSource).not.toContain("randomUUID");
+    expect(mainSource).toContain('ipcMain.handle("library:activate"');
+    expect(mainSource).toMatch(/activeLibrarySession!?\.scan\(expected\)/);
+    expect(mainSource).toMatch(
+      /activeLibrarySession!?\.setMonitoring\(expected, enabled === true\)/
+    );
+    expect(mainSource).not.toContain('ipcMain.handle("library:get-cached"');
+  });
+
+  it("activates a changed library before persisting its settings", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+    const saveHandler = mainSource.match(
+      /ipcMain\.handle\("settings:save"[\s\S]*?\n  \}\);/
+    )?.[0];
+
+    expect(saveHandler).toBeTruthy();
+    expect(saveHandler?.indexOf("activeLibrarySession.activate(")).toBeLessThan(
+      saveHandler?.indexOf("settingsStore.saveSettings(settings)") ?? -1
+    );
   });
 
   it("awaits portable metadata updates after move, rename, restore, and slicer launch", async () => {

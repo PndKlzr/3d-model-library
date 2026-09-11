@@ -7,8 +7,11 @@ import type {
   FileDragStatus,
   LibraryMetadata,
   LibraryMetadataStatus,
-  LibraryScanResult,
-  LibraryWatchEvent,
+  LibraryActivationResult,
+  LibrarySessionRef,
+  VersionedLibraryMonitoringError,
+  VersionedLibraryScanResult,
+  VersionedLibraryWatchEvents,
   ModelHashInput,
   ModelHashResult,
   ModelFile,
@@ -39,11 +42,16 @@ export type ModelLibraryApi = {
   saveSettings: (settings: AppSettings) => Promise<AppSettings>;
   chooseLibraryFolder: () => Promise<string | null>;
   chooseArchiveExtractor: () => Promise<string | null>;
-  getCachedLibrary: (rootPath: string) => Promise<LibraryScanResult | null>;
-  scanLibrary: (rootPath: string) => Promise<LibraryScanResult>;
-  setLibraryMonitoring: (enabled: boolean) => Promise<void>;
-  onLibraryChanged: (callback: (events: LibraryWatchEvent[]) => void) => () => void;
-  onLibraryMonitoringError: (callback: (message: string) => void) => () => void;
+  activateLibrary: (
+    rootPath: string | null,
+    monitoring: boolean
+  ) => Promise<LibraryActivationResult | null>;
+  scanLibrary: (session: LibrarySessionRef) => Promise<VersionedLibraryScanResult>;
+  setLibraryMonitoring: (session: LibrarySessionRef, enabled: boolean) => Promise<void>;
+  onLibraryChanged: (callback: (payload: VersionedLibraryWatchEvents) => void) => () => void;
+  onLibraryMonitoringError: (
+    callback: (payload: VersionedLibraryMonitoringError) => void
+  ) => () => void;
   listArchiveEntries: (archivePath: string) => Promise<ArchiveListResult>;
   extractArchiveEntries: (
     archivePath: string,

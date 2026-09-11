@@ -118,6 +118,17 @@ describe("activeLibraryMetadataStore", () => {
     expect(harness.repository.maxConcurrentSaves).toBe(1);
   });
 
+  it("accepts names beginning with two dots but rejects parent traversal segments", async () => {
+    const root = path.resolve("C:/library");
+    const harness = createHarness();
+    await harness.store.open(root);
+
+    await expect(harness.store.setNotes(path.join(root, "..draft", "part.stl"), "valid"))
+      .resolves.toBeDefined();
+    await expect(harness.store.setNotes(path.join(root, "..", "outside.stl"), "invalid"))
+      .rejects.toThrow(/não pertence/i);
+  });
+
   it("does not expose a mutation when the portable save fails", async () => {
     const harness = createHarness();
     await harness.store.open("C:/library");

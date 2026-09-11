@@ -16,6 +16,7 @@ import {
   encodePortableMetadata
 } from "./portableMetadataCodec.js";
 import type { PortableMetadataRepository } from "./portableMetadataRepository.js";
+import { isAbsolutePathInside } from "./activeLibrarySession.js";
 
 export type ActiveLibraryMetadataStoreOptions = {
   repository: PortableMetadataRepository;
@@ -218,8 +219,7 @@ export function createActiveLibraryMetadataStore({
       throw new Error("O caminho do modelo não pertence à biblioteca ativa.");
     }
 
-    const relativePath = path.relative(activeRoot, path.resolve(candidatePath));
-    if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    if (!isAbsolutePathInside(activeRoot, candidatePath)) {
       throw new Error("O caminho do modelo não pertence à biblioteca ativa.");
     }
   }
@@ -261,12 +261,6 @@ function filterLegacyMetadata(metadata: LibraryMetadata, rootPath: string): Libr
       isAbsolutePathInside(rootPath, entry.modelPath)
     )
   };
-}
-
-function isAbsolutePathInside(rootPath: string, candidatePath: string): boolean {
-  if (!path.isAbsolute(candidatePath)) return false;
-  const relativePath = path.relative(path.resolve(rootPath), path.resolve(candidatePath));
-  return Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
 }
 
 function hasDurableMetadata(metadata: LibraryMetadata): boolean {

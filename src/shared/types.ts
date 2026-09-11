@@ -46,6 +46,34 @@ export type LibraryScanResult = {
   errors: Array<{ path: string; message: string }>;
 };
 
+export type LibrarySessionRef = {
+  generation: number;
+  rootPath: string;
+  libraryId: string;
+};
+
+export type LibraryActivationResult = {
+  session: LibrarySessionRef;
+  cachedResult: LibraryScanResult | null;
+  metadata: LibraryMetadata;
+  metadataStatus: LibraryMetadataStatus;
+};
+
+export type VersionedLibraryScanResult = {
+  session: LibrarySessionRef;
+  result: LibraryScanResult;
+};
+
+export type VersionedLibraryWatchEvents = {
+  session: LibrarySessionRef;
+  events: LibraryWatchEvent[];
+};
+
+export type VersionedLibraryMonitoringError = {
+  session: LibrarySessionRef;
+  message: string;
+};
+
 export type ModelHashInput = Pick<ModelFile, "absolutePath" | "sizeBytes" | "modifiedAt">;
 
 export type ModelHashResult = Record<string, string>;

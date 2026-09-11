@@ -18,8 +18,14 @@ import type {
   FileDragStatus,
   FileOperationResult,
   FileRestorePair,
+  LibrarySessionRef,
   ModelHashInput
 } from "../src/shared/types.js";
+import {
+  createActiveLibrarySession,
+  isAbsolutePathInside,
+  type ActiveLibrarySession
+} from "./services/activeLibrarySession.js";
 import {
   createActiveLibraryMetadataStore,
   type ActiveLibraryMetadataStore
@@ -36,7 +42,7 @@ import {
   trashLibraryFolder,
   trashModelFiles
 } from "./services/fileOrganizer.js";
-import { applyLibraryWatchEvents, scanLibrary } from "./services/libraryScanner.js";
+import { scanLibrary } from "./services/libraryScanner.js";
 import {
   createInMemoryLibraryIndexStore,
   createLibraryIndexStore,
@@ -57,10 +63,6 @@ import { createElectronSettingsStore, type SettingsStore } from "./services/sett
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
 import { createThumbnailCache, type ThumbnailCache } from "./services/thumbnailCache.js";
-import {
-  createLibraryWatcher,
-  type LibraryWatcherHandle
-} from "./services/libraryWatcher.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -76,10 +78,9 @@ if (benchmarkEnvironment) {
 let settingsStore: SettingsStore;
 let libraryIndexStore: LibraryIndexStore;
 let libraryMetadataStore: ActiveLibraryMetadataStore;
+let activeLibrarySession: ActiveLibrarySession | null = null;
 let modelHashStore: ModelHashStore;
-let libraryWatcher: LibraryWatcherHandle | null = null;
 let thumbnailCache: ThumbnailCache;
-let watcherGeneration = 0;
 let benchmarkScanResult: Awaited<ReturnType<typeof scanLibrary>> | null = null;
 let benchmarkReportWritten = false;
 let benchmarkFailed = false;
@@ -147,18 +148,19 @@ function registerIpcHandlers() {
 
   ipcMain.handle("settings:save", async (_event, settings: AppSettings) => {
     const previousSettings = settingsStore.getSettings();
-    const savedSettings = settingsStore.saveSettings(settings);
+    const currentSession = activeLibrarySession!.current();
+    const libraryChanged = !sameOptionalPath(previousSettings.libraryPath, settings.libraryPath);
 
-    if (!sameOptionalPath(previousSettings.libraryPath, savedSettings.libraryPath)) {
-      await setLibraryMonitoring(false);
-      await libraryMetadataStore.open(savedSettings.libraryPath);
-
-      if (savedSettings.libraryPath && savedSettings.monitorLibrary) {
-        await setLibraryMonitoring(true);
-      }
+    if (libraryChanged && !sameOptionalPath(currentSession?.rootPath ?? null, settings.libraryPath)) {
+      await activeLibrarySession!.activate(settings.libraryPath, settings.monitorLibrary);
+    } else if (
+      currentSession &&
+      previousSettings.monitorLibrary !== settings.monitorLibrary
+    ) {
+      await activeLibrarySession!.setMonitoring(currentSession, settings.monitorLibrary);
     }
 
-    return savedSettings;
+    return settingsStore.saveSettings(settings);
   });
 
   ipcMain.handle("settings:choose-library-folder", async () => {
@@ -170,20 +172,20 @@ function registerIpcHandlers() {
     return result.canceled ? null : result.filePaths[0];
   });
 
-  ipcMain.handle("library:get-cached", async (_event, rootPath: string) => {
-    assertConfiguredLibraryRoot(rootPath);
-    return await libraryIndexStore.load(rootPath, requireActiveLibraryId());
-  });
+  ipcMain.handle("library:activate", (_event, rootPath: string | null, monitoring: boolean) =>
+    activeLibrarySession!.activate(rootPath, monitoring === true)
+  );
 
-  ipcMain.handle("library:scan", async (_event, rootPath: string) => {
-    assertConfiguredLibraryRoot(rootPath);
-    const result = await scanLibrary(rootPath);
-    await libraryIndexStore.save(rootPath, requireActiveLibraryId(), result);
-    return result;
-  });
+  ipcMain.handle("library:scan", (_event, expected: LibrarySessionRef) =>
+    activeLibrarySession!.scan(expected)
+  );
 
-  ipcMain.handle("library:set-monitoring", (_event, enabled: boolean) =>
-    setLibraryMonitoring(enabled === true)
+  ipcMain.handle("library:set-monitoring", (
+    _event,
+    expected: LibrarySessionRef,
+    enabled: boolean
+  ) =>
+    activeLibrarySession!.setMonitoring(expected, enabled === true)
   );
 
   ipcMain.handle("archive:list", (_event, archivePath: string) =>
@@ -671,20 +673,8 @@ function sanitizeDuration(value: unknown, label: string) {
 function assertPathInsideLibrary(absolutePath: string) {
   const libraryPath = requireLibraryPath();
 
-  const relativePath = path.relative(libraryPath, absolutePath);
-  const isOutsideLibrary =
-    relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
-
-  if (isOutsideLibrary) {
+  if (!isAbsolutePathInside(libraryPath, absolutePath)) {
     throw new Error("Model file is outside the configured library folder");
-  }
-}
-
-function assertConfiguredLibraryRoot(rootPath: string) {
-  const libraryPath = requireLibraryPath();
-
-  if (path.resolve(rootPath).toLowerCase() !== path.resolve(libraryPath).toLowerCase()) {
-    throw new Error("Requested library does not match the configured library folder");
   }
 }
 
@@ -718,68 +708,10 @@ function requireLibraryPath(): string {
   return settings.libraryPath;
 }
 
-function requireActiveLibraryId(): string {
-  const libraryId = libraryMetadataStore.getLibraryId();
-  if (!libraryId) {
-    throw new Error("Library identity is not available");
-  }
-  return libraryId;
-}
-
 function getArchiveToolOptions() {
   return {
     extractorPath: settingsStore.getSettings().archiveExtractorPath
   };
-}
-
-async function setLibraryMonitoring(enabled: boolean): Promise<void> {
-  watcherGeneration += 1;
-  const generation = watcherGeneration;
-
-  if (libraryWatcher) {
-    await libraryWatcher.close();
-    libraryWatcher = null;
-  }
-
-  if (!enabled) {
-    return;
-  }
-
-  const libraryPath = requireLibraryPath();
-  libraryWatcher = createLibraryWatcher({
-    rootPath: libraryPath,
-    onBatch: async (events) => {
-      if (generation !== watcherGeneration) {
-        return;
-      }
-
-      const current = await libraryIndexStore.load(libraryPath, requireActiveLibraryId()) ??
-        (await scanLibrary(libraryPath));
-      const result = await applyLibraryWatchEvents(current, events);
-      await libraryIndexStore.save(libraryPath, requireActiveLibraryId(), result);
-
-      for (const window of BrowserWindow.getAllWindows()) {
-        window.webContents.send("library:changed", events);
-      }
-    },
-    onError: (error) => {
-      if (generation !== watcherGeneration) {
-        return;
-      }
-
-      watcherGeneration += 1;
-      const message = error instanceof Error ? error.message : String(error);
-      void libraryWatcher?.close();
-      libraryWatcher = null;
-
-      for (const window of BrowserWindow.getAllWindows()) {
-        window.webContents.send(
-          "library:monitoring-error",
-          `Monitoramento pausado: ${message}`
-        );
-      }
-    }
-  });
 }
 
 function resolveLibraryRelativePath(libraryPath: string, relativePath: string): string {
@@ -915,7 +847,23 @@ app.whenReady().then(async () => {
     mirror: metadataMirrorStore,
     legacyStore: legacyMetadataStore
   });
-  await libraryMetadataStore.open(settingsStore.getSettings().libraryPath);
+  activeLibrarySession = createActiveLibrarySession({
+    canonicalizeRoot: portableMetadataRepository.canonicalizeRoot,
+    metadataStore: libraryMetadataStore,
+    indexStore: libraryIndexStore,
+    onChanged: (payload) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send("library:changed", payload);
+      }
+    },
+    onMonitoringError: (payload) => {
+      for (const window of BrowserWindow.getAllWindows()) {
+        window.webContents.send("library:monitoring-error", payload);
+      }
+    }
+  });
+  const startupSettings = settingsStore.getSettings();
+  await activeLibrarySession.activate(startupSettings.libraryPath, startupSettings.monitorLibrary);
   modelHashStore = await createElectronModelHashStore();
   thumbnailCache = createThumbnailCache({
     cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")
@@ -945,9 +893,7 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
-  watcherGeneration += 1;
-  void libraryWatcher?.close();
-  libraryWatcher = null;
+  void activeLibrarySession?.close();
 });
 
 function createFileDragIcon() {
