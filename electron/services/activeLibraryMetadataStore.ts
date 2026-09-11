@@ -28,6 +28,7 @@ export type ActiveLibraryMetadataStoreOptions = {
 export type ActiveLibraryMetadataStore = {
   open: (rootPath: string | null) => Promise<void>;
   retry: () => Promise<void>;
+  getLibraryId: () => string | null;
   getMetadata: () => LibraryMetadata;
   getStatus: () => LibraryMetadataStatus;
   toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
@@ -226,6 +227,7 @@ export function createActiveLibraryMetadataStore({
   return {
     open,
     retry: () => open(requestedRoot),
+    getLibraryId: () => libraryId || null,
     getMetadata: () => cloneLibraryMetadata(currentMetadata),
     getStatus: () => ({ ...status }),
     toggleFavorite: (modelPath) =>

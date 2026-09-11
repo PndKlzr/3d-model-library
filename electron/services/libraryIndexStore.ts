@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { mkdir, open, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import type { LibraryScanResult } from "../../src/shared/types.js";
 import {
@@ -14,19 +14,32 @@ export const LIBRARY_INDEX_FILENAME = "LIBRARY_INDEX_DO_NOT_DELETE.json";
 export const MAX_LIBRARY_INDEX_BYTES = 32 * 1024 * 1024;
 
 export type LibraryIndexStore = {
-  load: (rootPath: string) => Promise<LibraryScanResult | null>;
+  load: (rootPath: string, libraryId?: string) => Promise<LibraryScanResult | null>;
   save: (rootPath: string, libraryId: string, result: LibraryScanResult) => Promise<void>;
 };
 
 type LibraryIndexStoreOptions = {
   hideDirectory?: (directoryPath: string) => Promise<void>;
   maximumBytes?: number;
+  openFile?: (filePath: string) => Promise<ReadIndexHandle>;
   replaceFile?: (sourcePath: string, destinationPath: string) => Promise<void>;
+};
+
+type ReadIndexHandle = {
+  stat: () => Promise<{ isFile: () => boolean; size: number }>;
+  read: (
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: number
+  ) => Promise<{ bytesRead: number }>;
+  close: () => Promise<void>;
 };
 
 export function createLibraryIndexStore({
   hideDirectory = hideDirectoryOnWindows,
   maximumBytes = MAX_LIBRARY_INDEX_BYTES,
+  openFile = (filePath) => open(filePath, "r"),
   replaceFile = rename
 }: LibraryIndexStoreOptions = {}): LibraryIndexStore {
   async function requireRoot(rootPath: string): Promise<string> {
@@ -38,24 +51,33 @@ export function createLibraryIndexStore({
     return normalizedRoot;
   }
 
-  async function load(rootPath: string): Promise<LibraryScanResult | null> {
+  async function load(rootPath: string, libraryId?: string): Promise<LibraryScanResult | null> {
     const normalizedRoot = await requireRoot(rootPath);
     const indexPath = getIndexPath(normalizedRoot);
-    let indexStat: Awaited<ReturnType<typeof stat>>;
+    let handle: ReadIndexHandle;
 
     try {
-      indexStat = await stat(indexPath);
+      handle = await openFile(indexPath);
     } catch (error) {
       if (isMissingError(error)) return null;
       throw error;
     }
 
-    if (!indexStat.isFile() || indexStat.size > maximumBytes) return null;
-    const serialized = await readFile(indexPath, "utf8");
+    let serialized: string | null;
+    try {
+      const indexStat = await handle.stat();
+      if (!indexStat.isFile() || indexStat.size > maximumBytes) return null;
+      serialized = await readBoundedUtf8(handle, maximumBytes);
+    } finally {
+      await handle.close();
+    }
+
+    if (serialized === null) return null;
 
     try {
       const parsed: unknown = JSON.parse(serialized);
-      return decodeLibraryIndex(normalizedRoot, parsed).result;
+      const decoded = decodeLibraryIndex(normalizedRoot, parsed);
+      return libraryId === undefined || decoded.libraryId === libraryId ? decoded.result : null;
     } catch {
       return null;
     }
@@ -105,9 +127,11 @@ export function createInMemoryLibraryIndexStore(): LibraryIndexStore {
   const manifests = new Map<string, PortableLibraryIndexV1>();
 
   return {
-    async load(rootPath) {
+    async load(rootPath, libraryId) {
       const manifest = manifests.get(normalizeRootKey(rootPath));
-      return manifest ? decodeLibraryIndex(rootPath, structuredClone(manifest)).result : null;
+      if (!manifest) return null;
+      const decoded = decodeLibraryIndex(rootPath, structuredClone(manifest));
+      return libraryId === undefined || decoded.libraryId === libraryId ? decoded.result : null;
     },
     async save(rootPath, libraryId, result) {
       manifests.set(
@@ -128,4 +152,24 @@ function normalizeRootKey(rootPath: string): string {
 
 function isMissingError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+}
+
+async function readBoundedUtf8(
+  handle: ReadIndexHandle,
+  maximumBytes: number
+): Promise<string | null> {
+  const chunks: Buffer[] = [];
+  let totalBytes = 0;
+
+  while (totalBytes <= maximumBytes) {
+    const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, maximumBytes + 1 - totalBytes));
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, totalBytes);
+    if (bytesRead === 0) break;
+    chunks.push(buffer.subarray(0, bytesRead));
+    totalBytes += bytesRead;
+  }
+
+  return totalBytes > maximumBytes
+    ? null
+    : Buffer.concat(chunks, totalBytes).toString("utf8");
 }

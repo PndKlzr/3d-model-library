@@ -50,12 +50,14 @@ describe("thumbnail benchmark isolation contract", () => {
     expect(main).toContain("benchmarkReconciliationPromise");
     expect(main).toContain('ipcMain.handle("benchmark:cached-grid-visible"');
     expect(main).toContain("createInMemoryLibraryIndexStore()");
-    expect(main).toContain("await libraryIndexStore.load(benchmarkEnvironment.root)");
+    expect(main).toMatch(
+      /await libraryIndexStore\.load\(\s*benchmarkEnvironment\.root,\s*"benchmark-library"\s*\)/
+    );
     expect(main).toContain("await libraryIndexStore.save");
     expect(main).toContain("backgroundThrottling: !benchmarkEnvironment");
     expect(main).not.toContain("createElectronLibraryIndexStore");
     expect(main.indexOf("benchmarkStartupStartedAt = performance.now()"))
-      .toBeLessThan(main.indexOf("await libraryIndexStore.load(benchmarkEnvironment.root)"));
+      .toBeLessThan(main.indexOf("benchmarkScanResult = await libraryIndexStore.load("));
     expect(main.indexOf("benchmarkReconciliationPromise = scanLibrary"))
       .toBeGreaterThan(main.indexOf('ipcMain.handle("benchmark:get-config"'));
     expect(app).toContain("benchmark-cached-grid");

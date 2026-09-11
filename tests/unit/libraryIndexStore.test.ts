@@ -8,6 +8,7 @@ import {
   LIBRARY_INDEX_FILENAME,
   MAX_LIBRARY_INDEX_BYTES
 } from "../../electron/services/libraryIndexStore";
+import { encodeLibraryIndex } from "../../electron/services/libraryIndexCodec";
 import { PORTABLE_METADATA_DIRECTORY, PORTABLE_METADATA_FILENAME } from "../../electron/services/portableMetadataCodec";
 import type { LibraryScanResult } from "../../src/shared/types";
 
@@ -66,6 +67,49 @@ describe("libraryIndexStore", () => {
     await handle.truncate(MAX_LIBRARY_INDEX_BYTES + 1);
     await handle.close();
     await expect(store.load(root)).resolves.toBeNull();
+  });
+
+  it("stats and reads the index through the same open handle", async () => {
+    const root = await makeLibrary();
+    const result = scanResult(root);
+    const serialized = Buffer.from(JSON.stringify(encodeLibraryIndex(root, result, "library-1")));
+    const handle = createReadHandle(serialized);
+    const openFile = vi.fn(async () => handle);
+    const store = createLibraryIndexStore({
+      hideDirectory: async () => undefined,
+      openFile
+    });
+
+    await expect(store.load(root)).resolves.toEqual(result);
+  });
+
+  it("bounds reads when an open index grows after it is statted", async () => {
+    const root = await makeLibrary();
+    const content = Buffer.alloc(1_024, 65);
+    let requestedBytes = 0;
+    let closed = false;
+    const handle = {
+      async stat() {
+        return { isFile: () => true, size: 1 };
+      },
+      async read(buffer: Buffer, offset: number, length: number, position: number) {
+        requestedBytes += length;
+        const bytesRead = content.copy(buffer, offset, position, position + length);
+        return { bytesRead, buffer };
+      },
+      async close() {
+        closed = true;
+      }
+    };
+    const store = createLibraryIndexStore({
+      hideDirectory: async () => undefined,
+      maximumBytes: 64,
+      openFile: async () => handle
+    });
+
+    await expect(store.load(root)).resolves.toBeNull();
+    expect(requestedBytes).toBe(65);
+    expect(closed).toBe(true);
   });
 
   it("propagates root access failures", async () => {
@@ -127,6 +171,14 @@ describe("libraryIndexStore", () => {
     await expect(store.load(root)).resolves.toMatchObject({ models: [{ name: "part.stl" }] });
     await expect(store.load(path.resolve("C:/Other"))).resolves.toBeNull();
   });
+
+  it("rejects an index belonging to a different authoritative library identity", async () => {
+    const store = createInMemoryLibraryIndexStore();
+    const root = path.resolve("C:/Models");
+    await store.save(root, "library-1", scanResult(root));
+
+    await expect(store.load(root, "library-2")).resolves.toBeNull();
+  });
 });
 
 function scanResult(rootPath: string): LibraryScanResult {
@@ -147,5 +199,18 @@ function scanResult(rootPath: string): LibraryScanResult {
       objectCount: null,
       previewError: null
     }]
+  };
+}
+
+function createReadHandle(content: Buffer) {
+  return {
+    async stat() {
+      return { isFile: () => true, size: content.length };
+    },
+    async read(buffer: Buffer, offset: number, length: number, position: number) {
+      const bytesRead = content.copy(buffer, offset, position, position + length);
+      return { bytesRead, buffer };
+    },
+    async close() {}
   };
 }

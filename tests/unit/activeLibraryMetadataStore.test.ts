@@ -1,5 +1,5 @@
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createActiveLibraryMetadataStore,
   type ActiveLibraryMetadataStoreOptions
@@ -61,7 +61,21 @@ describe("activeLibraryMetadataStore", () => {
     await harness.store.open(root);
 
     expect(harness.store.getMetadata().models[portablePath].notes).toBe("portable");
+    expect(harness.store.getLibraryId()).toBe("portable-id");
     expect(harness.store.getStatus()).toMatchObject({ source: "primary", writable: true });
+  });
+
+  it("generates one identity when a new library has no metadata or mirror identity", async () => {
+    const createLibraryId = vi.fn(() => "generated-once");
+    const harness = createHarness({ createLibraryId });
+
+    expect(harness.store.getLibraryId()).toBeNull();
+    await harness.store.open("C:/library");
+    expect(harness.store.getLibraryId()).toBe("generated-once");
+
+    await harness.store.open("C:/library");
+    expect(harness.store.getLibraryId()).toBe("generated-once");
+    expect(createLibraryId).toHaveBeenCalledOnce();
   });
 
   it("migrates only legacy paths inside the selected root and only once", async () => {
@@ -132,6 +146,7 @@ describe("activeLibraryMetadataStore", () => {
     await harness.store.open(root);
 
     expect(harness.store.getMetadata().models[modelPath].notes).toBe("cached note");
+    expect(harness.store.getLibraryId()).toBe("mirror-id");
     expect(harness.store.getStatus()).toMatchObject({
       availability: "unavailable",
       writable: false,
@@ -211,6 +226,7 @@ type HarnessOptions = {
   legacyStore?: LibraryMetadataStore;
   mirrorRecords?: LibraryMetadataMirrorRecord[];
   saveDelayMs?: number;
+  createLibraryId?: () => string;
 };
 
 function createHarness(options: HarnessOptions = {}) {
@@ -303,7 +319,7 @@ function createHarness(options: HarnessOptions = {}) {
     repository,
     mirror,
     legacyStore,
-    createLibraryId: () => "generated-id",
+    createLibraryId: options.createLibraryId ?? (() => "generated-id"),
     now: () => "2026-09-09T12:00:00.000Z"
   });
 

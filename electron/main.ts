@@ -10,7 +10,6 @@ import {
 } from "electron";
 import { readFile, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
-import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -49,10 +48,7 @@ import {
   createLegacyElectronLibraryMetadataStore
 } from "./services/libraryMetadataStore.js";
 import { createElectronLibraryMetadataMirrorStore } from "./services/libraryMetadataMirrorStore.js";
-import {
-  createPortableMetadataRepository,
-  type PortableMetadataRepository
-} from "./services/portableMetadataRepository.js";
+import { createPortableMetadataRepository } from "./services/portableMetadataRepository.js";
 import {
   createNativeFileDragPayload,
   resolveDraggableFilePathsSync
@@ -80,8 +76,6 @@ if (benchmarkEnvironment) {
 let settingsStore: SettingsStore;
 let libraryIndexStore: LibraryIndexStore;
 let libraryMetadataStore: ActiveLibraryMetadataStore;
-let portableMetadataRepository: PortableMetadataRepository;
-let activeLibraryId: string | null = null;
 let modelHashStore: ModelHashStore;
 let libraryWatcher: LibraryWatcherHandle | null = null;
 let thumbnailCache: ThumbnailCache;
@@ -158,7 +152,6 @@ function registerIpcHandlers() {
     if (!sameOptionalPath(previousSettings.libraryPath, savedSettings.libraryPath)) {
       await setLibraryMonitoring(false);
       await libraryMetadataStore.open(savedSettings.libraryPath);
-      await refreshActiveLibraryId(savedSettings.libraryPath);
 
       if (savedSettings.libraryPath && savedSettings.monitorLibrary) {
         await setLibraryMonitoring(true);
@@ -179,7 +172,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle("library:get-cached", async (_event, rootPath: string) => {
     assertConfiguredLibraryRoot(rootPath);
-    return await libraryIndexStore.load(rootPath);
+    return await libraryIndexStore.load(rootPath, requireActiveLibraryId());
   });
 
   ipcMain.handle("library:scan", async (_event, rootPath: string) => {
@@ -726,22 +719,11 @@ function requireLibraryPath(): string {
 }
 
 function requireActiveLibraryId(): string {
-  if (!activeLibraryId) {
+  const libraryId = libraryMetadataStore.getLibraryId();
+  if (!libraryId) {
     throw new Error("Library identity is not available");
   }
-  return activeLibraryId;
-}
-
-async function refreshActiveLibraryId(rootPath: string | null): Promise<void> {
-  activeLibraryId = null;
-  if (!rootPath) return;
-
-  try {
-    const loaded = await portableMetadataRepository.load(rootPath);
-    activeLibraryId = loaded.manifest?.libraryId ?? randomUUID();
-  } catch {
-    activeLibraryId = randomUUID();
-  }
+  return libraryId;
 }
 
 function getArchiveToolOptions() {
@@ -771,7 +753,8 @@ async function setLibraryMonitoring(enabled: boolean): Promise<void> {
         return;
       }
 
-      const current = await libraryIndexStore.load(libraryPath) ?? (await scanLibrary(libraryPath));
+      const current = await libraryIndexStore.load(libraryPath, requireActiveLibraryId()) ??
+        (await scanLibrary(libraryPath));
       const result = await applyLibraryWatchEvents(current, events);
       await libraryIndexStore.save(libraryPath, requireActiveLibraryId(), result);
 
@@ -910,7 +893,10 @@ app.whenReady().then(async () => {
     await libraryIndexStore.save(benchmarkEnvironment.root, "benchmark-library", seededIndex);
 
     benchmarkStartupStartedAt = performance.now();
-    benchmarkScanResult = await libraryIndexStore.load(benchmarkEnvironment.root);
+    benchmarkScanResult = await libraryIndexStore.load(
+      benchmarkEnvironment.root,
+      "benchmark-library"
+    );
     if (!benchmarkScanResult) throw new Error("Benchmark cached index was not restored");
     benchmarkCachedIndexReadyMs = performance.now() - benchmarkStartupStartedAt;
 
@@ -923,14 +909,13 @@ app.whenReady().then(async () => {
   libraryIndexStore = createLibraryIndexStore();
   const legacyMetadataStore = await createLegacyElectronLibraryMetadataStore();
   const metadataMirrorStore = await createElectronLibraryMetadataMirrorStore();
-  portableMetadataRepository = createPortableMetadataRepository();
+  const portableMetadataRepository = createPortableMetadataRepository();
   libraryMetadataStore = createActiveLibraryMetadataStore({
     repository: portableMetadataRepository,
     mirror: metadataMirrorStore,
     legacyStore: legacyMetadataStore
   });
   await libraryMetadataStore.open(settingsStore.getSettings().libraryPath);
-  await refreshActiveLibraryId(settingsStore.getSettings().libraryPath);
   modelHashStore = await createElectronModelHashStore();
   thumbnailCache = createThumbnailCache({
     cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")

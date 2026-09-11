@@ -130,7 +130,7 @@ export function decodePortableMetadata(
 export function isInternalLibraryPath(rootPath: string, candidatePath: string): boolean {
   const relativePath = path.relative(path.resolve(rootPath), path.resolve(candidatePath));
 
-  if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+  if (!relativePath || isOutsideRelativePath(relativePath)) {
     return false;
   }
 
@@ -145,7 +145,7 @@ export function toPortableRelativePath(rootPath: string, absolutePath: string): 
   const resolvedPath = path.resolve(absolutePath);
   const relativePath = path.relative(rootPath, resolvedPath);
 
-  if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+  if (!relativePath || isOutsideRelativePath(relativePath)) {
     throw new Error("Model path must be inside the library");
   }
 
@@ -177,11 +177,17 @@ export function fromPortableRelativePath(rootPath: string, relativePath: string)
   const absolutePath = path.resolve(normalizedRoot, ...segments);
   const verification = path.relative(normalizedRoot, absolutePath);
 
-  if (!verification || verification.startsWith("..") || path.isAbsolute(verification)) {
+  if (!verification || isOutsideRelativePath(verification)) {
     throw new Error("Portable model path cannot escape the library");
   }
 
   return absolutePath;
+}
+
+function isOutsideRelativePath(relativePath: string): boolean {
+  return relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath);
 }
 
 function validateMetadataStrings(metadata: LibraryMetadata) {

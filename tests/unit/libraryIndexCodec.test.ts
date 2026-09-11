@@ -58,6 +58,34 @@ describe("libraryIndexCodec", () => {
     });
   });
 
+  it("accepts in-library file and folder names beginning with two dots", () => {
+    const rootPath = path.resolve("C:/Models");
+    const absolutePath = path.join(rootPath, "..parts", "..part.stl");
+    const result: LibraryScanResult = {
+      rootPath,
+      folders: ["..parts"],
+      errors: [],
+      models: [{
+        id: absolutePath,
+        name: "..part.stl",
+        extension: ".stl",
+        absolutePath,
+        relativeFolder: "..parts",
+        sizeBytes: 10,
+        modifiedAt: "2026-09-09T00:00:00.000Z",
+        dimensionsMm: null,
+        objectCount: null,
+        previewError: null
+      }]
+    };
+
+    const manifest = encodeLibraryIndex(rootPath, result, "library-1");
+
+    expect(manifest.folders).toEqual(["..parts"]);
+    expect(manifest.files[0].relativePath).toBe("..parts/..part.stl");
+    expect(decodeLibraryIndex(rootPath, manifest).result).toEqual(result);
+  });
+
   it.each(["../outside.stl", "C:/outside.stl", "/outside.stl", "\\\\server\\outside.stl"])(
     "rejects unsafe file path %s",
     (relativePath) => {

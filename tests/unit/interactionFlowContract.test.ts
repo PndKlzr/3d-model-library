@@ -268,6 +268,15 @@ describe("interaction flow contract", () => {
     expect(mainSource).toContain('ipcMain.handle("metadata:retry"');
   });
 
+  it("uses the active metadata store identity for rebuildable index loads and saves", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(mainSource).toContain("libraryMetadataStore.getLibraryId()");
+    expect(mainSource).toContain("libraryIndexStore.load(rootPath, requireActiveLibraryId())");
+    expect(mainSource).not.toContain("refreshActiveLibraryId");
+    expect(mainSource).not.toContain("randomUUID");
+  });
+
   it("awaits portable metadata updates after move, rename, restore, and slicer launch", async () => {
     const mainSource = await readFile("electron/main.ts", "utf8");
 
