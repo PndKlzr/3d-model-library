@@ -9,6 +9,57 @@ const WEBP = "data:image/webp;base64,UklGRgAAAABXRUJQ";
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 
 describe("modelThumbnailService", () => {
+  it("resolves queued requests from the previous library to null", async () => {
+    const service = createModelThumbnailService(dependencies());
+    service.beginLibrarySession("library-a:1");
+    const request = service.request(model(), "visible");
+
+    service.beginLibrarySession("library-b:2");
+
+    await expect(request.promise).resolves.toBeNull();
+  });
+
+  it("does not publish or cache an active result from the previous library", async () => {
+    const renderGate = deferred<void>();
+    const writeCachedThumbnail = vi.fn(async () => undefined);
+    const service = createModelThumbnailService(dependencies({
+      yieldBeforeRender: () => renderGate.promise,
+      writeCachedThumbnail
+    }));
+    service.beginLibrarySession("library-a:1");
+    const request = service.request(model(), "visible");
+    await vi.waitFor(() => expect(service.getDiagnostics().running.render).toBe(1));
+
+    service.beginLibrarySession("library-b:2");
+    renderGate.resolve(undefined);
+
+    await expect(request.promise).resolves.toBeNull();
+    await service.onIdle();
+    expect(writeCachedThumbnail).not.toHaveBeenCalled();
+    expect(service.getDiagnostics().retainedResults.current).toBe(0);
+  });
+
+  it("does not let an old completion delete a new library request for the same model", async () => {
+    const firstRenderGate = deferred<void>();
+    let renderCount = 0;
+    const service = createModelThumbnailService(dependencies({
+      yieldBeforeRender: async () => {
+        renderCount += 1;
+        if (renderCount === 1) await firstRenderGate.promise;
+      }
+    }));
+    service.beginLibrarySession("library-a:1");
+    const oldRequest = service.request(model(), "visible");
+    await vi.waitFor(() => expect(service.getDiagnostics().running.render).toBe(1));
+
+    service.beginLibrarySession("library-b:2");
+    const newRequest = service.request(model(), "visible");
+    firstRenderGate.resolve(undefined);
+
+    await expect(oldRequest.promise).resolves.toBeNull();
+    await expect(newRequest.promise).resolves.toBe(WEBP);
+  });
+
   it("resets aggregate diagnostics between warm-up and measured passes", async () => {
     const service = createModelThumbnailService(dependencies());
 

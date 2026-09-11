@@ -195,16 +195,16 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("isFilteringStale");
   });
 
-  it("restores the cached library before background reconciliation", async () => {
+  it("restores the activated library cache before background reconciliation", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
-    const restoreSource = appSource.match(
-      /async function restoreAndScanLibrary[\s\S]*?\n  }\n/
+    const activationSource = appSource.match(
+      /async function activateLibrary\([\s\S]*?\n  }\n/
     )?.[0];
 
-    expect(restoreSource).toBeTruthy();
-    expect(restoreSource).toContain("getCachedLibrary");
-    expect(restoreSource?.indexOf("getCachedLibrary")).toBeLessThan(
-      restoreSource?.indexOf("scanLibrary(rootPath)") ?? -1
+    expect(activationSource).toBeTruthy();
+    expect(activationSource).toContain("activation.cachedResult");
+    expect(activationSource?.indexOf("activation.cachedResult")).toBeLessThan(
+      activationSource?.indexOf("scanLibrarySession(activation.session)") ?? -1
     );
   });
 

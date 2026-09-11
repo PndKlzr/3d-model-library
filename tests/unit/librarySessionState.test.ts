@@ -1,4 +1,5 @@
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import {
   createLibrarySessionResetState,
@@ -7,6 +8,12 @@ import {
 import type { LibrarySessionRef } from "../../src/shared/types";
 
 describe("librarySessionState", () => {
+  it("is safe to load in the browser renderer", async () => {
+    const source = await readFile("src/lib/librarySessionState.ts", "utf8");
+
+    expect(source).not.toContain('from "node:path"');
+  });
+
   it("accepts only the same generation and normalized root", () => {
     const active: LibrarySessionRef = {
       generation: 4,

@@ -21,6 +21,7 @@ export type ModelThumbnailServiceDependencies = {
 };
 
 export type ModelThumbnailService = {
+  beginLibrarySession: (sessionKey: string) => void;
   request: (model: ModelFile, priority: ThumbnailPriority) => ModelThumbnailRequest;
   retry: (model: ModelFile) => void;
   subscribe: (listener: (snapshot: ThumbnailDiagnosticsSnapshot) => void) => () => void;
@@ -39,12 +40,14 @@ export type ModelThumbnailRequest = {
 type PipelineSubscriber = { priority: ThumbnailPriority; released: boolean };
 type PipelineEntry = {
   key: string;
+  sessionKey: string;
   model: ModelFile;
   promise: Promise<string | null>;
   resolve: (thumbnail: string | null) => void;
   subscribers: Set<PipelineSubscriber>;
   stageRequest: ThumbnailRequest<unknown> | null;
   requestOperation: { settled: () => void };
+  invalidated: boolean;
 };
 
 type ThumbnailLookup =
@@ -77,15 +80,31 @@ export function createModelThumbnailService(
   const failedSignatures = new Set<string>();
   const listeners = new Set<(snapshot: ThumbnailDiagnosticsSnapshot) => void>();
   let peakRetainedResults = 0;
+  let currentSessionKey = "unbound";
 
   diagnostics.subscribe(publishDiagnostics);
   ioScheduler.subscribe(publishDiagnostics);
   renderScheduler.subscribe(publishDiagnostics);
 
+  function beginLibrarySession(sessionKey: string) {
+    if (sessionKey === currentSessionKey) return;
+    currentSessionKey = sessionKey;
+    failedSignatures.clear();
+    renderScheduler.clearCompleted();
+
+    for (const entry of pipelineEntries.values()) {
+      entry.invalidated = true;
+      entry.stageRequest?.release();
+      entry.resolve(null);
+    }
+    pipelineEntries.clear();
+    publishDiagnostics();
+  }
+
   function request(model: ModelFile, priority: ThumbnailPriority): ModelThumbnailRequest {
     if (ARCHIVE_EXTENSIONS.has(model.extension)) return resolvedRequest();
 
-    const key = createIdentity(model);
+    const key = `${currentSessionKey}:${createIdentity(model)}`;
     if (failedSignatures.has(key)) return resolvedRequest();
 
     let entry = pipelineEntries.get(key);
@@ -121,19 +140,23 @@ export function createModelThumbnailService(
     });
     return {
       key,
+      sessionKey: currentSessionKey,
       model,
       promise,
       resolve,
       subscribers: new Set(),
       stageRequest: null,
-      requestOperation: diagnostics.startRequest()
+      requestOperation: diagnostics.startRequest(),
+      invalidated: false
     };
   }
 
   async function executePipeline(entry: PipelineEntry) {
     let thumbnail: string | null = null;
     try {
+      if (!isEntryCurrent(entry)) return;
       const lookup = await runIoStage(entry, `read:${entry.key}`, async () => {
+        if (!isEntryCurrent(entry)) return { kind: "render" } as const;
         const cached = await dependencies.readCachedThumbnail(entry.model);
         if (cached) return { kind: "cache", thumbnail: cached } as const;
         diagnostics.recordCacheMiss();
@@ -146,7 +169,7 @@ export function createModelThumbnailService(
         return { kind: "render" } as const;
       }, (result) => result.kind === "render" ? undefined : result.kind);
 
-      if (!lookup) return;
+      if (!lookup || !isEntryCurrent(entry)) return;
       if (lookup.kind === "cache") {
         thumbnail = lookup.thumbnail;
         return;
@@ -155,22 +178,23 @@ export function createModelThumbnailService(
       thumbnail = lookup.kind === "embedded"
         ? lookup.thumbnail
         : await runRenderStage(entry);
-      if (!thumbnail) return;
+      if (!thumbnail || !isEntryCurrent(entry)) return;
 
       try {
         await runIoStage(entry, `write:${entry.key}`, async () => {
+          if (!isEntryCurrent(entry)) return;
           await dependencies.writeCachedThumbnail(entry.model, thumbnail!);
         }, () => undefined, false);
       } catch {
         // The generated image remains usable even when its disk-cache write fails.
       }
     } catch {
-      failedSignatures.add(entry.key);
+      if (isEntryCurrent(entry)) failedSignatures.add(entry.key);
     } finally {
       entry.stageRequest = null;
-      pipelineEntries.delete(entry.key);
+      if (pipelineEntries.get(entry.key) === entry) pipelineEntries.delete(entry.key);
       entry.requestOperation.settled();
-      entry.resolve(thumbnail ?? null);
+      entry.resolve(isEntryCurrent(entry) ? thumbnail ?? null : null);
       publishDiagnostics();
     }
   }
@@ -206,9 +230,13 @@ export function createModelThumbnailService(
       getEffectivePriority(entry),
       async () => {
         operation.running();
+        if (!isEntryCurrent(entry)) return undefined;
         await dependencies.yieldBeforeRender();
+        if (!isEntryCurrent(entry)) return undefined;
         const modelBytes = await dependencies.readModelFile(entry.model.absolutePath);
-        return dependencies.renderThumbnail(entry.model.extension, modelBytes);
+        if (!isEntryCurrent(entry)) return undefined;
+        const thumbnail = dependencies.renderThumbnail(entry.model.extension, modelBytes);
+        return isEntryCurrent(entry) ? thumbnail : undefined;
       }
     );
     entry.stageRequest = stageRequest;
@@ -223,7 +251,7 @@ export function createModelThumbnailService(
   }
 
   function retry(model: ModelFile) {
-    const key = createIdentity(model);
+    const key = `${currentSessionKey}:${createIdentity(model)}`;
     failedSignatures.delete(key);
     renderScheduler.clearCompleted(`render:${key}`);
   }
@@ -279,6 +307,7 @@ export function createModelThumbnailService(
   }
 
   return {
+    beginLibrarySession,
     request,
     retry,
     subscribe,
@@ -287,6 +316,10 @@ export function createModelThumbnailService(
     recordLongTask: diagnostics.recordLongTask,
     onIdle
   };
+
+  function isEntryCurrent(entry: PipelineEntry) {
+    return !entry.invalidated && entry.sessionKey === currentSessionKey;
+  }
 }
 
 function createIdentity(model: ModelFile) {

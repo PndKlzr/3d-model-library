@@ -2,6 +2,53 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("product flow contract", () => {
+  it("switches libraries through one atomic renderer activation flow", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("async function activateLibrary(");
+    expect(appSource).toContain("createLibrarySessionResetState");
+    expect(appSource).toContain("window.modelLibrary.activateLibrary(rootPath");
+    expect(appSource).toContain("activeLibrarySessionRef.current = activation.session");
+    expect(appSource).toContain("modelThumbnailService.beginLibrarySession(");
+    expect(appSource).toContain("loadLibraryViewPreferences(");
+    expect(appSource).toContain("isCurrentLibraryResult(");
+    expect(appSource).not.toContain("getCachedLibrary");
+    expect(appSource).not.toContain("scanLibrary(rootPath");
+  });
+
+  it("settles startup loading after the initial activation completes", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const startupEffect = appSource.match(
+      /useEffect\(\(\) => \{[\s\S]*?window\.modelLibrary\.getSettings\(\)[\s\S]*?\n  \}, \[\]\);/
+    )?.[0];
+
+    expect(startupEffect).toBeTruthy();
+    expect(startupEffect).toContain("let isMounted = true");
+    expect(startupEffect).toContain("if (isMounted) setIsLoading(false)");
+  });
+
+  it("restores the prior renderer library after activation failure", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const activationSource = appSource.match(
+      /async function activateLibrary\([\s\S]*?\n  }\n/
+    )?.[0];
+
+    expect(activationSource).toBeTruthy();
+    expect(activationSource).toContain("previousRendererState");
+    expect(activationSource).toContain("restorePreviousLibrary");
+    expect(activationSource).toContain("activationRequestRef.current");
+  });
+
+  it("keeps machine-wide preferences outside per-library storage", async () => {
+    const preferencesSource = await readFile("src/lib/libraryViewPreferences.ts", "utf8");
+
+    expect(preferencesSource).not.toContain("theme");
+    expect(preferencesSource).not.toContain("fileDragBehavior");
+    expect(preferencesSource).not.toContain("slicer");
+    expect(preferencesSource).not.toContain("monitor");
+    expect(preferencesSource).not.toContain("viewMode");
+  });
+
   it("keeps advanced library filters in a compact popover", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");

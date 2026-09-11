@@ -1,4 +1,3 @@
-import path from "node:path";
 import { ALL_FOLDERS_ID } from "./folderFilters";
 import { createFolderNavigationHistory } from "./folderNavigationHistory";
 import type { LibraryScanResult, LibrarySessionRef, ModelFile } from "../shared/types";
@@ -45,5 +44,18 @@ export function createLibrarySessionResetState(): LibrarySessionResetState {
 }
 
 function normalizeRoot(rootPath: string): string {
-  return path.resolve(rootPath).replaceAll("\\", "/").toLowerCase();
+  const normalized = rootPath.replaceAll("\\", "/");
+  const prefix = normalized.startsWith("//") ? "//" : normalized.startsWith("/") ? "/" : "";
+  const segments: string[] = [];
+
+  for (const segment of normalized.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      segments.pop();
+    } else {
+      segments.push(segment);
+    }
+  }
+
+  return `${prefix}${segments.join("/")}`.toLowerCase();
 }
