@@ -10,6 +10,10 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("contextBridge.exposeInMainWorld(\"modelLibrary\"");
     expect(preloadSource).toContain("readModelMetadata");
     expect(preloadSource).toContain("readModelThumbnail");
+    expect(preloadSource).toContain("readImageDataUrl");
+    expect(preloadSource).toContain('ipcRenderer.invoke("image:read-data-url"');
+    expect(preloadSource).toContain("openLibraryFile");
+    expect(preloadSource).toContain('ipcRenderer.invoke("system:open-library-file"');
     expect(preloadSource).toContain("readCachedThumbnail");
     expect(preloadSource).toContain("writeCachedThumbnail");
     expect(preloadSource).toContain("activateLibrary");
@@ -51,6 +55,9 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("getRuntimeVersions");
     expect(preloadSource).toContain('ipcRenderer.invoke("system:runtime-versions")');
     expect(mainSource).toContain('ipcMain.handle("system:runtime-versions"');
+    expect(mainSource).toContain('ipcMain.handle("image:read-data-url"');
+    expect(mainSource).toContain('ipcMain.handle("system:open-library-file"');
+    expect(mainSource).toContain("maxImageBytes: MAX_DIRECT_IMAGE_BYTES");
     expect(mainSource).toContain("app.getVersion()");
     expect(mainSource).toContain("process.versions.electron");
     expect(mainSource).toContain("process.versions.chrome");

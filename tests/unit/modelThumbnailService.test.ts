@@ -190,6 +190,68 @@ describe("modelThumbnailService", () => {
     expect(render).not.toHaveBeenCalled();
   });
 
+  it("reads direct images after a cache miss without entering the render queue", async () => {
+    const readImageDataUrl = vi.fn(async () => "data:image/webp;base64,AAAA");
+    const renderThumbnail = vi.fn(() => WEBP);
+    const service = createModelThumbnailService(dependencies({
+      readImageDataUrl,
+      renderThumbnail
+    }));
+
+    await expect(service.request(model({
+      name: "photo.webp",
+      extension: ".webp",
+      absolutePath: "C:\\Models\\photo.webp"
+    }), "visible").promise).resolves.toBe("data:image/webp;base64,AAAA");
+
+    expect(readImageDataUrl).toHaveBeenCalledWith("C:\\Models\\photo.webp");
+    expect(renderThumbnail).not.toHaveBeenCalled();
+    expect(service.getDiagnostics().running.render).toBe(0);
+  });
+
+  it("uses a cached direct image before reading the source file", async () => {
+    const readImageDataUrl = vi.fn(async () => "data:image/jpeg;base64,SOURCE");
+    const service = createModelThumbnailService(dependencies({
+      readCachedThumbnail: async () => "data:image/jpeg;base64,CACHED",
+      readImageDataUrl
+    }));
+
+    await expect(service.request(model({ extension: ".jpg" }), "visible").promise)
+      .resolves.toBe("data:image/jpeg;base64,CACHED");
+    expect(readImageDataUrl).not.toHaveBeenCalled();
+  });
+
+  it("caches a valid direct image", async () => {
+    const writeCachedThumbnail = vi.fn(async () => undefined);
+    const target = model({ extension: ".png", absolutePath: "C:\\Models\\photo.png" });
+    const service = createModelThumbnailService(dependencies({
+      readImageDataUrl: async () => PNG,
+      writeCachedThumbnail
+    }));
+    service.beginLibrarySession("library-a:1");
+
+    await expect(service.request(target, "visible").promise).resolves.toBe(PNG);
+    expect(writeCachedThumbnail).toHaveBeenCalledWith(target, PNG, "library-a:1");
+  });
+
+  it("isolates a corrupt direct image and continues later image requests", async () => {
+    const readImageDataUrl = vi.fn(async (absolutePath: string) => {
+      if (absolutePath.endsWith("bad.jpg")) throw new Error("corrupt image");
+      return PNG;
+    });
+    const service = createModelThumbnailService(dependencies({ readImageDataUrl }));
+
+    await expect(service.request(model({
+      extension: ".jpg",
+      absolutePath: "C:\\Models\\bad.jpg"
+    }), "visible").promise).resolves.toBeNull();
+    await expect(service.request(model({
+      extension: ".png",
+      absolutePath: "C:\\Models\\good.png"
+    }), "visible").promise).resolves.toBe(PNG);
+    expect(readImageDataUrl).toHaveBeenCalledTimes(2);
+  });
+
   it("settles one failed render and continues with the next model", async () => {
     let shouldFail = true;
     const render = vi.fn(() => {
@@ -395,6 +457,7 @@ function dependencies(
   return {
     readCachedThumbnail: async () => null,
     readEmbeddedThumbnail: async () => null,
+    readImageDataUrl: async () => PNG,
     readModelFile: async () => new ArrayBuffer(8),
     writeCachedThumbnail: async () => undefined,
     renderThumbnail: () => WEBP,

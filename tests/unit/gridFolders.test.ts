@@ -73,6 +73,28 @@ describe("getGridFolderCards", () => {
     ]);
   });
 
+  it("includes direct images in folder previews while skipping archives", () => {
+    const files = [
+      model("photo.jpg", "parts"),
+      model("bundle.zip", "parts"),
+      model("nested.webp", "parts/nested"),
+      model("shape.stl", "parts")
+    ];
+
+    const [card] = getGridFolderCards(
+      buildFolderTree(files),
+      files,
+      ALL_FOLDERS_ID,
+      false
+    );
+
+    expect(card.previewModels.map((item) => item.name)).toEqual([
+      "photo.jpg",
+      "shape.stl",
+      "nested.webp"
+    ]);
+  });
+
   it("hides folder cards when subfolders are included", () => {
     const cards = getGridFolderCards(buildFolderTree(models), models, ALL_FOLDERS_ID, true);
 

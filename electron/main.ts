@@ -63,6 +63,11 @@ import { createElectronSettingsStore, type SettingsStore } from "./services/sett
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
 import { createThumbnailCache, type ThumbnailCache } from "./services/thumbnailCache.js";
+import {
+  MAX_DIRECT_IMAGE_BYTES,
+  openLibraryImage,
+  readLibraryImageDataUrl
+} from "./services/libraryImage.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -350,6 +355,14 @@ function registerIpcHandlers() {
     return readEmbeddedThumbnail(absolutePath);
   });
 
+  ipcMain.handle("image:read-data-url", (_event, absolutePath: string) =>
+    readLibraryImageDataUrl(requireLibraryPath(), absolutePath)
+  );
+
+  ipcMain.handle("system:open-library-file", (_event, absolutePath: string) =>
+    openLibraryImage(requireLibraryPath(), absolutePath, (targetPath) => shell.openPath(targetPath))
+  );
+
   ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
     assertThumbnailSignature(model);
     assertPathInsideLibrary(model.absolutePath);
@@ -509,6 +522,9 @@ function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
     assertPathInsideLibrary(absolutePath);
     return readEmbeddedThumbnail(absolutePath);
   });
+  ipcMain.handle("image:read-data-url", (_event, absolutePath: string) =>
+    readLibraryImageDataUrl(requireLibraryPath(), absolutePath)
+  );
   ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
     assertThumbnailSignature(model);
     assertPathInsideLibrary(model.absolutePath);
@@ -832,7 +848,8 @@ async function createWindow() {
 app.whenReady().then(async () => {
   if (benchmarkEnvironment) {
     thumbnailCache = createThumbnailCache({
-      cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")
+      cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache"),
+      maxImageBytes: MAX_DIRECT_IMAGE_BYTES
     });
     libraryIndexStore = createInMemoryLibraryIndexStore();
     const seededIndex = await scanLibrary(benchmarkEnvironment.root);
@@ -880,7 +897,8 @@ app.whenReady().then(async () => {
   await activeLibrarySession.activate(startupSettings.libraryPath, startupSettings.monitorLibrary);
   modelHashStore = await createElectronModelHashStore();
   thumbnailCache = createThumbnailCache({
-    cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")
+    cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache"),
+    maxImageBytes: MAX_DIRECT_IMAGE_BYTES
   });
   registerIpcHandlers();
   await createWindow();

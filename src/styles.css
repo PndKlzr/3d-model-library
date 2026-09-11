@@ -1761,6 +1761,15 @@ button:disabled {
   color: var(--ink-muted);
 }
 
+.image-thumb-fallback {
+  background: var(--surface-subtle, #e6ecee);
+  color: var(--accent-strong);
+}
+
+.image-preview-placeholder {
+  color: var(--accent-strong);
+}
+
 .archive-extension {
   padding: 2px 7px;
   border: 1px solid color-mix(in srgb, currentColor 28%, transparent);

@@ -5,6 +5,7 @@ import {
   type ModelThumbnailRequest
 } from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
+import { isArchive } from "../shared/fileCapabilities";
 
 type FolderCardThumbnailProps = {
   models: ModelFile[];
@@ -34,7 +35,9 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
         }
 
         observer.disconnect();
-        const requests = models.slice(0, 4).map(loadFolderMosaicThumbnail);
+        const requests = models.filter((model) => !isArchive(model.extension))
+          .slice(0, 4)
+          .map(loadFolderMosaicThumbnail);
         for (const request of requests) {
           outstandingRequests.add(request);
           void request.promise.then(

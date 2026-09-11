@@ -83,6 +83,24 @@ describe("FolderCardThumbnail", () => {
     view.unmount();
     for (const request of requests) expect(request.release).toHaveBeenCalledOnce();
   });
+
+  it("requests model and image thumbnails but skips archives", () => {
+    const requests = Array.from({ length: 3 }, createPendingRequest);
+    for (const request of requests) requestThumbnail.mockReturnValueOnce(request);
+    render(<FolderCardThumbnail models={[
+      model(0),
+      model(1, { extension: ".zip" }),
+      model(2, { extension: ".jpg" }),
+      model(3, { extension: ".rar" }),
+      model(4, { extension: ".3mf" })
+    ]} />);
+
+    notifyIntersection(true);
+
+    expect(requestThumbnail.mock.calls.map(([target]) => target.extension))
+      .toEqual([".stl", ".jpg", ".3mf"]);
+    expect(requestThumbnail.mock.calls.every(([, priority]) => priority === "mosaic")).toBe(true);
+  });
 });
 
 function notifyIntersection(isIntersecting: boolean) {
@@ -104,7 +122,7 @@ function createPendingRequest() {
   };
 }
 
-function model(index: number): ModelFile {
+function model(index: number, overrides: Partial<ModelFile> = {}): ModelFile {
   return {
     id: `model-${index}`,
     name: `model-${index}.stl`,
@@ -115,6 +133,7 @@ function model(index: number): ModelFile {
     modifiedAt: "2026-09-10T12:00:00.000Z",
     dimensionsMm: null,
     objectCount: null,
-    previewError: null
+    previewError: null,
+    ...overrides
   };
 }

@@ -1,7 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { getDefaultFileOpenAction } from "../../src/lib/fileOpenAction";
 
 describe("interaction flow contract", () => {
+  it("routes default opening by shared file capability", () => {
+    expect(getDefaultFileOpenAction(".png")).toBe("windows");
+    expect(getDefaultFileOpenAction(".webp")).toBe("windows");
+    expect(getDefaultFileOpenAction(".stl")).toBe("slicer");
+    expect(getDefaultFileOpenAction(".3mf")).toBe("slicer");
+    expect(getDefaultFileOpenAction(".zip")).toBe("inspect-archive");
+  });
+
   it("uses an in-app text dialog instead of browser prompts for file operations", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 

@@ -30,6 +30,7 @@ import {
   pushFolderHistory
 } from "./lib/folderNavigationHistory";
 import { getDragModelIds, getDragOutFilePaths } from "./lib/dragFiles";
+import { getDefaultFileOpenAction } from "./lib/fileOpenAction";
 import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import {
@@ -658,6 +659,28 @@ function LibraryApp() {
     }
 
     await launchSlicer(settings.defaultSlicerId, model.absolutePath);
+  }
+
+  async function openFileByDefault(model: ModelFile) {
+    const action = getDefaultFileOpenAction(model.extension);
+
+    if (action === "windows") {
+      try {
+        await window.modelLibrary.openLibraryFile(model.absolutePath);
+        setLaunchMessage(null);
+      } catch (error) {
+        setLaunchMessage(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (action === "inspect-archive") {
+      setSelectedModel(model);
+      setLaunchMessage(null);
+      return;
+    }
+
+    await openModelInDefaultSlicer(model);
   }
 
   async function toggleFavorite(modelPath: string) {
@@ -1826,7 +1849,7 @@ function LibraryApp() {
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
         onOpenModel={openModel}
-        onOpenDefaultSlicer={openModelInDefaultSlicer}
+        onOpenDefaultFile={openFileByDefault}
         onOpenModelContextMenu={openModelContextMenu}
         onToggleModelSelection={toggleModelSelection}
         onDragStartModel={startDraggingModel}
@@ -1848,6 +1871,7 @@ function LibraryApp() {
         onLaunchSlicer={launchSlicer}
         onRenameModelFile={renameSelectedModel}
         onShowModelInFolder={(modelPath) => window.modelLibrary.showModelInFolder(modelPath)}
+        onOpenLibraryFile={(modelPath) => window.modelLibrary.openLibraryFile(modelPath)}
         onToggleFavorite={toggleFavorite}
         onSetModelTags={setModelTags}
         onSetModelNotes={setModelNotes}

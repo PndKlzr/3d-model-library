@@ -253,7 +253,7 @@ describe("product flow contract", () => {
     expect(settingsSource).toContain("Slicer padrão");
     expect(appSource).toContain("openModelInDefaultSlicer");
     expect(appSource).toContain("settings.defaultSlicerId");
-    expect(gridSource).toContain("onOpenDefaultSlicer");
+    expect(gridSource).toContain("onOpenDefaultFile");
     expect(gridSource).toContain("onDoubleClick");
   });
 

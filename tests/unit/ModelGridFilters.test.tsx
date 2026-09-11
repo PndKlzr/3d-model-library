@@ -173,7 +173,7 @@ function renderGrid(overrides: Partial<ComponentProps<typeof ModelGrid>> = {}) {
     onOpenFolderContextMenu: noop,
     onMoveModelsToFolder: noop,
     onOpenModel: noop,
-    onOpenDefaultSlicer: noop,
+    onOpenDefaultFile: noop,
     onOpenModelContextMenu: noop,
     onToggleModelSelection: noop,
     onDragStartModel: noop,

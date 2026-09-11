@@ -1,5 +1,9 @@
 import type { ModelFile } from "../shared/types";
-import type { SupportedFileExtension } from "../shared/fileCapabilities";
+import {
+  canSendToSlicer,
+  isDirectImage,
+  type SupportedFileExtension
+} from "../shared/fileCapabilities";
 import { ALL_FOLDERS_ID, isFolderExcluded } from "./folderFilters";
 import type { FolderNode } from "./folderTree";
 
@@ -102,7 +106,7 @@ function countModelsInsideFolder(models: ModelFile[], folderId: string): number 
 function getFolderPreviewModels(models: ModelFile[], folderId: string): ModelFile[] {
   const printableModels = models.filter(
     (model) =>
-      (model.extension === ".stl" || model.extension === ".3mf") &&
+      (canSendToSlicer(model.extension) || isDirectImage(model.extension)) &&
       (model.relativeFolder === folderId || model.relativeFolder.startsWith(`${folderId}/`))
   );
   const directModels = printableModels.filter((model) => model.relativeFolder === folderId);

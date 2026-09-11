@@ -6,6 +6,7 @@ import {
   FolderOpen,
   FolderSearch,
   LoaderCircle,
+  Image as ImageIcon,
   Pencil,
   Scissors,
   Star,
@@ -21,6 +22,7 @@ import type {
   ModelFile,
   ModelUserMetadata
 } from "../shared/types";
+import { canSendToSlicer, isArchive, isDirectImage } from "../shared/fileCapabilities";
 
 type DetailsTab = "info" | "notes" | "actions";
 
@@ -36,6 +38,7 @@ type DetailsPanelProps = {
   onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
   onRenameModelFile: () => void;
   onShowModelInFolder: (modelPath: string) => Promise<void>;
+  onOpenLibraryFile: (modelPath: string) => Promise<void>;
   onToggleFavorite: (modelPath: string) => Promise<void>;
   onSetModelTags: (modelPath: string, tags: string[]) => Promise<void>;
   onSetModelNotes: (modelPath: string, notes: string) => Promise<void>;
@@ -59,6 +62,7 @@ export function DetailsPanel({
   onLaunchSlicer,
   onRenameModelFile,
   onShowModelInFolder,
+  onOpenLibraryFile,
   onToggleFavorite,
   onSetModelTags,
   onSetModelNotes,
@@ -78,7 +82,9 @@ export function DetailsPanel({
   const [conversionProgress, setConversionProgress] = useState<number | null>(null);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const favorite = modelMetadata?.favorite ?? false;
-  const isArchive = Boolean(model && isArchiveExtension(model.extension));
+  const archive = Boolean(model && isArchive(model.extension));
+  const directImage = Boolean(model && isDirectImage(model.extension));
+  const canUseSlicer = Boolean(model && canSendToSlicer(model.extension));
   const relativeLocation = model
     ? [model.relativeFolder, model.name].filter(Boolean).join("/")
     : "";
@@ -109,7 +115,7 @@ export function DetailsPanel({
   useEffect(() => {
     let isMounted = true;
 
-    if (!model || !isArchive) {
+    if (!model || !archive) {
       return () => {
         isMounted = false;
       };
@@ -141,7 +147,7 @@ export function DetailsPanel({
     return () => {
       isMounted = false;
     };
-  }, [isArchive, model]);
+  }, [archive, model]);
 
   async function saveNotes() {
     if (!model || !metadataWritable) {
@@ -187,11 +193,24 @@ export function DetailsPanel({
   return (
     <aside className="details-panel" aria-label="Detalhes do modelo">
       <div className="preview-stage">
-        {model && isArchive ? (
+        {model && archive ? (
           <div className="preview-placeholder">
             <Archive size={30} />
             <strong>Arquivo compactado</strong>
             <span>Veja os modelos dentro do pacote e extraia o que precisar.</span>
+          </div>
+        ) : model && directImage ? (
+          <div className="preview-placeholder image-preview-placeholder">
+            <ImageIcon size={30} />
+            <strong>Arquivo de imagem</strong>
+            <span>Abra no aplicativo padrão do Windows para ver em tamanho completo.</span>
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => void onOpenLibraryFile(model.absolutePath)}
+            >
+              Abrir imagem
+            </button>
           </div>
         ) : model && showPreview ? (
           <ModelViewer model={model} />
@@ -327,7 +346,7 @@ export function DetailsPanel({
                     <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
                   </div>
                 </dl>
-                {isArchive ? (
+                {archive ? (
                   <div className="archive-panel">
                     <p className="eyebrow">Conteúdo do pacote</p>
                     {isArchiveLoading ? <div className="notice">Lendo arquivo compactado...</div> : null}
@@ -443,10 +462,12 @@ export function DetailsPanel({
 
                 <div className="slicer-actions">
                   <p className="eyebrow">Slicers</p>
-                  {isArchive ? (
+                  {archive ? (
                     <div className="notice">
                       Extraia um STL ou 3MF do pacote antes de abrir no slicer.
                     </div>
+                  ) : !canUseSlicer ? (
+                    <div className="notice">Este tipo de arquivo não é enviado ao slicer.</div>
                   ) : enabledSlicers.length === 0 ? (
                     <div className="notice">
                       <Scissors size={16} />
@@ -476,10 +497,6 @@ export function DetailsPanel({
       </div>
     </aside>
   );
-}
-
-function isArchiveExtension(extension: ModelFile["extension"]): boolean {
-  return extension === ".zip" || extension === ".rar" || extension === ".7z";
 }
 
 function formatBytes(bytes: number): string {

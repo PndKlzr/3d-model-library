@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   setModelNotes: (modelPath, notes) => ipcRenderer.invoke("metadata:set-notes", modelPath, notes),
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
+  readImageDataUrl: (absolutePath) => ipcRenderer.invoke("image:read-data-url", absolutePath),
   readCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-read", model),
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl, sessionKey),
@@ -61,6 +62,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
     ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),
   showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
+  openLibraryFile: (absolutePath) => ipcRenderer.invoke("system:open-library-file", absolutePath),
   copyText: (text) => ipcRenderer.invoke("system:copy-text", text),
   startFileDrag: (request) => ipcRenderer.send("model:start-file-drag", request),
   onFileDragStatus: (callback) => {

@@ -1,4 +1,4 @@
-import { Box, FileArchive } from "lucide-react";
+import { Box, FileArchive, Image as ImageIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   modelThumbnailService,
@@ -6,6 +6,7 @@ import {
   type ThumbnailPriority
 } from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
+import { isArchive, isDirectImage } from "../shared/fileCapabilities";
 
 type ModelCardThumbnailProps = {
   model: ModelFile;
@@ -18,7 +19,8 @@ export function ModelCardThumbnail({ model, selected }: ModelCardThumbnailProps)
   const selectedRef = useRef(selected);
   const isIntersectingRef = useRef(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const isArchive = [".zip", ".rar", ".7z"].includes(model.extension);
+  const archive = isArchive(model.extension);
+  const directImage = isDirectImage(model.extension);
   const modelSignature = `${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
 
   selectedRef.current = selected;
@@ -64,13 +66,28 @@ export function ModelCardThumbnail({ model, selected }: ModelCardThumbnailProps)
   }, [selected]);
 
   return (
-    <div className={`thumb-fallback${isArchive ? " archive-thumb-fallback" : ""}`} ref={rootRef}>
+    <div
+      className={`thumb-fallback${archive ? " archive-thumb-fallback" : ""}${directImage ? " image-thumb-fallback" : ""}`}
+      ref={rootRef}
+    >
       {thumbnailUrl ? (
-        <img className="thumbnail-image" src={thumbnailUrl} alt="" draggable={false} />
+        <img
+          className="thumbnail-image"
+          src={thumbnailUrl}
+          alt=""
+          draggable={false}
+          onError={() => setThumbnailUrl(null)}
+        />
       ) : (
         <>
-          {isArchive ? <FileArchive size={34} strokeWidth={1.7} /> : <Box size={30} />}
-          <span className={isArchive ? "archive-extension" : undefined}>
+          {archive ? (
+            <FileArchive size={34} strokeWidth={1.7} />
+          ) : directImage ? (
+            <ImageIcon size={32} strokeWidth={1.7} />
+          ) : (
+            <Box size={30} />
+          )}
+          <span className={archive ? "archive-extension" : undefined}>
             {model.extension.toUpperCase()}
           </span>
         </>

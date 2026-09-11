@@ -8,12 +8,14 @@ import { renderThumbnail } from "./thumbnailRenderer";
 import { yieldBeforeThumbnailRender } from "./thumbnailFrameGate";
 import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
 import type { ModelFile } from "../shared/types";
+import { isArchive, isDirectImage } from "../shared/fileCapabilities";
 
 export type { ThumbnailPriority } from "./thumbnailScheduler";
 
 export type ModelThumbnailServiceDependencies = {
   readCachedThumbnail: (model: ModelFile) => Promise<string | null>;
   readEmbeddedThumbnail: (absolutePath: string) => Promise<string | null>;
+  readImageDataUrl: (absolutePath: string) => Promise<string>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   writeCachedThumbnail: (
     model: ModelFile,
@@ -57,9 +59,9 @@ type PipelineEntry = {
 type ThumbnailLookup =
   | { kind: "cache"; thumbnail: string }
   | { kind: "embedded"; thumbnail: string }
+  | { kind: "direct"; thumbnail: string }
   | { kind: "render" };
 
-const ARCHIVE_EXTENSIONS = new Set<ModelFile["extension"]>([".zip", ".rar", ".7z"]);
 const PRIORITY_WEIGHT: Record<ThumbnailPriority, number> = {
   selected: 4,
   visible: 3,
@@ -106,7 +108,7 @@ export function createModelThumbnailService(
   }
 
   function request(model: ModelFile, priority: ThumbnailPriority): ModelThumbnailRequest {
-    if (ARCHIVE_EXTENSIONS.has(model.extension)) return resolvedRequest();
+    if (isArchive(model.extension)) return resolvedRequest();
 
     const key = `${currentSessionKey}:${createIdentity(model)}`;
     if (failedSignatures.has(key)) return resolvedRequest();
@@ -165,13 +167,20 @@ export function createModelThumbnailService(
         if (cached) return { kind: "cache", thumbnail: cached } as const;
         diagnostics.recordCacheMiss();
 
+        if (isDirectImage(entry.model.extension)) {
+          const direct = await dependencies.readImageDataUrl(entry.model.absolutePath);
+          return { kind: "direct", thumbnail: direct } as const;
+        }
+
         if (entry.model.extension === ".3mf") {
           const embedded = await dependencies.readEmbeddedThumbnail(entry.model.absolutePath);
           if (embedded) return { kind: "embedded", thumbnail: embedded } as const;
         }
 
         return { kind: "render" } as const;
-      }, (result) => result.kind === "render" ? undefined : result.kind);
+      }, (result) => result.kind === "cache" || result.kind === "embedded"
+        ? result.kind
+        : undefined);
 
       if (!lookup || !isEntryCurrent(entry)) return;
       if (lookup.kind === "cache") {
@@ -179,9 +188,9 @@ export function createModelThumbnailService(
         return;
       }
 
-      thumbnail = lookup.kind === "embedded"
-        ? lookup.thumbnail
-        : await runRenderStage(entry);
+      thumbnail = lookup.kind === "render"
+        ? await runRenderStage(entry)
+        : lookup.thumbnail;
       if (!thumbnail || !isEntryCurrent(entry)) return;
 
       try {
@@ -371,6 +380,7 @@ function sum(total: number, value: number) {
 export const modelThumbnailService = createModelThumbnailService({
   readCachedThumbnail: (model) => window.modelLibrary.readCachedThumbnail(model),
   readEmbeddedThumbnail: (absolutePath) => window.modelLibrary.readModelThumbnail(absolutePath),
+  readImageDataUrl: (absolutePath) => window.modelLibrary.readImageDataUrl(absolutePath),
   readModelFile: (absolutePath) => window.modelLibrary.readModelFile(absolutePath),
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     window.modelLibrary.writeCachedThumbnail(model, dataUrl, sessionKey),

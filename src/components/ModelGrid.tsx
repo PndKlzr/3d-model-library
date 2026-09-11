@@ -97,7 +97,7 @@ type ModelGridProps = {
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
-  onOpenDefaultSlicer: (model: ModelFile) => void;
+  onOpenDefaultFile: (model: ModelFile) => void;
   onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile, mode: "external" | "internal") => void;
@@ -163,7 +163,7 @@ export function ModelGrid({
   onOpenFolderContextMenu,
   onMoveModelsToFolder,
   onOpenModel,
-  onOpenDefaultSlicer,
+  onOpenDefaultFile,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
@@ -716,7 +716,7 @@ export function ModelGrid({
               thumbnailRetryGeneration: thumbnailRetryGenerations[model.absolutePath] ?? 0,
               fileDragBehavior,
               onOpenModel,
-              onOpenDefaultSlicer,
+              onOpenDefaultFile,
               onOpenModelContextMenu,
               onToggleModelSelection,
               onDragStartModel,
@@ -880,7 +880,7 @@ type ModelCardProps = {
   thumbnailRetryGeneration: number;
   fileDragBehavior: FileDragBehavior;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
-  onOpenDefaultSlicer: (model: ModelFile) => void;
+  onOpenDefaultFile: (model: ModelFile) => void;
   onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile, mode: "external" | "internal") => void;
@@ -896,7 +896,7 @@ function ModelCard({
   thumbnailRetryGeneration,
   fileDragBehavior,
   onOpenModel,
-  onOpenDefaultSlicer,
+  onOpenDefaultFile,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
@@ -949,7 +949,7 @@ function ModelCard({
             shiftKey: event.shiftKey
           })
         }
-        onDoubleClick={() => void onOpenDefaultSlicer(model)}
+        onDoubleClick={() => void onOpenDefaultFile(model)}
       >
         <div className="model-thumb">
           <ModelCardThumbnail model={model} selected={isSelected} key={thumbnailRetryGeneration} />
@@ -982,7 +982,7 @@ function ModelListRow({
   thumbnailRetryGeneration,
   fileDragBehavior,
   onOpenModel,
-  onOpenDefaultSlicer,
+  onOpenDefaultFile,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
@@ -1030,7 +1030,7 @@ function ModelListRow({
             shiftKey: event.shiftKey
           })
         }
-        onDoubleClick={() => void onOpenDefaultSlicer(model)}
+        onDoubleClick={() => void onOpenDefaultFile(model)}
       >
         <div className="list-thumb">
           <ModelCardThumbnail model={model} selected={isSelected} key={thumbnailRetryGeneration} />
