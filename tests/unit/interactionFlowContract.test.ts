@@ -8,7 +8,21 @@ describe("interaction flow contract", () => {
     expect(getDefaultFileOpenAction(".webp")).toBe("windows");
     expect(getDefaultFileOpenAction(".stl")).toBe("slicer");
     expect(getDefaultFileOpenAction(".3mf")).toBe("slicer");
+    expect(getDefaultFileOpenAction(".obj")).toBe("preview");
     expect(getDefaultFileOpenAction(".zip")).toBe("inspect-archive");
+  });
+
+  it("keeps preview-only files inside the app instead of launching a slicer", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const openFlow = appSource.match(
+      /async function openFileByDefault[\s\S]*?await openModelInDefaultSlicer\(model\);\n  }/
+    )?.[0];
+
+    expect(openFlow).toBeTruthy();
+    expect(openFlow).toContain('if (action === "preview")');
+    expect(openFlow).toContain("setSelectedModel(model)");
+    expect(openFlow!.indexOf('if (action === "preview")'))
+      .toBeLessThan(openFlow!.indexOf("await openModelInDefaultSlicer(model)"));
   });
 
   it("uses an in-app text dialog instead of browser prompts for file operations", async () => {

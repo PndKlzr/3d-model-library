@@ -78,6 +78,7 @@ export function DetailsPanel({
     () => new Set()
   );
   const [archiveMessage, setArchiveMessage] = useState<string | null>(null);
+  const [imageOpenMessage, setImageOpenMessage] = useState<string | null>(null);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
   const [conversionProgress, setConversionProgress] = useState<number | null>(null);
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
@@ -95,8 +96,19 @@ export function DetailsPanel({
     setArchiveEntries([]);
     setSelectedArchiveEntryPaths(new Set());
     setArchiveMessage(null);
+    setImageOpenMessage(null);
     setConversionProgress(null);
   }, [model?.id]);
+
+  async function openImage(modelPath: string) {
+    setImageOpenMessage(null);
+    try {
+      await onOpenLibraryFile(modelPath);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      setImageOpenMessage(`Não foi possível abrir a imagem. ${detail}`);
+    }
+  }
 
   async function convertModelToStl(modelPath: string) {
     setConversionProgress(0);
@@ -207,10 +219,13 @@ export function DetailsPanel({
             <button
               className="primary-button"
               type="button"
-              onClick={() => void onOpenLibraryFile(model.absolutePath)}
+              onClick={() => void openImage(model.absolutePath)}
             >
               Abrir imagem
             </button>
+            {imageOpenMessage ? (
+              <span className="operation-message" role="status">{imageOpenMessage}</span>
+            ) : null}
           </div>
         ) : model && showPreview ? (
           <ModelViewer model={model} />

@@ -90,7 +90,7 @@ export type ModelLibraryApi = {
     previewError: string | null;
   }>;
   readModelThumbnail: (absolutePath: string) => Promise<string | null>;
-  readImageDataUrl: (absolutePath: string) => Promise<string>;
+  readImageDataUrl: (session: LibrarySessionRef, absolutePath: string) => Promise<string>;
   readCachedThumbnail: (model: ThumbnailSignature) => Promise<string | null>;
   writeCachedThumbnail: (
     model: ThumbnailSignature,
@@ -100,7 +100,7 @@ export type ModelLibraryApi = {
   saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
-  openLibraryFile: (absolutePath: string) => Promise<void>;
+  openLibraryFile: (session: LibrarySessionRef, absolutePath: string) => Promise<void>;
   copyText: (text: string) => Promise<void>;
   startFileDrag: (request: FileDragRequest) => void;
   onFileDragStatus: (callback: (status: FileDragStatus) => void) => () => void;

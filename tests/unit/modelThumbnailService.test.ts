@@ -11,10 +11,10 @@ const PNG = "data:image/png;base64,iVBORw0KGgo=";
 describe("modelThumbnailService", () => {
   it("resolves queued requests from the previous library to null", async () => {
     const service = createModelThumbnailService(dependencies());
-    service.beginLibrarySession("library-a:1");
+    service.beginLibrarySession(librarySession("library-a", 1));
     const request = service.request(model(), "visible");
 
-    service.beginLibrarySession("library-b:2");
+    service.beginLibrarySession(librarySession("library-b", 2));
 
     await expect(request.promise).resolves.toBeNull();
   });
@@ -26,11 +26,11 @@ describe("modelThumbnailService", () => {
       yieldBeforeRender: () => renderGate.promise,
       writeCachedThumbnail
     }));
-    service.beginLibrarySession("library-a:1");
+    service.beginLibrarySession(librarySession("library-a", 1));
     const request = service.request(model(), "visible");
     await vi.waitFor(() => expect(service.getDiagnostics().running.render).toBe(1));
 
-    service.beginLibrarySession("library-b:2");
+    service.beginLibrarySession(librarySession("library-b", 2));
     renderGate.resolve(undefined);
 
     await expect(request.promise).resolves.toBeNull();
@@ -48,11 +48,11 @@ describe("modelThumbnailService", () => {
         if (renderCount === 1) await firstRenderGate.promise;
       }
     }));
-    service.beginLibrarySession("library-a:1");
+    service.beginLibrarySession(librarySession("library-a", 1));
     const oldRequest = service.request(model(), "visible");
     await vi.waitFor(() => expect(service.getDiagnostics().running.render).toBe(1));
 
-    service.beginLibrarySession("library-b:2");
+    service.beginLibrarySession(librarySession("library-b", 2));
     const newRequest = service.request(model(), "visible");
     firstRenderGate.resolve(undefined);
 
@@ -204,7 +204,10 @@ describe("modelThumbnailService", () => {
       absolutePath: "C:\\Models\\photo.webp"
     }), "visible").promise).resolves.toBe("data:image/webp;base64,AAAA");
 
-    expect(readImageDataUrl).toHaveBeenCalledWith("C:\\Models\\photo.webp");
+    expect(readImageDataUrl).toHaveBeenCalledWith(
+      librarySession("unbound", 0, "C:\\"),
+      "C:\\Models\\photo.webp"
+    );
     expect(renderThumbnail).not.toHaveBeenCalled();
     expect(service.getDiagnostics().running.render).toBe(0);
   });
@@ -228,14 +231,14 @@ describe("modelThumbnailService", () => {
       readImageDataUrl: async () => PNG,
       writeCachedThumbnail
     }));
-    service.beginLibrarySession("library-a:1");
+    service.beginLibrarySession(librarySession("library-a", 1));
 
     await expect(service.request(target, "visible").promise).resolves.toBe(PNG);
-    expect(writeCachedThumbnail).toHaveBeenCalledWith(target, PNG, "library-a:1");
+    expect(writeCachedThumbnail).toHaveBeenCalledWith(target, PNG, "library-a:1:C:\\Models");
   });
 
   it("isolates a corrupt direct image and continues later image requests", async () => {
-    const readImageDataUrl = vi.fn(async (absolutePath: string) => {
+    const readImageDataUrl = vi.fn(async (_session, absolutePath: string) => {
       if (absolutePath.endsWith("bad.jpg")) throw new Error("corrupt image");
       return PNG;
     });
@@ -250,6 +253,27 @@ describe("modelThumbnailService", () => {
       absolutePath: "C:\\Models\\good.png"
     }), "visible").promise).resolves.toBe(PNG);
     expect(readImageDataUrl).toHaveBeenCalledTimes(2);
+  });
+
+  it("passes the active session to image reads and remembers a decode failure", async () => {
+    const activeSession = librarySession("library-a", 1);
+    const readImageDataUrl = vi.fn(async () => {
+      throw new Error("decode failed");
+    });
+    const writeCachedThumbnail = vi.fn(async () => undefined);
+    const service = createModelThumbnailService(dependencies({
+      readImageDataUrl,
+      writeCachedThumbnail
+    }));
+    const target = model({ extension: ".png", absolutePath: "C:\\Models\\bad.png" });
+    service.beginLibrarySession(activeSession);
+
+    await expect(service.request(target, "visible").promise).resolves.toBeNull();
+    await expect(service.request(target, "visible").promise).resolves.toBeNull();
+
+    expect(readImageDataUrl).toHaveBeenCalledOnce();
+    expect(readImageDataUrl).toHaveBeenCalledWith(activeSession, target.absolutePath);
+    expect(writeCachedThumbnail).not.toHaveBeenCalled();
   });
 
   it("settles one failed render and continues with the next model", async () => {
@@ -488,4 +512,8 @@ function deferred<T>() {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+function librarySession(libraryId: string, generation: number, rootPath = "C:\\Models") {
+  return { libraryId, generation, rootPath };
 }

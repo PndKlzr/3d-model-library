@@ -1,21 +1,30 @@
-import { readFile, realpath, stat } from "node:fs/promises";
+import { open, realpath, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import {
   SUPPORTED_FILE_EXTENSIONS,
   isDirectImage,
   type SupportedFileExtension
 } from "../../src/shared/fileCapabilities.js";
+import type { LibrarySessionRef } from "../../src/shared/types.js";
 import { isPathInside } from "./pathContainment.js";
 
 export const MAX_DIRECT_IMAGE_BYTES = 40 * 1024 * 1024;
 
-type ImageFileDependencies = {
+type ImageFileHandle = Pick<FileHandle, "stat" | "read" | "close">;
+
+type ImageFileSystem = {
   realpath: (value: string) => Promise<string>;
-  stat: (value: string) => Promise<{ isFile: () => boolean; size: number }>;
-  readFile: (value: string) => Promise<Uint8Array>;
+  open: (value: string, flags: "r") => Promise<ImageFileHandle>;
 };
 
-const defaultDependencies: ImageFileDependencies = { realpath, stat, readFile };
+export type LibraryImageAccess = {
+  getCurrentSession: () => LibrarySessionRef | null;
+  decodeImage: (bytes: Uint8Array) => boolean;
+  openPath: (value: string) => Promise<string>;
+  fileSystem?: ImageFileSystem;
+};
+
+const defaultFileSystem: ImageFileSystem = { realpath, open };
 
 const IMAGE_MIME_BY_EXTENSION: Partial<Record<SupportedFileExtension, string>> = {
   ".png": "image/png",
@@ -25,44 +34,87 @@ const IMAGE_MIME_BY_EXTENSION: Partial<Record<SupportedFileExtension, string>> =
 };
 
 export async function readLibraryImageDataUrl(
-  rootPath: string,
+  expectedSession: LibrarySessionRef,
   absolutePath: string,
-  dependencies: ImageFileDependencies = defaultDependencies
+  access: LibraryImageAccess
 ): Promise<string> {
-  const image = await resolveLibraryImage(rootPath, absolutePath, dependencies);
-  if (image.size > MAX_DIRECT_IMAGE_BYTES) {
-    throw new Error("A imagem excede o limite de 40 MiB.");
+  assertCurrentSession(expectedSession, access.getCurrentSession());
+  const fileSystem = access.fileSystem ?? defaultFileSystem;
+  const image = await resolveLibraryImage(expectedSession.rootPath, absolutePath, fileSystem);
+  const handle = await fileSystem.open(image.path, "r");
+  let bytes: Buffer;
+
+  try {
+    const before = await handle.stat();
+    assertReadableImageStat(before);
+    bytes = Buffer.allocUnsafe(before.size);
+
+    let offset = 0;
+    while (offset < bytes.length) {
+      const result = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (!Number.isInteger(result.bytesRead) || result.bytesRead <= 0) {
+        throw new Error("A imagem foi alterada durante a leitura.");
+      }
+      offset += result.bytesRead;
+    }
+
+    const after = await handle.stat();
+    if (!after.isFile() || after.size !== before.size || offset !== before.size) {
+      throw new Error("A imagem foi alterada durante a leitura.");
+    }
+
+    if (!access.decodeImage(bytes)) {
+      throw new Error("A imagem está corrompida ou não pôde ser decodificada.");
+    }
+  } finally {
+    await handle.close();
   }
 
-  const bytes = await dependencies.readFile(image.path);
-  if (!hasImageSignature(image.extension, bytes)) {
-    throw new Error("A imagem está corrompida ou não pôde ser reconhecida.");
-  }
-  return `data:${image.mime};base64,${Buffer.from(bytes).toString("base64")}`;
+  const dataUrl = `data:${image.mime};base64,${bytes.toString("base64")}`;
+  assertCurrentSession(expectedSession, access.getCurrentSession());
+  return dataUrl;
 }
 
 export async function openLibraryImage(
-  rootPath: string,
+  expectedSession: LibrarySessionRef,
   absolutePath: string,
-  openPath: (value: string) => Promise<string>,
-  dependencies: ImageFileDependencies = defaultDependencies
+  access: LibraryImageAccess
 ): Promise<void> {
-  const image = await resolveLibraryImage(rootPath, absolutePath, dependencies);
-  const failure = await openPath(image.path);
+  assertCurrentSession(expectedSession, access.getCurrentSession());
+  const fileSystem = access.fileSystem ?? defaultFileSystem;
+  const image = await resolveLibraryImage(expectedSession.rootPath, absolutePath, fileSystem);
+  const handle = await fileSystem.open(image.path, "r");
+
+  try {
+    const fileStat = await handle.stat();
+    if (!fileStat.isFile()) throw new Error("O caminho não aponta para um arquivo de imagem.");
+  } finally {
+    await handle.close();
+  }
+
+  const currentCanonicalPath = await fileSystem.realpath(image.path);
+  const canonicalRoot = await fileSystem.realpath(expectedSession.rootPath);
+  if (normalizePath(currentCanonicalPath) !== normalizePath(image.path) ||
+      !isPathInside(canonicalRoot, currentCanonicalPath)) {
+    throw new Error("A imagem foi alterada antes de ser aberta.");
+  }
+
+  assertCurrentSession(expectedSession, access.getCurrentSession());
+  const failure = await access.openPath(currentCanonicalPath);
   if (failure) throw new Error(failure);
 }
 
 async function resolveLibraryImage(
   rootPath: string,
   absolutePath: string,
-  dependencies: ImageFileDependencies
+  fileSystem: ImageFileSystem
 ) {
   if (typeof absolutePath !== "string" || !path.isAbsolute(absolutePath)) {
     throw new Error("Caminho de imagem inválido.");
   }
 
-  const canonicalRoot = await dependencies.realpath(rootPath);
-  const canonicalPath = await dependencies.realpath(absolutePath);
+  const canonicalRoot = await fileSystem.realpath(rootPath);
+  const canonicalPath = await fileSystem.realpath(absolutePath);
   if (!isPathInside(canonicalRoot, canonicalPath)) {
     throw new Error("A imagem está fora da biblioteca ativa.");
   }
@@ -72,34 +124,43 @@ async function resolveLibraryImage(
     throw new Error("Formato de imagem não suportado.");
   }
 
-  const fileStat = await dependencies.stat(canonicalPath);
-  if (!fileStat.isFile()) throw new Error("O caminho não aponta para um arquivo de imagem.");
-
   return {
     path: canonicalPath,
-    size: fileStat.size,
     extension,
     mime: IMAGE_MIME_BY_EXTENSION[extension]!
   };
 }
 
-function hasImageSignature(extension: SupportedFileExtension, bytes: Uint8Array): boolean {
-  if (extension === ".png") {
-    return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+function assertReadableImageStat(fileStat: { isFile: () => boolean; size: number }) {
+  if (!fileStat.isFile()) throw new Error("O caminho não aponta para um arquivo de imagem.");
+  if (!Number.isSafeInteger(fileStat.size) || fileStat.size < 0) {
+    throw new Error("Tamanho de imagem inválido.");
   }
-  if (extension === ".jpg" || extension === ".jpeg") {
-    return startsWith(bytes, [0xff, 0xd8, 0xff]);
+  if (fileStat.size > MAX_DIRECT_IMAGE_BYTES) {
+    throw new Error("A imagem excede o limite de 40 MiB.");
   }
-  if (extension === ".webp") {
-    return startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) &&
-      bytes.length >= 12 &&
-      startsWith(bytes.subarray(8), [0x57, 0x45, 0x42, 0x50]);
-  }
-  return false;
 }
 
-function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
-  return signature.every((value, index) => bytes[index] === value);
+function assertCurrentSession(
+  expected: LibrarySessionRef,
+  current: LibrarySessionRef | null
+) {
+  if (!isLibrarySessionRef(expected) || !current ||
+      expected.generation !== current.generation ||
+      expected.libraryId !== current.libraryId ||
+      normalizePath(expected.rootPath) !== normalizePath(current.rootPath)) {
+    throw new Error("A sessão da biblioteca foi alterada.");
+  }
+}
+
+function isLibrarySessionRef(value: LibrarySessionRef): boolean {
+  return Boolean(value) && Number.isInteger(value.generation) &&
+    typeof value.libraryId === "string" && value.libraryId.length > 0 &&
+    typeof value.rootPath === "string" && path.isAbsolute(value.rootPath);
+}
+
+function normalizePath(value: string): string {
+  return path.resolve(value).replaceAll("/", "\\").toLowerCase();
 }
 
 function parseSupportedExtension(absolutePath: string): SupportedFileExtension | null {

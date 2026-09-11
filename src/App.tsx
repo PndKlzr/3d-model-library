@@ -661,12 +661,18 @@ function LibraryApp() {
     await launchSlicer(settings.defaultSlicerId, model.absolutePath);
   }
 
+  async function openLibraryImageFile(modelPath: string) {
+    const session = activeLibrarySessionRef.current;
+    if (!session) throw new Error("A biblioteca não está ativa.");
+    await window.modelLibrary.openLibraryFile(session, modelPath);
+  }
+
   async function openFileByDefault(model: ModelFile) {
     const action = getDefaultFileOpenAction(model.extension);
 
     if (action === "windows") {
       try {
-        await window.modelLibrary.openLibraryFile(model.absolutePath);
+        await openLibraryImageFile(model.absolutePath);
         setLaunchMessage(null);
       } catch (error) {
         setLaunchMessage(error instanceof Error ? error.message : String(error));
@@ -675,6 +681,12 @@ function LibraryApp() {
     }
 
     if (action === "inspect-archive") {
+      setSelectedModel(model);
+      setLaunchMessage(null);
+      return;
+    }
+
+    if (action === "preview") {
       setSelectedModel(model);
       setLaunchMessage(null);
       return;
@@ -904,7 +916,7 @@ function LibraryApp() {
       if (activationRequestRef.current !== requestId || !activation) return null;
 
       activeLibrarySessionRef.current = activation.session;
-      modelThumbnailService.beginLibrarySession(createThumbnailSessionKey(activation.session));
+      modelThumbnailService.beginLibrarySession(activation.session);
       setLibraryViewPreferences(
         loadLibraryViewPreferences(window.localStorage, activation.session.libraryId)
       );
@@ -983,7 +995,7 @@ function LibraryApp() {
       if (activationRequestRef.current !== requestId || !restored) return;
 
       activeLibrarySessionRef.current = restored.session;
-      modelThumbnailService.beginLibrarySession(createThumbnailSessionKey(restored.session));
+      modelThumbnailService.beginLibrarySession(restored.session);
       const isPriorRoot = previous.session && samePath(
         previous.session.rootPath,
         restored.session.rootPath
@@ -1871,7 +1883,7 @@ function LibraryApp() {
         onLaunchSlicer={launchSlicer}
         onRenameModelFile={renameSelectedModel}
         onShowModelInFolder={(modelPath) => window.modelLibrary.showModelInFolder(modelPath)}
-        onOpenLibraryFile={(modelPath) => window.modelLibrary.openLibraryFile(modelPath)}
+        onOpenLibraryFile={openLibraryImageFile}
         onToggleFavorite={toggleFavorite}
         onSetModelTags={setModelTags}
         onSetModelNotes={setModelNotes}
@@ -2222,10 +2234,6 @@ function createFileDragSessionId(): string {
   return typeof window.crypto.randomUUID === "function"
     ? window.crypto.randomUUID()
     : `file-drag-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function createThumbnailSessionKey(session: LibrarySessionRef): string {
-  return `${session.libraryId}:${session.generation}:${session.rootPath}`;
 }
 
 function createRenameRestorePairs(nextPath: string, previousPath: string): FileRestorePair[] {

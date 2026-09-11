@@ -1,4 +1,4 @@
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FolderCardThumbnail } from "../../src/components/FolderCardThumbnail";
 import type { ModelFile } from "../../src/shared/types";
@@ -100,6 +100,21 @@ describe("FolderCardThumbnail", () => {
     expect(requestThumbnail.mock.calls.map(([target]) => target.extension))
       .toEqual([".stl", ".jpg", ".3mf"]);
     expect(requestThumbnail.mock.calls.every(([, priority]) => priority === "mosaic")).toBe(true);
+  });
+
+  it("removes a failed image from the mosaic and falls back to the folder icon", async () => {
+    const request = createPendingRequest();
+    requestThumbnail.mockReturnValueOnce(request);
+    const view = render(<FolderCardThumbnail models={[model(0, { extension: ".jpg" })]} />);
+    notifyIntersection(true);
+    await act(async () => request.resolve("data:image/jpeg;base64,AAAA"));
+
+    const image = view.container.querySelector(".folder-thumbnail-mosaic img");
+    expect(image).not.toBeNull();
+    fireEvent.error(image!);
+
+    expect(view.container.querySelector(".folder-thumbnail-mosaic")).toBeNull();
+    expect(view.container.querySelector(".folder-card-icon > svg")).not.toBeNull();
   });
 });
 

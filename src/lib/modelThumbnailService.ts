@@ -7,7 +7,7 @@ import {
 import { renderThumbnail } from "./thumbnailRenderer";
 import { yieldBeforeThumbnailRender } from "./thumbnailFrameGate";
 import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
-import type { ModelFile } from "../shared/types";
+import type { LibrarySessionRef, ModelFile } from "../shared/types";
 import { isArchive, isDirectImage } from "../shared/fileCapabilities";
 
 export type { ThumbnailPriority } from "./thumbnailScheduler";
@@ -15,7 +15,7 @@ export type { ThumbnailPriority } from "./thumbnailScheduler";
 export type ModelThumbnailServiceDependencies = {
   readCachedThumbnail: (model: ModelFile) => Promise<string | null>;
   readEmbeddedThumbnail: (absolutePath: string) => Promise<string | null>;
-  readImageDataUrl: (absolutePath: string) => Promise<string>;
+  readImageDataUrl: (session: LibrarySessionRef, absolutePath: string) => Promise<string>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   writeCachedThumbnail: (
     model: ModelFile,
@@ -27,7 +27,7 @@ export type ModelThumbnailServiceDependencies = {
 };
 
 export type ModelThumbnailService = {
-  beginLibrarySession: (sessionKey: string) => void;
+  beginLibrarySession: (session: LibrarySessionRef) => void;
   request: (model: ModelFile, priority: ThumbnailPriority) => ModelThumbnailRequest;
   retry: (model: ModelFile) => void;
   subscribe: (listener: (snapshot: ThumbnailDiagnosticsSnapshot) => void) => () => void;
@@ -47,6 +47,7 @@ type PipelineSubscriber = { priority: ThumbnailPriority; released: boolean };
 type PipelineEntry = {
   key: string;
   sessionKey: string;
+  session: LibrarySessionRef;
   model: ModelFile;
   promise: Promise<string | null>;
   resolve: (thumbnail: string | null) => void;
@@ -86,14 +87,17 @@ export function createModelThumbnailService(
   const failedSignatures = new Set<string>();
   const listeners = new Set<(snapshot: ThumbnailDiagnosticsSnapshot) => void>();
   let peakRetainedResults = 0;
-  let currentSessionKey = "unbound";
+  let currentSession = createUnboundSession();
+  let currentSessionKey = createSessionKey(currentSession);
 
   diagnostics.subscribe(publishDiagnostics);
   ioScheduler.subscribe(publishDiagnostics);
   renderScheduler.subscribe(publishDiagnostics);
 
-  function beginLibrarySession(sessionKey: string) {
+  function beginLibrarySession(session: LibrarySessionRef) {
+    const sessionKey = createSessionKey(session);
     if (sessionKey === currentSessionKey) return;
+    currentSession = structuredClone(session);
     currentSessionKey = sessionKey;
     failedSignatures.clear();
     renderScheduler.clearCompleted();
@@ -147,6 +151,7 @@ export function createModelThumbnailService(
     return {
       key,
       sessionKey: currentSessionKey,
+      session: structuredClone(currentSession),
       model,
       promise,
       resolve,
@@ -168,7 +173,7 @@ export function createModelThumbnailService(
         diagnostics.recordCacheMiss();
 
         if (isDirectImage(entry.model.extension)) {
-          const direct = await dependencies.readImageDataUrl(entry.model.absolutePath);
+          const direct = await dependencies.readImageDataUrl(entry.session, entry.model.absolutePath);
           return { kind: "direct", thumbnail: direct } as const;
         }
 
@@ -380,10 +385,19 @@ function sum(total: number, value: number) {
 export const modelThumbnailService = createModelThumbnailService({
   readCachedThumbnail: (model) => window.modelLibrary.readCachedThumbnail(model),
   readEmbeddedThumbnail: (absolutePath) => window.modelLibrary.readModelThumbnail(absolutePath),
-  readImageDataUrl: (absolutePath) => window.modelLibrary.readImageDataUrl(absolutePath),
+  readImageDataUrl: (session, absolutePath) =>
+    window.modelLibrary.readImageDataUrl(session, absolutePath),
   readModelFile: (absolutePath) => window.modelLibrary.readModelFile(absolutePath),
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     window.modelLibrary.writeCachedThumbnail(model, dataUrl, sessionKey),
   renderThumbnail,
   yieldBeforeRender: yieldBeforeThumbnailRender
 });
+
+function createSessionKey(session: LibrarySessionRef): string {
+  return `${session.libraryId}:${session.generation}:${session.rootPath}`;
+}
+
+function createUnboundSession(): LibrarySessionRef {
+  return { libraryId: "unbound", generation: 0, rootPath: "C:\\" };
+}

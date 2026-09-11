@@ -355,12 +355,20 @@ function registerIpcHandlers() {
     return readEmbeddedThumbnail(absolutePath);
   });
 
-  ipcMain.handle("image:read-data-url", (_event, absolutePath: string) =>
-    readLibraryImageDataUrl(requireLibraryPath(), absolutePath)
+  ipcMain.handle("image:read-data-url", (
+    _event,
+    session: LibrarySessionRef,
+    absolutePath: string
+  ) =>
+    readLibraryImageDataUrl(session, absolutePath, createLibraryImageAccess())
   );
 
-  ipcMain.handle("system:open-library-file", (_event, absolutePath: string) =>
-    openLibraryImage(requireLibraryPath(), absolutePath, (targetPath) => shell.openPath(targetPath))
+  ipcMain.handle("system:open-library-file", (
+    _event,
+    session: LibrarySessionRef,
+    absolutePath: string
+  ) =>
+    openLibraryImage(session, absolutePath, createLibraryImageAccess())
   );
 
   ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
@@ -522,8 +530,12 @@ function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
     assertPathInsideLibrary(absolutePath);
     return readEmbeddedThumbnail(absolutePath);
   });
-  ipcMain.handle("image:read-data-url", (_event, absolutePath: string) =>
-    readLibraryImageDataUrl(requireLibraryPath(), absolutePath)
+  ipcMain.handle("image:read-data-url", (
+    _event,
+    session: LibrarySessionRef,
+    absolutePath: string
+  ) =>
+    readLibraryImageDataUrl(session, absolutePath, createLibraryImageAccess())
   );
   ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
     assertThumbnailSignature(model);
@@ -732,6 +744,15 @@ function requireLibraryPath(): string {
   }
 
   return currentSession.rootPath;
+}
+
+function createLibraryImageAccess() {
+  return {
+    getCurrentSession: () => activeLibrarySession?.current() ?? null,
+    decodeImage: (bytes: Uint8Array) =>
+      !nativeImage.createFromBuffer(Buffer.from(bytes)).isEmpty(),
+    openPath: (targetPath: string) => shell.openPath(targetPath)
+  };
 }
 
 function createThumbnailSessionKey(session: LibrarySessionRef): string {

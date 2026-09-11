@@ -80,6 +80,9 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
               src={thumbnailUrl}
               alt=""
               draggable={false}
+              onError={() => setThumbnailUrls((current) =>
+                current.filter((_, thumbnailIndex) => thumbnailIndex !== index)
+              )}
             />
           ))}
         </div>
