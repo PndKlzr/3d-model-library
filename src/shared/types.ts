@@ -1,3 +1,5 @@
+import type { SupportedFileExtension } from "./fileCapabilities.js";
+
 export type SlicerConfig = {
   id: string;
   name: string;
@@ -25,7 +27,7 @@ export type LibraryWatchEvent = {
 export type ModelFile = {
   id: string;
   name: string;
-  extension: ".stl" | ".3mf" | ".zip" | ".rar" | ".7z";
+  extension: SupportedFileExtension;
   absolutePath: string;
   relativeFolder: string;
   sizeBytes: number;

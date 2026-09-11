@@ -15,6 +15,24 @@ afterEach(async () => {
 });
 
 describe("scanLibrary", () => {
+  it("discovers uppercase OBJ and JPEG files with normalized extensions", async () => {
+    await writeFile(path.join(tempRoot, "shape.OBJ"), "obj");
+    await writeFile(path.join(tempRoot, "photo.JPEG"), "jpeg");
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models.map((model) => model.name).sort()).toEqual(["photo.JPEG", "shape.OBJ"]);
+    expect(result.models.map((model) => model.extension).sort()).toEqual([".jpeg", ".obj"]);
+  });
+
+  it("rejects unknown file extensions", async () => {
+    await writeFile(path.join(tempRoot, "notes.txt"), "ignore me");
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models).toEqual([]);
+  });
+
   it("finds STL and 3MF files recursively and ignores other extensions", async () => {
     await mkdir(path.join(tempRoot, "props", "terrain"), { recursive: true });
     await writeFile(path.join(tempRoot, "bench.STL"), "solid bench\nendsolid bench");

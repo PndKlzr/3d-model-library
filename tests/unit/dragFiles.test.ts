@@ -6,7 +6,9 @@ describe("dragFiles", () => {
   const models: ModelFile[] = [
     createModel("a", "part-a.stl", ".stl", "C:\\library\\part-a.stl"),
     createModel("b", "part-b.3mf", ".3mf", "C:\\library\\part-b.3mf"),
-    createModel("c", "pack.zip", ".zip", "C:\\library\\pack.zip")
+    createModel("c", "pack.zip", ".zip", "C:\\library\\pack.zip"),
+    createModel("d", "mesh.obj", ".obj", "C:\\library\\mesh.obj"),
+    createModel("e", "preview.jpeg", ".jpeg", "C:\\library\\preview.jpeg")
   ];
 
   it("drags all supported selected files when the dragged model is selected", () => {
@@ -31,6 +33,12 @@ describe("dragFiles", () => {
     expect(paths).toEqual(["C:\\library\\pack.zip"]);
   });
 
+  it("drags supported OBJ and image files to Explorer or desktop", () => {
+    const paths = getDragOutFilePaths(models[3], models, new Set(["d", "e"]));
+
+    expect(paths).toEqual(["C:\\library\\mesh.obj", "C:\\library\\preview.jpeg"]);
+  });
+
   it("keeps selected models from the whole library even when a filtered view is showing", () => {
     expect(getDragModelIds(models[0], models, new Set(["a", "c"]))).toEqual(["a", "c"]);
   });
@@ -40,9 +48,9 @@ describe("dragFiles", () => {
   });
 
   it("deduplicates paths case-insensitively for Windows native drag", () => {
-    const duplicate = createModel("d", "PART-A.STL", ".stl", "c:\\LIBRARY\\PART-A.STL");
+    const duplicate = createModel("f", "PART-A.STL", ".stl", "c:\\LIBRARY\\PART-A.STL");
 
-    expect(getDragOutFilePaths(models[0], [...models, duplicate], new Set(["a", "d"]))).toEqual([
+    expect(getDragOutFilePaths(models[0], [...models, duplicate], new Set(["a", "f"]))).toEqual([
       "C:\\library\\part-a.stl"
     ]);
   });
