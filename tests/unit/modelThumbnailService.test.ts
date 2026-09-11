@@ -190,6 +190,43 @@ describe("modelThumbnailService", () => {
     expect(render).not.toHaveBeenCalled();
   });
 
+  it("routes OBJ through generated rendering without embedded thumbnail lookup", async () => {
+    const readEmbeddedThumbnail = vi.fn(async () => PNG);
+    const renderThumbnail = vi.fn(() => WEBP);
+    const target = model({
+      name: "peça.obj",
+      extension: ".obj",
+      absolutePath: "C:\\Models\\peça.obj"
+    });
+    const service = createModelThumbnailService(dependencies({
+      readEmbeddedThumbnail,
+      renderThumbnail
+    }));
+
+    await expect(service.request(target, "visible").promise).resolves.toBe(WEBP);
+    expect(readEmbeddedThumbnail).not.toHaveBeenCalled();
+    expect(renderThumbnail).toHaveBeenCalledWith(".obj", expect.any(ArrayBuffer));
+  });
+
+  it("isolates a malformed OBJ render and continues the generated-render queue", async () => {
+    const renderThumbnail = vi.fn((extension: ModelFile["extension"]) => {
+      if (extension === ".obj") throw new Error("Não foi possível carregar o OBJ.");
+      return WEBP;
+    });
+    const service = createModelThumbnailService(dependencies({ renderThumbnail }));
+
+    await expect(service.request(model({
+      name: "bad.obj",
+      extension: ".obj",
+      absolutePath: "C:\\Models\\bad.obj"
+    }), "visible").promise).resolves.toBeNull();
+    await expect(service.request(model({
+      absolutePath: "C:\\Models\\good.stl"
+    }), "visible").promise).resolves.toBe(WEBP);
+
+    expect(renderThumbnail).toHaveBeenCalledTimes(2);
+  });
+
   it("reads direct images after a cache miss without entering the render queue", async () => {
     const readImageDataUrl = vi.fn(async () => "data:image/webp;base64,AAAA");
     const renderThumbnail = vi.fn(() => WEBP);

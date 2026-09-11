@@ -39,9 +39,36 @@ describe("DetailsPanel image opening", () => {
     ));
     expect(onOpenLibraryFile).toHaveBeenCalledOnce();
   });
+
+  it("describes OBJ preview as geometry-only without offering slicers", () => {
+    render(<DetailsPanel
+      model={imageModel({ name: "helmet.obj", extension: ".obj" })}
+      settings={settings()}
+      modelMetadata={null}
+      availableTags={[]}
+      launchMessage={null}
+      metadataStatus={{ availability: "ready", writable: true, source: "primary", message: null }}
+      metadataWritable
+      onOpenSettings={vi.fn()}
+      onLaunchSlicer={vi.fn()}
+      onRenameModelFile={vi.fn()}
+      onShowModelInFolder={vi.fn()}
+      onOpenLibraryFile={vi.fn()}
+      onToggleFavorite={vi.fn()}
+      onSetModelTags={vi.fn()}
+      onSetModelNotes={vi.fn()}
+      onRetryMetadata={vi.fn()}
+      onExtractArchiveEntries={vi.fn()}
+      onConvertThreeMfToStl={vi.fn()}
+    />);
+
+    expect(screen.getByText(/OBJ exibe somente a geometria/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Ações" }));
+    expect(screen.getByText("Este tipo de arquivo não é enviado ao slicer.")).toBeTruthy();
+  });
 });
 
-function imageModel(): ModelFile {
+function imageModel(overrides: Partial<ModelFile> = {}): ModelFile {
   return {
     id: "photo",
     name: "photo.jpg",
@@ -52,7 +79,8 @@ function imageModel(): ModelFile {
     modifiedAt: "2026-09-11T12:00:00.000Z",
     dimensionsMm: null,
     objectCount: null,
-    previewError: null
+    previewError: null,
+    ...overrides
   };
 }
 

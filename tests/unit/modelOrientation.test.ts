@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { orientModelForBed } from "../../src/lib/modelOrientation";
@@ -41,5 +42,15 @@ describe("orientModelForBed", () => {
     expect(box.min.y).toBeCloseTo(0);
     expect(box.getCenter(new THREE.Vector3()).x).toBeCloseTo(0);
     expect(box.getCenter(new THREE.Vector3()).z).toBeCloseTo(0);
+  });
+
+  it("reuses bed orientation for OBJ in both viewer and thumbnail rendering", async () => {
+    const [viewerSource, thumbnailSource] = await Promise.all([
+      readFile("src/components/ModelViewer.tsx", "utf8"),
+      readFile("src/lib/thumbnailRenderer.ts", "utf8")
+    ]);
+
+    expect(viewerSource).toMatch(/orientModelForBed\(parseObjPreview\(modelBytes\)\)/);
+    expect(thumbnailSource).toMatch(/orientModelForBed\(parseObjPreview\(modelBytes\)\)/);
   });
 });

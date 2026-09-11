@@ -5,6 +5,7 @@ import { RotateCcw } from "lucide-react";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { parseThreeMfPreview } from "../lib/threeMfPreview";
+import { parseObjPreview } from "../lib/objPreview";
 import { orientModelForBed } from "../lib/modelOrientation";
 import type { ModelFile } from "../shared/types";
 
@@ -62,9 +63,13 @@ export function ModelViewer({ model }: ModelViewerProps) {
         return orientModelForBed(mesh);
       }
 
+      if (model.extension === ".obj") {
+        return orientModelForBed(parseObjPreview(modelBytes));
+      }
+
       if (model.extension !== ".3mf") {
         return {
-          error: "Extraia um STL ou 3MF antes de carregar o preview 3D."
+          error: "Este arquivo não possui preview 3D."
         };
       }
 

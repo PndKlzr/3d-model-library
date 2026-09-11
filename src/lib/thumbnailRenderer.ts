@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { parseThreeMfPreview } from "./threeMfPreview";
+import { parseObjPreview } from "./objPreview";
 import { orientModelForBed } from "./modelOrientation";
 import type { ModelFile } from "../shared/types";
 
@@ -74,6 +75,9 @@ function createThumbnailObject(extension: ModelFile["extension"], modelBytes: Ar
   }
   if (extension === ".3mf") {
     return orientModelForBed(parseThreeMfPreview(modelBytes, { center: false }));
+  }
+  if (extension === ".obj") {
+    return orientModelForBed(parseObjPreview(modelBytes));
   }
   throw new Error("Arquivo sem thumbnail 3D.");
 }

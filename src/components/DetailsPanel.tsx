@@ -361,6 +361,11 @@ export function DetailsPanel({
                     <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
                   </div>
                 </dl>
+                {model.extension === ".obj" ? (
+                  <div className="notice">
+                    OBJ exibe somente a geometria; materiais e texturas externas não são carregados.
+                  </div>
+                ) : null}
                 {archive ? (
                   <div className="archive-panel">
                     <p className="eyebrow">Conteúdo do pacote</p>
