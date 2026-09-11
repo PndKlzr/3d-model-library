@@ -55,6 +55,10 @@ import {
   createSettingsMutationQueue,
   type SettingsMutationQueue
 } from "./lib/settingsMutationQueue";
+import {
+  setSlicerExecutable,
+  type AppSettingsMutation
+} from "./lib/settingsMutations";
 import { convertThreeMfToStlInWorker } from "./lib/threeMfToStlWorker";
 import {
   parseModelViewMode,
@@ -524,17 +528,13 @@ function LibraryApp() {
       return;
     }
 
-    await saveSettings({ ...settings, libraryPath });
+    await saveSettings((current) => ({ ...current, libraryPath }));
   }
 
-  async function saveSettings(nextSettings: AppSettings) {
+  async function saveSettings(mutation: AppSettingsMutation) {
     if (!settings || !settingsMutationQueueRef.current) return;
-    const patch = createSettingsPatch(settings, nextSettings);
     try {
-      const savedSettings = await settingsMutationQueueRef.current.enqueue((current) => ({
-        ...current,
-        ...patch
-      }));
+      const savedSettings = await settingsMutationQueueRef.current.enqueue(mutation);
       setSettings(savedSettings);
     } catch (error) {
       setOperationMessage(readErrorMessage(error));
@@ -564,14 +564,12 @@ function LibraryApp() {
   }
 
   function updateFileDragBehavior(fileDragBehavior: FileDragBehavior) {
-    if (!settings || settings.fileDragBehavior === fileDragBehavior) {
-      return;
-    }
+    if (!settings) return;
 
-    void saveSettings({ ...settings, fileDragBehavior });
+    void saveSettings((current) => ({ ...current, fileDragBehavior }));
   }
 
-  async function chooseSlicerExecutable(slicer: AppSettings["slicers"][number]) {
+  async function chooseSlicerExecutable(slicerId: string) {
     if (!settings) {
       return;
     }
@@ -582,13 +580,7 @@ function LibraryApp() {
       return;
     }
 
-    await saveSettings({
-      ...settings,
-      defaultSlicerId: settings.defaultSlicerId ?? slicer.id,
-      slicers: settings.slicers.map((item) =>
-        item.id === slicer.id ? { ...item, executablePath, enabled: true } : item
-      )
-    });
+    await saveSettings(setSlicerExecutable(slicerId, executablePath));
   }
 
   async function chooseArchiveExtractor() {
@@ -602,10 +594,7 @@ function LibraryApp() {
       return;
     }
 
-    await saveSettings({
-      ...settings,
-      archiveExtractorPath
-    });
+    await saveSettings((current) => ({ ...current, archiveExtractorPath }));
   }
 
   async function launchSlicer(slicerId: string, modelPaths: string | string[]) {
@@ -1596,10 +1585,7 @@ function LibraryApp() {
       return;
     }
 
-    await saveSettings({
-      ...settings,
-      includeSubfolders
-    });
+    await saveSettings((current) => ({ ...current, includeSubfolders }));
   }
 
   const models = scanResult?.models ?? [];
@@ -2118,31 +2104,6 @@ function createFileDragSessionId(): string {
 
 function createThumbnailSessionKey(session: LibrarySessionRef): string {
   return `${session.libraryId}:${session.generation}:${session.rootPath}`;
-}
-
-function createSettingsPatch(
-  current: AppSettings,
-  next: AppSettings
-): Partial<AppSettings> {
-  return {
-    ...(current.libraryPath !== next.libraryPath && { libraryPath: next.libraryPath }),
-    ...(current.includeSubfolders !== next.includeSubfolders && {
-      includeSubfolders: next.includeSubfolders
-    }),
-    ...(current.monitorLibrary !== next.monitorLibrary && {
-      monitorLibrary: next.monitorLibrary
-    }),
-    ...(current.fileDragBehavior !== next.fileDragBehavior && {
-      fileDragBehavior: next.fileDragBehavior
-    }),
-    ...(current.archiveExtractorPath !== next.archiveExtractorPath && {
-      archiveExtractorPath: next.archiveExtractorPath
-    }),
-    ...(current.defaultSlicerId !== next.defaultSlicerId && {
-      defaultSlicerId: next.defaultSlicerId
-    }),
-    ...(current.slicers !== next.slicers && { slicers: next.slicers })
-  };
 }
 
 function createRenameRestorePairs(nextPath: string, previousPath: string): FileRestorePair[] {

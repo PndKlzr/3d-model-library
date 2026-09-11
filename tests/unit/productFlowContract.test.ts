@@ -46,10 +46,15 @@ describe("product flow contract", () => {
 
   it("serializes settings mutations and preserves pending values", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
 
     expect(appSource).toContain("createSettingsMutationQueue");
     expect(appSource).toContain("settingsMutationQueueRef.current.enqueue");
-    expect(appSource).toContain("createSettingsPatch(settings, nextSettings)");
+    expect(appSource).toContain("async function saveSettings(mutation: AppSettingsMutation)");
+    expect(appSource).not.toContain("createSettingsPatch");
+    expect(settingsSource).toContain("onSaveSettings: (mutation: AppSettingsMutation)");
+    expect(settingsSource).toContain("setSlicerEnabled(slicer.id");
+    expect(settingsSource).not.toContain("slicers: settings.slicers.map");
   });
 
   it("clears library-specific undo state during activation reset", async () => {

@@ -4,6 +4,10 @@ import { DialogShell } from "./DialogShell";
 import type { ThemeMode } from "../lib/viewPreferences";
 import type { AppSettings, SlicerConfig } from "../shared/types";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
+import {
+  setSlicerEnabled,
+  type AppSettingsMutation
+} from "../lib/settingsMutations";
 import { PerformanceDiagnostics } from "./PerformanceDiagnostics";
 
 type SettingsDialogProps = {
@@ -13,10 +17,10 @@ type SettingsDialogProps = {
   metadataMessage: string | null;
   thumbnailDiagnostics: ThumbnailDiagnosticsSnapshot;
   onClose: () => void;
-  onSaveSettings: (settings: AppSettings) => Promise<void>;
+  onSaveSettings: (mutation: AppSettingsMutation) => Promise<void>;
   onChooseLibraryFolder: () => Promise<void>;
   onChooseArchiveExtractor: () => Promise<void>;
-  onChooseSlicerExecutable: (slicer: SlicerConfig) => Promise<void>;
+  onChooseSlicerExecutable: (slicerId: SlicerConfig["id"]) => Promise<void>;
   onAddCatalogTag: () => Promise<void>;
   onRemoveCatalogTag: (tag: string) => Promise<void>;
   themeMode: ThemeMode;
@@ -186,9 +190,10 @@ function LibrarySettings({
           <input
             type="checkbox"
             checked={settings.includeSubfolders}
-            onChange={(event) =>
-              onSaveSettings({ ...settings, includeSubfolders: event.currentTarget.checked })
-            }
+            onChange={(event) => {
+              const includeSubfolders = event.currentTarget.checked;
+              void onSaveSettings((current) => ({ ...current, includeSubfolders }));
+            }}
           />
           <span>Incluir subpastas ao filtrar uma pasta</span>
         </label>
@@ -196,9 +201,10 @@ function LibrarySettings({
           <input
             type="checkbox"
             checked={settings.monitorLibrary}
-            onChange={(event) =>
-              onSaveSettings({ ...settings, monitorLibrary: event.currentTarget.checked })
-            }
+            onChange={(event) => {
+              const monitorLibrary = event.currentTarget.checked;
+              void onSaveSettings((current) => ({ ...current, monitorLibrary }));
+            }}
           />
           <span>Monitorar alterações automaticamente</span>
         </label>
@@ -247,13 +253,19 @@ function OrganizationSettings({
             checked={settings.fileDragBehavior === "organize-default"}
             title="Organizar por padrão"
             description="Arrastar move para pastas; Ctrl + arrastar copia para fora."
-            onChange={() => onSaveSettings({ ...settings, fileDragBehavior: "organize-default" })}
+            onChange={() => onSaveSettings((current) => ({
+              ...current,
+              fileDragBehavior: "organize-default"
+            }))}
           />
           <DragBehaviorOption
             checked={settings.fileDragBehavior === "external-default"}
             title="Enviar por padrão"
             description="Arrastar copia para fora; Shift + arrastar move para pastas."
-            onChange={() => onSaveSettings({ ...settings, fileDragBehavior: "external-default" })}
+            onChange={() => onSaveSettings((current) => ({
+              ...current,
+              fileDragBehavior: "external-default"
+            }))}
           />
         </div>
       </section>
@@ -325,16 +337,10 @@ function IntegrationSettings({
                 <input
                   type="checkbox"
                   checked={slicer.enabled}
-                  onChange={(event) =>
-                    onSaveSettings({
-                      ...settings,
-                      slicers: settings.slicers.map((item) =>
-                        item.id === slicer.id
-                          ? { ...item, enabled: event.currentTarget.checked }
-                          : item
-                      )
-                    })
-                  }
+                  onChange={(event) => {
+                    const enabled = event.currentTarget.checked;
+                    void onSaveSettings(setSlicerEnabled(slicer.id, enabled));
+                  }}
                 />
                 Ativo
               </label>
@@ -343,11 +349,14 @@ function IntegrationSettings({
                   type="radio"
                   name="default-slicer"
                   checked={settings.defaultSlicerId === slicer.id}
-                  onChange={() => onSaveSettings({ ...settings, defaultSlicerId: slicer.id })}
+                  onChange={() => onSaveSettings((current) => ({
+                    ...current,
+                    defaultSlicerId: slicer.id
+                  }))}
                 />
                 Padrão
               </label>
-              <button type="button" onClick={() => onChooseSlicerExecutable(slicer)}>
+              <button type="button" onClick={() => onChooseSlicerExecutable(slicer.id)}>
                 Escolher .exe
               </button>
             </div>
@@ -370,7 +379,10 @@ function IntegrationSettings({
           {settings.archiveExtractorPath ? (
             <button
               type="button"
-              onClick={() => onSaveSettings({ ...settings, archiveExtractorPath: "" })}
+              onClick={() => onSaveSettings((current) => ({
+                ...current,
+                archiveExtractorPath: ""
+              }))}
             >
               Automático
             </button>

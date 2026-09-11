@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createSettingsMutationQueue } from "../../src/lib/settingsMutationQueue";
+import {
+  setSlicerEnabled,
+  setSlicerExecutable
+} from "../../src/lib/settingsMutations";
 import type { AppSettings } from "../../src/shared/types";
 
 describe("settingsMutationQueue", () => {
@@ -58,6 +62,55 @@ describe("settingsMutationQueue", () => {
       includeSubfolders: false
     });
   });
+
+  it("preserves rapid toggles for two different slicers", async () => {
+    const firstSaveReady = deferred<void>();
+    const saves: AppSettings[] = [];
+    const persist = vi.fn(async (next: AppSettings) => {
+      saves.push(structuredClone(next));
+      if (saves.length === 1) await firstSaveReady.promise;
+      return next;
+    });
+    const queue = createSettingsMutationQueue(settingsWithSlicers(), persist);
+
+    const first = queue.enqueue(setSlicerEnabled("slicer-a", false));
+    await vi.waitFor(() => expect(persist).toHaveBeenCalledTimes(1));
+    const second = queue.enqueue(setSlicerEnabled("slicer-b", false));
+
+    firstSaveReady.resolve();
+    await Promise.all([first, second]);
+
+    expect(saves.at(-1)?.slicers).toMatchObject([
+      { id: "slicer-a", enabled: false },
+      { id: "slicer-b", enabled: false }
+    ]);
+  });
+
+  it("preserves a pending toggle when another slicer executable is selected", async () => {
+    const firstSaveReady = deferred<void>();
+    const saves: AppSettings[] = [];
+    const persist = vi.fn(async (next: AppSettings) => {
+      saves.push(structuredClone(next));
+      if (saves.length === 1) await firstSaveReady.promise;
+      return next;
+    });
+    const queue = createSettingsMutationQueue(settingsWithSlicers(), persist);
+
+    const first = queue.enqueue(setSlicerEnabled("slicer-a", false));
+    await vi.waitFor(() => expect(persist).toHaveBeenCalledTimes(1));
+    const second = queue.enqueue(setSlicerExecutable("slicer-b", "C:\\Apps\\B.exe"));
+
+    firstSaveReady.resolve();
+    const [, finalSettings] = await Promise.all([first, second]);
+
+    expect(finalSettings).toMatchObject({
+      defaultSlicerId: "slicer-b",
+      slicers: [
+        { id: "slicer-a", enabled: false },
+        { id: "slicer-b", enabled: true, executablePath: "C:\\Apps\\B.exe" }
+      ]
+    });
+  });
 });
 
 function settings(): AppSettings {
@@ -69,6 +122,16 @@ function settings(): AppSettings {
     archiveExtractorPath: "",
     defaultSlicerId: null,
     slicers: []
+  };
+}
+
+function settingsWithSlicers(): AppSettings {
+  return {
+    ...settings(),
+    slicers: [
+      { id: "slicer-a", name: "Slicer A", executablePath: "", enabled: true },
+      { id: "slicer-b", name: "Slicer B", executablePath: "", enabled: true }
+    ]
   };
 }
 
