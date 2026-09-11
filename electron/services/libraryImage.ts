@@ -63,6 +63,10 @@ export async function readLibraryImageDataUrl(
       throw new Error("A imagem foi alterada durante a leitura.");
     }
 
+    if (!matchesImageExtension(image.extension, bytes)) {
+      throw new Error("O formato real da imagem não corresponde à extensão do arquivo.");
+    }
+
     if (!access.decodeImage(bytes)) {
       throw new Error("A imagem está corrompida ou não pôde ser decodificada.");
     }
@@ -161,6 +165,28 @@ function isLibrarySessionRef(value: LibrarySessionRef): boolean {
 
 function normalizePath(value: string): string {
   return path.resolve(value).replaceAll("/", "\\").toLowerCase();
+}
+
+function matchesImageExtension(
+  extension: SupportedFileExtension,
+  bytes: Uint8Array
+): boolean {
+  if (extension === ".png") {
+    return startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  }
+  if (extension === ".jpg" || extension === ".jpeg") {
+    return startsWith(bytes, [0xff, 0xd8, 0xff]);
+  }
+  if (extension === ".webp") {
+    return bytes.length >= 12 &&
+      startsWith(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+      startsWith(bytes.subarray(8), [0x57, 0x45, 0x42, 0x50]);
+  }
+  return false;
+}
+
+function startsWith(bytes: Uint8Array, signature: readonly number[]): boolean {
+  return signature.every((value, index) => bytes[index] === value);
 }
 
 function parseSupportedExtension(absolutePath: string): SupportedFileExtension | null {

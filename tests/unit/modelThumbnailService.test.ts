@@ -255,10 +255,10 @@ describe("modelThumbnailService", () => {
     expect(readImageDataUrl).toHaveBeenCalledTimes(2);
   });
 
-  it("passes the active session to image reads and remembers a decode failure", async () => {
+  it("passes the active session and never retries or caches a format mismatch", async () => {
     const activeSession = librarySession("library-a", 1);
     const readImageDataUrl = vi.fn(async () => {
-      throw new Error("decode failed");
+      throw new Error("image format does not match extension");
     });
     const writeCachedThumbnail = vi.fn(async () => undefined);
     const service = createModelThumbnailService(dependencies({

@@ -35,6 +35,37 @@ describe("library image access", () => {
       .resolves.toBe(`data:${mime};base64,${bytes.toString("base64")}`);
   });
 
+  it.each([
+    ["photo.jpg", jpegHeader()],
+    ["photo.jpeg", jpegHeader()]
+  ])("accepts JPEG bytes for the equivalent %s extension", async (name, contents) => {
+    const root = await tempLibrary();
+    const filePath = path.join(root, name);
+    const bytes = Buffer.from(contents);
+    await writeFile(filePath, bytes);
+    const current = currentSession(root);
+
+    await expect(readLibraryImageDataUrl(current.value, filePath, access(current)))
+      .resolves.toBe(`data:image/jpeg;base64,${bytes.toString("base64")}`);
+  });
+
+  it.each([
+    ["renamed.jpg", pngHeader()],
+    ["renamed.png", webpHeader()]
+  ])("rejects image bytes that do not match the %s extension", async (name, contents) => {
+    const root = await tempLibrary();
+    const filePath = path.join(root, name);
+    await writeFile(filePath, Buffer.from(contents));
+    const current = currentSession(root);
+    const decodeImage = vi.fn(() => true);
+
+    await expect(readLibraryImageDataUrl(current.value, filePath, {
+      ...access(current),
+      decodeImage
+    })).rejects.toThrow(/formato.*extensão|extensão.*formato/i);
+    expect(decodeImage).not.toHaveBeenCalled();
+  });
+
   it("rejects a superficially valid but undecodable image", async () => {
     const root = await tempLibrary();
     const filePath = path.join(root, "truncated.png");
