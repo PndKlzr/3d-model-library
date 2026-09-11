@@ -2,6 +2,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   ChevronRight,
+  EyeOff,
   Folder,
   FolderOpen,
   Layers3
@@ -20,6 +21,7 @@ type FolderTreeProps = {
   canMoveModels: boolean;
   pointerDragOverFolder: string | null;
   expandedFolderIds: Set<string>;
+  excludedFolderIds: ReadonlySet<string>;
   onSelectFolder: (folderId: string) => void;
   onToggleFolder: (folderId: string) => void;
   onExpandAllFolders: () => void;
@@ -38,6 +40,7 @@ export function FolderTree({
   canMoveModels,
   pointerDragOverFolder,
   expandedFolderIds,
+  excludedFolderIds,
   onSelectFolder,
   onToggleFolder,
   onExpandAllFolders,
@@ -154,6 +157,7 @@ export function FolderTree({
             pointerDragOverFolder={pointerDragOverFolder}
             canMoveModels={canMoveModels}
             expandedFolderIds={expandedFolderIds}
+            excludedFolderIds={excludedFolderIds}
             onSelectFolder={onSelectFolder}
             onToggleFolder={onToggleFolder}
             onOpenFolderContextMenu={onOpenFolderContextMenu}
@@ -197,6 +201,7 @@ function FolderNodeButton({
   pointerDragOverFolder,
   canMoveModels,
   expandedFolderIds,
+  excludedFolderIds,
   onSelectFolder,
   onToggleFolder,
   onOpenFolderContextMenu,
@@ -211,6 +216,7 @@ function FolderNodeButton({
   pointerDragOverFolder: string | null;
   canMoveModels: boolean;
   expandedFolderIds: Set<string>;
+  excludedFolderIds: ReadonlySet<string>;
   onSelectFolder: (folderId: string) => void;
   onToggleFolder: (folderId: string) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
@@ -221,6 +227,7 @@ function FolderNodeButton({
 }) {
   const isExpanded = expandedFolderIds.has(folder.id);
   const hasChildren = folder.children.length > 0;
+  const isExcluded = excludedFolderIds.has(folder.id);
 
   function openContextMenu(event: MouseEvent) {
     event.preventDefault();
@@ -232,7 +239,7 @@ function FolderNodeButton({
       <div
         className={`folder-row folder-tree-row ${canMoveModels ? "drag-target-ready" : ""} ${
           selectedFolder === folder.id ? "selected" : ""
-        } ${
+        } ${isExcluded ? "excluded" : ""} ${
           dragOverFolder === folder.id || pointerDragOverFolder === folder.id ? "drop-target" : ""
         }`}
         data-folder-drop-id={folder.id}
@@ -265,6 +272,15 @@ function FolderNodeButton({
         <button className="folder-name-button" type="button" onClick={() => onSelectFolder(folder.id)}>
           <span>{folder.name}</span>
         </button>
+        {isExcluded ? (
+          <span
+            className="folder-excluded-indicator"
+            aria-label={`${folder.name} oculta dos resultados`}
+            title="Oculta dos resultados"
+          >
+            <EyeOff size={13} />
+          </span>
+        ) : null}
         {canMoveModels ? <span className="drop-cue">Soltar</span> : null}
       </div>
       {isExpanded ? folder.children.map((child) => (
@@ -276,6 +292,7 @@ function FolderNodeButton({
           pointerDragOverFolder={pointerDragOverFolder}
           canMoveModels={canMoveModels}
           expandedFolderIds={expandedFolderIds}
+          excludedFolderIds={excludedFolderIds}
           onSelectFolder={onSelectFolder}
           onToggleFolder={onToggleFolder}
           onOpenFolderContextMenu={onOpenFolderContextMenu}

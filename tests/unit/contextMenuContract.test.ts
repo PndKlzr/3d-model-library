@@ -81,4 +81,14 @@ describe("folder context menu contract", () => {
     expect(folderTreeSource).toContain("onDragOver={scrollSidebarDuringDrag}");
     expect(folderTreeSource).toContain("onDragLeave={() => setDragOverFolder(null)}");
   });
+
+  it("hides non-root folders from results without removing them from navigation", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const folderTreeSource = await readFile("src/components/FolderTree.tsx", "utf8");
+
+    expect(appSource).toContain("Ocultar dos resultados");
+    expect(appSource).toContain("folderContextMenu.folderId !== ALL_FOLDERS_ID");
+    expect(folderTreeSource).toContain("excludedFolderIds");
+    expect(folderTreeSource).toContain("folder-excluded-indicator");
+  });
 });

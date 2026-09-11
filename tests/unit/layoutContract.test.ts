@@ -87,4 +87,15 @@ describe("layout scroll contract", () => {
     expect(appSource).toContain("longTaskObserver.start()");
     expect(appSource).toContain("longTaskObserver.stop()");
   });
+
+  it("keeps type and exclusion controls inside the sticky responsive filter area", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain("FileTypeFilter");
+    expect(gridSource).toContain("exclusion-chip");
+    expect(gridSource).toContain("onClearFilters");
+    expect(css).toMatch(/\.file-type-popover\s*\{[\s\S]*?max-height:\s*min\(520px, calc\(100vh - 32px\)\);/);
+    expect(css).toMatch(/\.filter-bar\s*\{[\s\S]*?flex-wrap:\s*wrap;/);
+  });
 });

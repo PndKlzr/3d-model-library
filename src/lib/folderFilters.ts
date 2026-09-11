@@ -1,15 +1,16 @@
 import type { ModelFile, ModelUserMetadata, SlicerHistoryEntry } from "../shared/types";
+import type { SupportedFileExtension } from "../shared/fileCapabilities";
 
 export const ALL_FOLDERS_ID = "__all__";
 
-export type ModelTypeFilter = "all" | ".stl" | ".3mf";
 export type ModelSortMode = "name" | "modified" | "size";
 export type UsageFilter = "all" | "recent" | "never";
 export type NotesFilter = "all" | "with-notes" | "without-notes";
 export type TagMatchMode = "all" | "any" | "exclude";
 
 export type ModelFilterOptions = {
-  type?: ModelTypeFilter;
+  visibleExtensions?: ReadonlySet<SupportedFileExtension>;
+  excludedFolders?: readonly string[];
   sort?: ModelSortMode;
   onlySelected?: boolean;
   selectedIds?: Set<string>;
@@ -34,7 +35,8 @@ export function filterModels(
 ): ModelFile[] {
   const normalizedSelectedFolder = normalizeFolder(selectedFolder);
   const normalizedSearch = searchQuery.trim().toLowerCase();
-  const typeFilter = options.type ?? "all";
+  const visibleExtensions = options.visibleExtensions;
+  const excludedFolders = options.excludedFolders ?? [];
   const sortMode = options.sort ?? "name";
   const selectedTags = normalizeTags(options.selectedTags ?? []);
   const metadataByPath = normalizeMetadataPathMap(options.metadataByPath ?? {});
@@ -58,7 +60,11 @@ export function filterModels(
       return false;
     }
 
-    if (typeFilter !== "all" && model.extension !== typeFilter) {
+    if (isFolderExcluded(normalizedModelFolder, excludedFolders)) {
+      return false;
+    }
+
+    if (visibleExtensions && !visibleExtensions.has(model.extension)) {
       return false;
     }
 
@@ -106,6 +112,39 @@ export function filterModels(
   });
 
   return filteredModels.sort((left, right) => sortModels(left, right, sortMode));
+}
+
+export function isFolderExcluded(
+  modelFolder: string,
+  exclusions: readonly string[]
+): boolean {
+  const normalizedModelFolder = normalizeFolder(modelFolder).toLowerCase();
+
+  return exclusions.some((excludedFolder) => {
+    const normalizedExclusion = normalizeFolder(excludedFolder).toLowerCase();
+    return Boolean(normalizedExclusion) && isFolderOrDescendant(
+      normalizedModelFolder,
+      normalizedExclusion
+    );
+  });
+}
+
+export function reconcileExcludedFolders(
+  exclusions: readonly string[],
+  existingFolders: readonly string[]
+): string[] {
+  const existingFolderKeys = new Set(
+    existingFolders.map((folder) => normalizeFolder(folder).toLowerCase()).filter(Boolean)
+  );
+  const seen = new Set<string>();
+
+  return exclusions.flatMap((folder) => {
+    const normalizedFolder = normalizeFolder(folder);
+    const key = normalizedFolder.toLowerCase();
+    if (!key || seen.has(key) || !existingFolderKeys.has(key)) return [];
+    seen.add(key);
+    return [normalizedFolder];
+  });
 }
 
 function matchesTags(modelTags: string[], selectedTags: string[], mode: TagMatchMode): boolean {

@@ -29,10 +29,10 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { FolderCardThumbnail } from "./FolderCardThumbnail";
 import { ThumbnailQueueStatus } from "./ThumbnailQueueStatus";
+import { FileTypeFilter } from "./FileTypeFilter";
 import {
   ALL_FOLDERS_ID,
   type ModelSortMode,
-  type ModelTypeFilter,
   type NotesFilter,
   type TagMatchMode,
   type UsageFilter
@@ -41,6 +41,7 @@ import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
 import { buildVirtualRows } from "../lib/virtualGrid";
 import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
+import { SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } from "../shared/fileCapabilities";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 
 type ModelGridProps = {
@@ -50,7 +51,8 @@ type ModelGridProps = {
   selectedModelId: string | null;
   selectedModelIds: Set<string>;
   searchQuery: string;
-  typeFilter: ModelTypeFilter;
+  visibleExtensions: ReadonlySet<SupportedFileExtension>;
+  excludedFolders: readonly string[];
   sortMode: ModelSortMode;
   onlySelected: boolean;
   onlyFavorites: boolean;
@@ -76,7 +78,9 @@ type ModelGridProps = {
   canNavigateBack: boolean;
   canNavigateForward: boolean;
   onSearchChange: (query: string) => void;
-  onTypeFilterChange: (type: ModelTypeFilter) => void;
+  onVisibleExtensionsChange: (visibleExtensions: ReadonlySet<SupportedFileExtension>) => void;
+  onRemoveFolderExclusion: (folderId: string) => void;
+  onClearFilters: () => void;
   onSortModeChange: (sortMode: ModelSortMode) => void;
   onOnlySelectedChange: (onlySelected: boolean) => void;
   onOnlyFavoritesChange: (onlyFavorites: boolean) => void;
@@ -113,7 +117,8 @@ export function ModelGrid({
   selectedModelId,
   selectedModelIds,
   searchQuery,
-  typeFilter,
+  visibleExtensions,
+  excludedFolders,
   sortMode,
   onlySelected,
   onlyFavorites,
@@ -139,7 +144,9 @@ export function ModelGrid({
   canNavigateBack,
   canNavigateForward,
   onSearchChange,
-  onTypeFilterChange,
+  onVisibleExtensionsChange,
+  onRemoveFolderExclusion,
+  onClearFilters,
   onSortModeChange,
   onOnlySelectedChange,
   onOnlyFavoritesChange,
@@ -177,7 +184,9 @@ export function ModelGrid({
   );
   const hasGridContent = folderCards.length > 0 || models.length > 0;
   const hasActiveFilters =
-    typeFilter !== "all" ||
+    searchQuery.length > 0 ||
+    visibleExtensions.size < SUPPORTED_FILE_EXTENSIONS.length ||
+    excludedFolders.length > 0 ||
     onlySelected ||
     onlyFavorites ||
     onlyDuplicates ||
@@ -285,14 +294,7 @@ export function ModelGrid({
   }
 
   function clearFilters() {
-    onTypeFilterChange("all");
-    onOnlySelectedChange(false);
-    onOnlyFavoritesChange(false);
-    onOnlyDuplicatesChange(false);
-    onUsageFilterChange("all");
-    onNotesFilterChange("all");
-    onTagMatchModeChange("all");
-    selectedTags.forEach(onToggleTagFilter);
+    onClearFilters();
   }
 
   return (
@@ -507,17 +509,10 @@ export function ModelGrid({
             </div>
           ) : null}
         </div>
-        <label className="filter-select">
-          Tipo
-          <select
-            value={typeFilter}
-            onChange={(event) => onTypeFilterChange(event.currentTarget.value as ModelTypeFilter)}
-          >
-            <option value="all">Todos</option>
-            <option value=".stl">STL</option>
-            <option value=".3mf">3MF</option>
-          </select>
-        </label>
+        <FileTypeFilter
+          visibleExtensions={visibleExtensions}
+          onChange={onVisibleExtensionsChange}
+        />
         <label className="filter-select">
           Ordenar
           <select
@@ -562,10 +557,28 @@ export function ModelGrid({
         {hasActiveFilters ? (
           <button className="filter-clear" type="button" onClick={clearFilters} title="Limpar filtros">
             <X size={14} />
-            Limpar
+            Limpar filtros
           </button>
         ) : null}
       </div>
+
+      {excludedFolders.length > 0 ? (
+        <div className="exclusion-filter-row" aria-label="Pastas ocultas dos resultados">
+          {excludedFolders.map((folder) => (
+            <span className="exclusion-chip" key={folder}>
+              <span title={folder}>{folder}</span>
+              <button
+                type="button"
+                onClick={() => onRemoveFolderExclusion(folder)}
+                aria-label={`Mostrar resultados de ${folder}`}
+                title="Remover exclusão"
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       {availableTags.length > 0 ? (
         <div className="tag-filter-row" aria-label="Filtros por tag">

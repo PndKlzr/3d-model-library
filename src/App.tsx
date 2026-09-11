@@ -16,8 +16,9 @@ import { buildFolderTree, type FolderNode } from "./lib/folderTree";
 import {
   ALL_FOLDERS_ID,
   filterModels,
+  isFolderExcluded,
+  reconcileExcludedFolders,
   type ModelSortMode,
-  type ModelTypeFilter,
   type NotesFilter,
   type TagMatchMode,
   type UsageFilter
@@ -33,6 +34,7 @@ import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import {
   loadLibraryViewPreferences,
+  saveLibraryViewPreferences,
   type LibraryViewPreferencesV1
 } from "./lib/libraryViewPreferences";
 import {
@@ -78,6 +80,10 @@ import type {
   ModelHashResult,
   ModelFile
 } from "./shared/types";
+import {
+  SUPPORTED_FILE_EXTENSIONS,
+  type SupportedFileExtension
+} from "./shared/fileCapabilities";
 
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
 const MODEL_VIEW_MODE_STORAGE_KEY = "model-library-view-mode";
@@ -85,7 +91,7 @@ const THEME_MODE_STORAGE_KEY = "model-library-theme-mode";
 const OPERATION_MESSAGE_TIMEOUT_MS = 6000;
 const UNDO_TOAST_TIMEOUT_MS = 8000;
 const CONTEXT_MENU_WIDTH = 320;
-const FOLDER_CONTEXT_MENU_HEIGHT = 430;
+const FOLDER_CONTEXT_MENU_HEIGHT = 465;
 const MODEL_CONTEXT_MENU_HEIGHT = 420;
 
 type LocalActionLogEntry = LibraryActionLogEntry & {
@@ -213,7 +219,6 @@ function LibraryApp() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
     parseThemeMode(window.localStorage.getItem(THEME_MODE_STORAGE_KEY))
   );
-  const [typeFilter, setTypeFilter] = useState<ModelTypeFilter>("all");
   const [sortMode, setSortMode] = useState<ModelSortMode>("name");
   const [onlySelected, setOnlySelected] = useState(false);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
@@ -792,6 +797,65 @@ function LibraryApp() {
 
       return nextTags;
     });
+  }
+
+  function updateLibraryViewPreferences(
+    update: (current: LibraryViewPreferencesV1) => LibraryViewPreferencesV1
+  ) {
+    const expectedSession = activeLibrarySessionRef.current;
+    if (!expectedSession) return;
+
+    setLibraryViewPreferences((current) => {
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return current;
+      const next = update(current ?? loadLibraryViewPreferences(
+        window.localStorage,
+        expectedSession.libraryId
+      ));
+      saveLibraryViewPreferences(window.localStorage, expectedSession.libraryId, next);
+      return next;
+    });
+  }
+
+  function updateVisibleExtensions(visibleExtensions: ReadonlySet<SupportedFileExtension>) {
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      visibleExtensions: [...SUPPORTED_FILE_EXTENSIONS].filter((extension) =>
+        visibleExtensions.has(extension)
+      )
+    }));
+  }
+
+  function excludeFolder(folderId: string) {
+    setFolderContextMenu(null);
+    if (folderId === ALL_FOLDERS_ID) return;
+
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      excludedFolders: [...new Set([...current.excludedFolders, folderId])]
+    }));
+  }
+
+  function removeFolderExclusion(folderId: string) {
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      excludedFolders: current.excludedFolders.filter((excluded) => excluded !== folderId)
+    }));
+  }
+
+  function clearFilters() {
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      visibleExtensions: [...SUPPORTED_FILE_EXTENSIONS],
+      excludedFolders: []
+    }));
+    setSearchQuery("");
+    setOnlySelected(false);
+    setOnlyFavorites(false);
+    setOnlyDuplicates(false);
+    setUsageFilter("all");
+    setNotesFilter("all");
+    setTagMatchMode("all");
+    setSelectedTagFilters(new Set());
   }
 
   async function activateLibrary(rootPath: string, monitoring: boolean) {
@@ -1589,6 +1653,19 @@ function LibraryApp() {
   }
 
   const models = scanResult?.models ?? [];
+  const visibleExtensions = useMemo(
+    () => new Set<SupportedFileExtension>(
+      libraryViewPreferences?.visibleExtensions ?? SUPPORTED_FILE_EXTENSIONS
+    ),
+    [libraryViewPreferences?.visibleExtensions]
+  );
+  const excludedFolders = libraryViewPreferences?.excludedFolders ?? [];
+  const excludedFolderIds = useMemo(
+    () => new Set((scanResult?.folders ?? []).filter((folder) =>
+      isFolderExcluded(folder, excludedFolders)
+    )),
+    [excludedFolders, scanResult?.folders]
+  );
   const folders = useMemo(
     () => buildFolderTree(models, scanResult?.folders ?? []),
     [models, scanResult?.folders]
@@ -1613,7 +1690,8 @@ function LibraryApp() {
   const filteredModels = useMemo(
     () =>
       filterModels(models, selectedFolder, includeSubfolders, deferredSearchQuery, {
-        type: typeFilter,
+        visibleExtensions,
+        excludedFolders,
         sort: sortMode,
         onlySelected,
         selectedIds: selectedModelIds,
@@ -1630,6 +1708,7 @@ function LibraryApp() {
     [
       deferredSearchQuery,
       duplicateModelIds,
+      excludedFolders,
       includeSubfolders,
       libraryMetadata,
       models,
@@ -1643,9 +1722,23 @@ function LibraryApp() {
       sortMode,
       tagMatchMode,
       usageFilter,
-      typeFilter
+      visibleExtensions
     ]
   );
+
+  useEffect(() => {
+    if (!scanResult || !libraryViewPreferences) return;
+    const reconciled = reconcileExcludedFolders(
+      libraryViewPreferences.excludedFolders,
+      scanResult.folders
+    );
+    if (sameStrings(reconciled, libraryViewPreferences.excludedFolders)) return;
+
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      excludedFolders: reconcileExcludedFolders(current.excludedFolders, scanResult.folders)
+    }));
+  }, [libraryViewPreferences, scanResult]);
 
   if (isLoading) {
     return (
@@ -1677,6 +1770,7 @@ function LibraryApp() {
         canMoveModels={draggedModelIds.length > 0}
         pointerDragOverFolder={null}
         expandedFolderIds={expandedFolderIds}
+        excludedFolderIds={excludedFolderIds}
         onSelectFolder={selectFolder}
         onToggleFolder={toggleExpandedFolder}
         onExpandAllFolders={expandAllFolders}
@@ -1692,7 +1786,8 @@ function LibraryApp() {
         selectedModelId={selectedModel?.id ?? null}
         selectedModelIds={selectedModelIds}
         searchQuery={searchQuery}
-        typeFilter={typeFilter}
+        visibleExtensions={visibleExtensions}
+        excludedFolders={excludedFolders}
         sortMode={sortMode}
         onlySelected={onlySelected}
         onlyFavorites={onlyFavorites}
@@ -1718,7 +1813,9 @@ function LibraryApp() {
         canNavigateBack={folderHistory.back.length > 0}
         canNavigateForward={folderHistory.forward.length > 0}
         onSearchChange={setSearchQuery}
-        onTypeFilterChange={setTypeFilter}
+        onVisibleExtensionsChange={updateVisibleExtensions}
+        onRemoveFolderExclusion={removeFolderExclusion}
+        onClearFilters={clearFilters}
         onSortModeChange={setSortMode}
         onOnlySelectedChange={setOnlySelected}
         onOnlyFavoritesChange={setOnlyFavorites}
@@ -1860,6 +1957,13 @@ function LibraryApp() {
               </button>
               <button type="button" role="menuitem" onClick={() => moveFolder(folderContextMenu.folderId)}>
                 Mover pasta...
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => excludeFolder(folderContextMenu.folderId)}
+              >
+                Ocultar dos resultados
               </button>
               <button
                 className="danger-menu-item"
@@ -2120,6 +2224,10 @@ function readErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const lastError = message.split("Error: ").pop();
   return lastError || message;
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function getAncestorFolderIds(folderId: string): string[] {
