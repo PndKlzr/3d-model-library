@@ -71,6 +71,13 @@ export function createActiveLibrarySession({
     catalogMutationTail = session ? Promise.resolve() : null;
   }
 
+  function invalidateActive(): Promise<void> {
+    const previousCatalogMutationTail = catalogMutationTail ?? Promise.resolve();
+    active = null;
+    catalogMutationTail = null;
+    return previousCatalogMutationTail;
+  }
+
   function enqueueCatalogMutation<T>(operation: () => Promise<T>): Promise<T> {
     const tail = catalogMutationTail;
     if (!tail) return Promise.reject(new Error("Stale session"));
@@ -85,9 +92,10 @@ export function createActiveLibrarySession({
     await currentWatcher?.close();
   }
 
-  function startWatcher(session: LibrarySessionRef) {
+  function buildWatcher(session: LibrarySessionRef): LibraryWatcherHandle {
     const captured = cloneSession(session);
-    const nextWatcher = createWatcher({
+    let nextWatcher: LibraryWatcherHandle | null = null;
+    const createdWatcher = createWatcher({
       rootPath: captured.rootPath,
       onBatch: async (events) => {
         if (!isCurrent(captured)) return;
@@ -105,7 +113,7 @@ export function createActiveLibrarySession({
         });
       },
       onError: (error) => {
-        if (!isCurrent(captured) || watcher !== nextWatcher) return;
+        if (!nextWatcher || !isCurrent(captured) || watcher !== nextWatcher) return;
         watcher = null;
         void nextWatcher.close();
         onMonitoringError({
@@ -114,7 +122,12 @@ export function createActiveLibrarySession({
         });
       }
     });
-    watcher = nextWatcher;
+    nextWatcher = createdWatcher;
+    return createdWatcher;
+  }
+
+  function startWatcher(session: LibrarySessionRef) {
+    watcher = buildWatcher(session);
   }
 
   return {
@@ -122,8 +135,9 @@ export function createActiveLibrarySession({
       return enqueueTransition(async () => {
         if (rootPath === null) {
           generation += 1;
-          setActive(null);
+          const previousCatalogBarrier = invalidateActive();
           await closeWatcher();
+          await previousCatalogBarrier;
           await metadataStore.open(null);
           return null;
         }
@@ -132,16 +146,18 @@ export function createActiveLibrarySession({
         const previous = active ? cloneSession(active) : null;
         const previousMonitoring = watcher !== null;
         generation += 1;
-        setActive(null);
+        const previousCatalogBarrier = invalidateActive();
         try {
           await closeWatcher();
+          await previousCatalogBarrier;
           await metadataStore.open(canonicalRoot);
           const libraryId = metadataStore.getLibraryId();
           if (!libraryId) throw new Error("Library identity is not available");
           const session = { generation, rootPath: canonicalRoot, libraryId };
           const cachedResult = await indexStore.load(canonicalRoot, libraryId);
+          const nextWatcher = monitoring ? buildWatcher(session) : null;
           setActive(session);
-          if (monitoring) startWatcher(session);
+          watcher = nextWatcher;
 
           return structuredClone({
             session,
@@ -151,12 +167,13 @@ export function createActiveLibrarySession({
           });
         } catch (activationError) {
           try {
-            setActive(null);
+            const failedCatalogBarrier = invalidateActive();
             await closeWatcher();
+            await previousCatalogBarrier;
+            await failedCatalogBarrier;
             generation += 1;
 
             if (!previous) {
-              setActive(null);
               await metadataStore.open(null);
             } else {
               await metadataStore.open(previous.rootPath);
@@ -164,10 +181,13 @@ export function createActiveLibrarySession({
               if (!libraryId) throw new Error("Prior library identity is not available");
               await indexStore.load(previous.rootPath, libraryId);
               const restored = { generation, rootPath: previous.rootPath, libraryId };
+              const restoredWatcher = previousMonitoring ? buildWatcher(restored) : null;
               setActive(restored);
-              if (previousMonitoring) startWatcher(restored);
+              watcher = restoredWatcher;
             }
           } catch (restoreError) {
+            invalidateActive();
+            await closeWatcher();
             throw new AggregateError(
               [activationError, restoreError],
               "Library activation failed and the prior session could not be restored"
@@ -207,8 +227,9 @@ export function createActiveLibrarySession({
     close() {
       return enqueueTransition(async () => {
         generation += 1;
-        setActive(null);
+        const previousCatalogBarrier = invalidateActive();
         await closeWatcher();
+        await previousCatalogBarrier;
         await metadataStore.open(null);
       });
     }

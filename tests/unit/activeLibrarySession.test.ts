@@ -50,10 +50,13 @@ describe("activeLibrarySession", () => {
     const first = await harness.session.activate(harness.firstRoot, false);
     const pending = harness.session.scan(first!.session);
 
-    await harness.session.activate(harness.secondRoot, false);
+    const switching = harness.session.activate(harness.secondRoot, false);
+    await flushMicrotasks();
+    expect(harness.session.current()).toBeNull();
     deferred.resolve(scanResult(harness.firstRoot));
 
     await expect(pending).rejects.toThrow(/stale session/i);
+    await switching;
     expect(harness.saves).toEqual([]);
   });
 
@@ -89,9 +92,12 @@ describe("activeLibrarySession", () => {
     ]));
     await applicationStarted.promise;
 
-    await harness.session.activate(harness.secondRoot, true);
+    const switching = harness.session.activate(harness.secondRoot, true);
+    await flushMicrotasks();
+    expect(harness.session.current()).toBeNull();
     applicationResult.resolve(scanResult(harness.firstRoot));
     await pendingBatch;
+    await switching;
 
     expect(harness.saves).toEqual([]);
     expect(onChanged).not.toHaveBeenCalled();
@@ -161,6 +167,40 @@ describe("activeLibrarySession", () => {
       ["watcher"],
       ["scan"]
     ]);
+  });
+
+  it("drains an old A save before failed B activation restores and mutates A", async () => {
+    const oldSaveStarted = createDeferred<void>();
+    const oldSaveReady = createDeferred<void>();
+    let scanCount = 0;
+    const harness = createHarness({
+      failWatcherRoot: "second",
+      scan: async (rootPath) => ({
+        ...scanResult(rootPath),
+        folders: [scanCount++ === 0 ? "old" : "new"]
+      }),
+      beforeSave: async (_rootPath, _result, saveNumber) => {
+        if (saveNumber !== 1) return;
+        oldSaveStarted.resolve();
+        await oldSaveReady.promise;
+      }
+    });
+    const first = await harness.session.activate(harness.firstRoot, true);
+    const oldScan = harness.session.scan(first!.session);
+    await oldSaveStarted.promise;
+
+    const failedActivation = harness.session.activate(harness.secondRoot, true);
+    await flushMicrotasks();
+
+    expect(harness.order).not.toContain("metadata:second");
+    oldSaveReady.resolve();
+    await expect(oldScan).rejects.toThrow(/stale session/i);
+    await expect(failedActivation).rejects.toThrow("cannot create watcher");
+
+    const restored = harness.session.current();
+    await harness.session.scan(restored!);
+    expect(harness.savedResults.map((result) => result.folders)).toEqual([["old"], ["new"]]);
+    expect(harness.catalogFor(harness.firstRoot)?.folders).toEqual(["new"]);
   });
 
   it("binds metadata and its authoritative ID before activation resolves", async () => {
@@ -234,6 +274,20 @@ describe("activeLibrarySession", () => {
     expect(harness.session.current()?.rootPath).toBe(harness.firstRoot);
   });
 
+  it("leaves no active session when B and restored A watcher construction both fail", async () => {
+    const harness = createHarness({
+      failWatcher: (label, attempt) => label === "second" || (label === "first" && attempt === 2)
+    });
+    await harness.session.activate(harness.firstRoot, true);
+
+    await expect(harness.session.activate(harness.secondRoot, true)).rejects.toThrow(
+      "Library activation failed and the prior session could not be restored"
+    );
+
+    expect(harness.session.current()).toBeNull();
+    expect(harness.watchers[0].close).toHaveBeenCalledOnce();
+  });
+
   it("deactivates on null and invalidates the old session", async () => {
     const harness = createHarness();
     const first = await harness.session.activate(harness.firstRoot, true);
@@ -297,7 +351,13 @@ type HarnessOptions = {
   failMetadataRoot?: string;
   failIndexRoot?: string;
   failWatcherRoot?: string;
+  failWatcher?: (label: string, attempt: number) => boolean;
   onRestoringMetadata?: () => Promise<void>;
+  beforeSave?: (
+    rootPath: string,
+    result: LibraryScanResult,
+    saveNumber: number
+  ) => Promise<void>;
 };
 
 function createHarness(options: HarnessOptions = {}) {
@@ -307,6 +367,7 @@ function createHarness(options: HarnessOptions = {}) {
   const saves: string[] = [];
   const savedResults: LibraryScanResult[] = [];
   const catalogs = new Map<string, LibraryScanResult>();
+  const watcherAttempts = new Map<string, number>();
   const watchers: Array<{
     rootPath: string;
     onBatch: (events: LibraryWatchEvent[]) => void | Promise<void>;
@@ -353,6 +414,7 @@ function createHarness(options: HarnessOptions = {}) {
     },
     async save(rootPath: string, libraryId: string, result: LibraryScanResult) {
       saves.push(`${rootPath}:${libraryId}`);
+      await options.beforeSave?.(rootPath, result, saves.length);
       savedResults.push(structuredClone(result));
       catalogs.set(rootPath, structuredClone(result));
     }
@@ -363,7 +425,9 @@ function createHarness(options: HarnessOptions = {}) {
     onError = () => undefined
   }) => {
     const label = path.basename(rootPath).replace("library-session-", "");
-    if (options.failWatcherRoot === label) {
+    const attempt = (watcherAttempts.get(label) ?? 0) + 1;
+    watcherAttempts.set(label, attempt);
+    if (options.failWatcherRoot === label || options.failWatcher?.(label, attempt)) {
       throw new Error("cannot create watcher");
     }
     order.push(`watch:${label}`);
@@ -389,7 +453,16 @@ function createHarness(options: HarnessOptions = {}) {
     onMonitoringError: options.onMonitoringError
   });
 
-  return { session, firstRoot, secondRoot, order, saves, savedResults, watchers };
+  return {
+    session,
+    firstRoot,
+    secondRoot,
+    order,
+    saves,
+    savedResults,
+    watchers,
+    catalogFor: (rootPath: string) => catalogs.get(rootPath)
+  };
 }
 
 function scanResult(rootPath: string): LibraryScanResult {
@@ -402,4 +475,10 @@ function createDeferred<T = void>() {
     resolve = resolvePromise;
   });
   return { promise, resolve: resolve as T extends void ? () => void : (value: T) => void };
+}
+
+async function flushMicrotasks() {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await Promise.resolve();
+  }
 }
