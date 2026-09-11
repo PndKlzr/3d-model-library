@@ -251,7 +251,7 @@ export function createPortableMetadataRepository({
   return { canonicalizeRoot, checkWritable, load, save };
 }
 
-async function hideDirectoryOnWindows(directoryPath: string): Promise<void> {
+export async function hideDirectoryOnWindows(directoryPath: string): Promise<void> {
   if (process.platform === "win32") {
     await execFileAsync("attrib", ["+H", directoryPath], { windowsHide: true });
   }

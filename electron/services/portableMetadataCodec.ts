@@ -137,7 +137,7 @@ export function isInternalLibraryPath(rootPath: string, candidatePath: string): 
   return relativePath.split(path.sep)[0].toLowerCase() === PORTABLE_METADATA_DIRECTORY;
 }
 
-function toPortableRelativePath(rootPath: string, absolutePath: string): string {
+export function toPortableRelativePath(rootPath: string, absolutePath: string): string {
   if (typeof absolutePath !== "string" || absolutePath.includes("\0")) {
     throw new Error("Model path must be a valid library path");
   }
@@ -154,7 +154,7 @@ function toPortableRelativePath(rootPath: string, absolutePath: string): string 
   return portablePath;
 }
 
-function fromPortableRelativePath(rootPath: string, relativePath: string): string {
+export function fromPortableRelativePath(rootPath: string, relativePath: string): string {
   assertBoundedString(relativePath, "relative model path", MAX_MODEL_PATH_LENGTH);
 
   if (
