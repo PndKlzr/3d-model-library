@@ -41,15 +41,25 @@ describe("thumbnail benchmark isolation contract", () => {
 
   it("restores an isolated cached index while reconciliation and rendering proceed", async () => {
     const main = await readFile("electron/main.ts", "utf8");
+    const app = await readFile("src/App.tsx", "utf8");
+    const preload = await readFile("electron/preload.cjs", "utf8");
 
     expect(main).toContain("benchmarkCachedIndexReadyMs");
+    expect(main).toContain("benchmarkCachedGridVisibleMs");
     expect(main).toContain("benchmarkLibraryReconciliationSettledMs");
     expect(main).toContain("benchmarkReconciliationPromise");
+    expect(main).toContain('ipcMain.handle("benchmark:cached-grid-visible"');
     expect(main).toContain("libraryIndexStore.get(benchmarkEnvironment.root)");
     expect(main).toContain("libraryIndexStore.set");
     expect(main).toContain("backgroundThrottling: !benchmarkEnvironment");
+    expect(main.match(/createElectronLibraryIndexStore\(\)/g)).toHaveLength(3);
+    expect(main.indexOf("benchmarkStartupStartedAt = performance.now()"))
+      .toBeLessThan(main.lastIndexOf("createElectronLibraryIndexStore()"));
     expect(main.indexOf("benchmarkReconciliationPromise = scanLibrary"))
-      .toBeLessThan(main.indexOf("await createWindow()"));
+      .toBeGreaterThan(main.indexOf('ipcMain.handle("benchmark:get-config"'));
+    expect(app).toContain("benchmark-cached-grid");
+    expect(app).toContain("markThumbnailBenchmarkCachedGridVisible");
+    expect(preload).toContain('ipcRenderer.invoke("benchmark:cached-grid-visible")');
   });
 
   it("builds renderer assets with file-compatible relative URLs", async () => {

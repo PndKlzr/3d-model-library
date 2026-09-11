@@ -83,8 +83,10 @@ let benchmarkScanResult: Awaited<ReturnType<typeof scanLibrary>> | null = null;
 let benchmarkReportWritten = false;
 let benchmarkFailed = false;
 let benchmarkCachedIndexReadyMs = 0;
+let benchmarkCachedGridVisibleMs = 0;
 let benchmarkLibraryReconciliationSettledMs = 0;
 let benchmarkReconciliationPromise: Promise<void> | null = null;
+let benchmarkStartupStartedAt = 0;
 const dragIcon = createFileDragIcon();
 
 type BenchmarkEnvironment = {
@@ -474,11 +476,19 @@ function registerIpcHandlers() {
 
 function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
   ipcMain.handle("system:runtime-versions", () => getRuntimeVersions());
-  ipcMain.handle("benchmark:get-config", () => ({
-    scenario: environment.scenario,
-    models: benchmarkScanResult?.models ?? [],
-    libraryScanReadyMs: benchmarkCachedIndexReadyMs
-  }));
+  ipcMain.handle("benchmark:get-config", () => {
+    startBenchmarkReconciliation(environment);
+    return {
+      scenario: environment.scenario,
+      models: benchmarkScanResult?.models ?? [],
+      cachedIndexReadyMs: benchmarkCachedIndexReadyMs
+    };
+  });
+  ipcMain.handle("benchmark:cached-grid-visible", () => {
+    if (benchmarkCachedGridVisibleMs === 0) {
+      benchmarkCachedGridVisibleMs = performance.now() - benchmarkStartupStartedAt;
+    }
+  });
   ipcMain.handle("benchmark:fatal", (_event, message: unknown) => {
     failBenchmark(new Error(typeof message === "string" ? message.slice(0, 512) : "Renderer failed"));
   });
@@ -521,6 +531,17 @@ function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
   });
 }
 
+function startBenchmarkReconciliation(environment: BenchmarkEnvironment) {
+  if (benchmarkReconciliationPromise) return benchmarkReconciliationPromise;
+  benchmarkReconciliationPromise = scanLibrary(environment.root).then((result) => {
+    libraryIndexStore.set(result);
+    benchmarkScanResult = result;
+    benchmarkLibraryReconciliationSettledMs = performance.now() - benchmarkStartupStartedAt;
+  });
+  void benchmarkReconciliationPromise.catch(failBenchmark);
+  return benchmarkReconciliationPromise;
+}
+
 function failBenchmark(error: unknown) {
   if (benchmarkFailed) return;
   benchmarkFailed = true;
@@ -556,6 +577,7 @@ function sanitizeBenchmarkReport(value: unknown, environment: BenchmarkEnvironme
     },
     timingsMs: {
       cachedIndexReady: aggregateNumber(benchmarkCachedIndexReadyMs, "cachedIndexReady"),
+      cachedGridVisible: aggregateNumber(benchmarkCachedGridVisibleMs, "cachedGridVisible"),
       libraryReconciliationSettled: aggregateNumber(
         benchmarkLibraryReconciliationSettledMs,
         "libraryReconciliationSettled"
@@ -856,22 +878,16 @@ app.whenReady().then(async () => {
     thumbnailCache = createThumbnailCache({
       cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache")
     });
-    libraryIndexStore = await createElectronLibraryIndexStore();
-
+    const seedStore = await createElectronLibraryIndexStore();
     const seededIndex = await scanLibrary(benchmarkEnvironment.root);
-    libraryIndexStore.set(seededIndex);
+    seedStore.set(seededIndex);
 
-    const benchmarkStartupStartedAt = performance.now();
+    benchmarkStartupStartedAt = performance.now();
+    libraryIndexStore = await createElectronLibraryIndexStore();
     benchmarkScanResult = libraryIndexStore.get(benchmarkEnvironment.root);
     if (!benchmarkScanResult) throw new Error("Benchmark cached index was not restored");
     benchmarkCachedIndexReadyMs = performance.now() - benchmarkStartupStartedAt;
 
-    benchmarkReconciliationPromise = scanLibrary(benchmarkEnvironment.root).then((result) => {
-      libraryIndexStore.set(result);
-      benchmarkScanResult = result;
-      benchmarkLibraryReconciliationSettledMs = performance.now() - benchmarkStartupStartedAt;
-    });
-    void benchmarkReconciliationPromise.catch(failBenchmark);
     registerBenchmarkIpcHandlers(benchmarkEnvironment);
     await createWindow();
     return;

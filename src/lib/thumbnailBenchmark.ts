@@ -28,6 +28,7 @@ export type ThumbnailBenchmarkReport = {
   };
   timingsMs: {
     cachedIndexReady: number;
+    cachedGridVisible: number;
     libraryReconciliationSettled: number;
     firstVisibleThumbnail: number | null;
     initiallyVisibleSettled: number;
@@ -47,6 +48,7 @@ type BenchmarkOptions = {
   generatedAt?: () => string;
   runtime?: ThumbnailBenchmarkReport["runtime"];
   libraryScanReadyMs?: number;
+  cachedGridVisibleMs?: number;
   libraryReconciliationSettledMs?: number;
   waitForFrame?: () => Promise<void>;
 };
@@ -96,6 +98,7 @@ export async function runThumbnailBenchmark(
     timingsMs: {
       ...pass.timingsMs,
       cachedIndexReady: normalizeDuration(options.libraryScanReadyMs ?? 0),
+      cachedGridVisible: normalizeDuration(options.cachedGridVisibleMs ?? 0),
       libraryReconciliationSettled: normalizeDuration(
         options.libraryReconciliationSettledMs ?? options.libraryScanReadyMs ?? 0
       )

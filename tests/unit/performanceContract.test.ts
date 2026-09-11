@@ -13,6 +13,7 @@ describe("performance contract", () => {
     expect(baseline).toContain("Warm thumbnails");
     expect(baseline).toContain("Scroll stress");
     expect(baseline).toContain("Cached index ready");
+    expect(baseline).toContain("Cached grid visible");
     expect(baseline).toContain("Library reconciliation settled");
     expect(baseline).toContain("Thumbnail pass settled");
     expect(baseline).not.toContain("pending");

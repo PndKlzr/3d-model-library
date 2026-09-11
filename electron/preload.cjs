@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("modelLibrary", {
   version: "0.1.0",
   getThumbnailBenchmark: () => ipcRenderer.invoke("benchmark:get-config"),
+  markThumbnailBenchmarkCachedGridVisible: () =>
+    ipcRenderer.invoke("benchmark:cached-grid-visible"),
   submitThumbnailBenchmark: (report) => ipcRenderer.invoke("benchmark:submit-report", report),
   failThumbnailBenchmark: (message) => ipcRenderer.invoke("benchmark:fatal", message),
   getRuntimeVersions: () => ipcRenderer.invoke("system:runtime-versions"),

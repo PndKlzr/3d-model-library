@@ -25,8 +25,9 @@ export type ModelLibraryApi = {
   getThumbnailBenchmark: () => Promise<{
     scenario: ThumbnailBenchmarkScenario;
     models: ModelFile[];
-    libraryScanReadyMs: number;
+    cachedIndexReadyMs: number;
   } | null>;
+  markThumbnailBenchmarkCachedGridVisible: () => Promise<void>;
   submitThumbnailBenchmark: (report: ThumbnailBenchmarkReport) => Promise<void>;
   failThumbnailBenchmark: (message: string) => Promise<void>;
   getRuntimeVersions: () => Promise<{

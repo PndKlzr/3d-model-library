@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
 import { DetailsPanel } from "./components/DetailsPanel";
@@ -78,7 +78,7 @@ type LocalActionLogEntry = LibraryActionLogEntry & {
 type BenchmarkConfiguration = {
   scenario: ThumbnailBenchmarkScenario;
   models: ModelFile[];
-  libraryScanReadyMs: number;
+  cachedIndexReadyMs: number;
 };
 
 function App() {
@@ -102,7 +102,27 @@ function App() {
 }
 
 function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfiguration }) {
+  const [cachedGridVisible, setCachedGridVisible] = useState(false);
+
+  useLayoutEffect(() => {
+    let active = true;
+    const frame = requestAnimationFrame(() => {
+      void window.modelLibrary.markThumbnailBenchmarkCachedGridVisible()
+        .then(() => {
+          if (active) setCachedGridVisible(true);
+        })
+        .catch((error) => {
+          void window.modelLibrary.failThumbnailBenchmark(readErrorMessage(error));
+        });
+    });
+    return () => {
+      active = false;
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
   useEffect(() => {
+    if (!cachedGridVisible) return;
     const longTaskObserver = observeThumbnailLongTasks(modelThumbnailService);
     let active = true;
     longTaskObserver.start();
@@ -114,7 +134,7 @@ function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfigu
         request: (model, priority) => modelThumbnailService.request(model, priority),
         diagnostics: () => modelThumbnailService.getDiagnostics(),
         resetDiagnostics: () => modelThumbnailService.resetDiagnostics(),
-        libraryScanReadyMs: configuration.libraryScanReadyMs,
+        libraryScanReadyMs: configuration.cachedIndexReadyMs,
         runtime
       }))
       .then((report) => active ? window.modelLibrary.submitThumbnailBenchmark(report) : undefined)
@@ -127,9 +147,15 @@ function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfigu
       active = false;
       longTaskObserver.stop();
     };
-  }, [configuration]);
+  }, [cachedGridVisible, configuration]);
 
-  return null;
+  return (
+    <div className="model-grid benchmark-cached-grid" aria-hidden="true">
+      {configuration.models.slice(0, 24).map((model) => (
+        <div className="model-card" key={model.id}>{model.name}</div>
+      ))}
+    </div>
+  );
 }
 
 function LibraryApp() {
