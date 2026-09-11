@@ -37,6 +37,27 @@ describe("product flow contract", () => {
     expect(activationSource).toContain("previousRendererState");
     expect(activationSource).toContain("restorePreviousLibrary");
     expect(activationSource).toContain("activationRequestRef.current");
+    const recoverySource = appSource.match(
+      /async function restorePreviousLibrary[\s\S]*?\n  }\n/
+    )?.[0];
+    expect(recoverySource).toContain("getCurrentLibrary");
+    expect(recoverySource).not.toContain("activateLibrary(");
+  });
+
+  it("serializes settings mutations and preserves pending values", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("createSettingsMutationQueue");
+    expect(appSource).toContain("settingsMutationQueueRef.current.enqueue");
+    expect(appSource).toContain("createSettingsPatch(settings, nextSettings)");
+  });
+
+  it("clears library-specific undo state during activation reset", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const resetSource = appSource.match(/function applyLibraryReset[\s\S]*?\n  }\n/)?.[0];
+
+    expect(resetSource).toContain("setActionLogEntries([])");
+    expect(resetSource).toContain("setUndoToast(null)");
   });
 
   it("keeps machine-wide preferences outside per-library storage", async () => {

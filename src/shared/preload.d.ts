@@ -46,6 +46,7 @@ export type ModelLibraryApi = {
     rootPath: string | null,
     monitoring: boolean
   ) => Promise<LibraryActivationResult | null>;
+  getCurrentLibrary: () => Promise<LibraryActivationResult | null>;
   scanLibrary: (session: LibrarySessionRef) => Promise<VersionedLibraryScanResult>;
   setLibraryMonitoring: (session: LibrarySessionRef, enabled: boolean) => Promise<void>;
   onLibraryChanged: (callback: (payload: VersionedLibraryWatchEvents) => void) => () => void;
@@ -90,7 +91,11 @@ export type ModelLibraryApi = {
   }>;
   readModelThumbnail: (absolutePath: string) => Promise<string | null>;
   readCachedThumbnail: (model: ThumbnailSignature) => Promise<string | null>;
-  writeCachedThumbnail: (model: ThumbnailSignature, dataUrl: string) => Promise<void>;
+  writeCachedThumbnail: (
+    model: ThumbnailSignature,
+    dataUrl: string,
+    sessionKey: string
+  ) => Promise<void>;
   saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;

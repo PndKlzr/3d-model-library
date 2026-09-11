@@ -13,6 +13,8 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("readCachedThumbnail");
     expect(preloadSource).toContain("writeCachedThumbnail");
     expect(preloadSource).toContain("activateLibrary");
+    expect(preloadSource).toContain("getCurrentLibrary");
+    expect(preloadSource).toContain('ipcRenderer.invoke("library:current")');
     expect(preloadSource).toContain('ipcRenderer.invoke("library:activate"');
     expect(preloadSource).toContain('ipcRenderer.invoke("library:scan", session)');
     expect(preloadSource).toContain("setLibraryMonitoring");

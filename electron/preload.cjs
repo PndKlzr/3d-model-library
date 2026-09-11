@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   chooseArchiveExtractor: () => ipcRenderer.invoke("settings:choose-archive-extractor"),
   activateLibrary: (rootPath, monitoring) =>
     ipcRenderer.invoke("library:activate", rootPath, monitoring),
+  getCurrentLibrary: () => ipcRenderer.invoke("library:current"),
   scanLibrary: (session) => ipcRenderer.invoke("library:scan", session),
   setLibraryMonitoring: (session, enabled) =>
     ipcRenderer.invoke("library:set-monitoring", session, enabled),
@@ -54,8 +55,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
   readCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-read", model),
-  writeCachedThumbnail: (model, dataUrl) =>
-    ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl),
+  writeCachedThumbnail: (model, dataUrl, sessionKey) =>
+    ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl, sessionKey),
   saveConvertedStl: (sourcePath, stlContent) =>
     ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),

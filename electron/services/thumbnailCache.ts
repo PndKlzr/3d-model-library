@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, rename, stat, unlink, utimes, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ThumbnailSignature } from "../../src/shared/types.js";
@@ -22,9 +22,18 @@ type ThumbnailCacheOptions = {
   maxAgeMs?: number;
 };
 
+export type ThumbnailCachePublication = {
+  key: string;
+  publish: (commit: () => Promise<void>) => Promise<boolean>;
+};
+
 export type ThumbnailCache = {
   read: (signature: ThumbnailSignature) => Promise<string | null>;
-  write: (signature: ThumbnailSignature, dataUrl: string) => Promise<void>;
+  write: (
+    signature: ThumbnailSignature,
+    dataUrl: string,
+    publication?: ThumbnailCachePublication
+  ) => Promise<void>;
   prune: () => Promise<void>;
 };
 
@@ -73,7 +82,7 @@ export function createThumbnailCache({
       return null;
     },
 
-    async write(signature, dataUrl) {
+    async write(signature, dataUrl, publication) {
       const parsed = parseDataUrl(dataUrl);
 
       if (!parsed) {
@@ -90,15 +99,21 @@ export function createThumbnailCache({
 
       await ensureDirectory();
       const key = createThumbnailCacheKey(signature, THUMBNAIL_RENDER_VERSION);
-      const pendingWrite = pendingWrites.get(key);
+      const pendingKey = publication ? `${key}\0${publication.key}` : key;
+      const pendingWrite = pendingWrites.get(pendingKey);
       if (pendingWrite) {
         return pendingWrite;
       }
 
-      const writePromise = writeCacheEntry(key, parsed.extension, parsed.bytes).finally(() => {
-        pendingWrites.delete(key);
+      const writePromise = writeCacheEntry(
+        key,
+        parsed.extension,
+        parsed.bytes,
+        publication
+      ).finally(() => {
+        pendingWrites.delete(pendingKey);
       });
-      pendingWrites.set(key, writePromise);
+      pendingWrites.set(pendingKey, writePromise);
       return writePromise;
     },
 
@@ -142,16 +157,24 @@ export function createThumbnailCache({
     }
   };
 
-  async function writeCacheEntry(key: string, extension: string, bytes: Buffer) {
+  async function writeCacheEntry(
+    key: string,
+    extension: string,
+    bytes: Buffer,
+    publication?: ThumbnailCachePublication
+  ) {
     const destinationPath = path.join(cacheDirectory, `${key}.${extension}`);
-    const temporaryPath = path.join(cacheDirectory, `${key}-${process.pid}-${Date.now()}.tmp`);
+    const temporaryPath = path.join(cacheDirectory, `${key}-${process.pid}-${randomUUID()}.tmp`);
     await writeFile(temporaryPath, bytes, { flag: "wx" });
 
     try {
-      await rename(temporaryPath, destinationPath);
-    } catch (error) {
+      if (publication) {
+        await publication.publish(() => rename(temporaryPath, destinationPath));
+      } else {
+        await rename(temporaryPath, destinationPath);
+      }
+    } finally {
       await unlink(temporaryPath).catch(() => undefined);
-      throw error;
     }
   }
 }

@@ -60,6 +60,41 @@ describe("thumbnailCache", () => {
     await expect(cache.read(signature)).resolves.toBe(dataUrl);
   });
 
+  it("withholds a stale session write without deleting the current session entry", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const signature = model();
+    const oldDataUrl = `data:image/webp;base64,${Buffer.from("RIFFold!WEBP").toString("base64")}`;
+    const newDataUrl = `data:image/webp;base64,${Buffer.from("RIFFnew!WEBP").toString("base64")}`;
+    const oldPublicationStarted = deferred<void>();
+    const oldPublicationReady = deferred<void>();
+    let currentSession = "session-a";
+
+    const oldWrite = cache.write(signature, oldDataUrl, {
+      key: "session-a",
+      async publish(commit) {
+        oldPublicationStarted.resolve();
+        await oldPublicationReady.promise;
+        if (currentSession !== "session-a") return false;
+        await commit();
+        return true;
+      }
+    });
+    await oldPublicationStarted.promise;
+    currentSession = "session-b";
+    await cache.write(signature, newDataUrl, {
+      key: "session-b",
+      async publish(commit) {
+        if (currentSession !== "session-b") return false;
+        await commit();
+        return true;
+      }
+    });
+    oldPublicationReady.resolve();
+    await oldWrite;
+
+    await expect(cache.read(signature)).resolves.toBe(newDataUrl);
+  });
+
   it("rejects unsupported or oversized data URLs", async () => {
     const cache = createThumbnailCache({ cacheDirectory, maxImageBytes: 3 });
 
@@ -93,4 +128,12 @@ function model(overrides: Partial<ThumbnailSignature> = {}): ThumbnailSignature 
     modifiedAt: "2026-09-09T00:00:00.000Z",
     ...overrides
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }

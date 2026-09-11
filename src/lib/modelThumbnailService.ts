@@ -15,7 +15,11 @@ export type ModelThumbnailServiceDependencies = {
   readCachedThumbnail: (model: ModelFile) => Promise<string | null>;
   readEmbeddedThumbnail: (absolutePath: string) => Promise<string | null>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
-  writeCachedThumbnail: (model: ModelFile, dataUrl: string) => Promise<void>;
+  writeCachedThumbnail: (
+    model: ModelFile,
+    dataUrl: string,
+    sessionKey: string
+  ) => Promise<void>;
   renderThumbnail: typeof renderThumbnail;
   yieldBeforeRender: () => Promise<void>;
 };
@@ -183,7 +187,7 @@ export function createModelThumbnailService(
       try {
         await runIoStage(entry, `write:${entry.key}`, async () => {
           if (!isEntryCurrent(entry)) return;
-          await dependencies.writeCachedThumbnail(entry.model, thumbnail!);
+          await dependencies.writeCachedThumbnail(entry.model, thumbnail!, entry.sessionKey);
         }, () => undefined, false);
       } catch {
         // The generated image remains usable even when its disk-cache write fails.
@@ -368,7 +372,8 @@ export const modelThumbnailService = createModelThumbnailService({
   readCachedThumbnail: (model) => window.modelLibrary.readCachedThumbnail(model),
   readEmbeddedThumbnail: (absolutePath) => window.modelLibrary.readModelThumbnail(absolutePath),
   readModelFile: (absolutePath) => window.modelLibrary.readModelFile(absolutePath),
-  writeCachedThumbnail: (model, dataUrl) => window.modelLibrary.writeCachedThumbnail(model, dataUrl),
+  writeCachedThumbnail: (model, dataUrl, sessionKey) =>
+    window.modelLibrary.writeCachedThumbnail(model, dataUrl, sessionKey),
   renderThumbnail,
   yieldBeforeRender: yieldBeforeThumbnailRender
 });

@@ -171,6 +171,8 @@ function registerIpcHandlers() {
     activeLibrarySession!.activate(rootPath, monitoring === true)
   );
 
+  ipcMain.handle("library:current", () => activeLibrarySession!.currentState());
+
   ipcMain.handle("library:scan", (_event, expected: LibrarySessionRef) =>
     activeLibrarySession!.scan(expected)
   );
@@ -354,7 +356,12 @@ function registerIpcHandlers() {
     return thumbnailCache.read(model);
   });
 
-  ipcMain.handle("thumbnail:cache-write", async (_event, model, dataUrl: string) => {
+  ipcMain.handle("thumbnail:cache-write", async (
+    _event,
+    model,
+    dataUrl: string,
+    sessionKey: string
+  ) => {
     assertThumbnailSignature(model);
     assertPathInsideLibrary(model.absolutePath);
 
@@ -362,7 +369,15 @@ function registerIpcHandlers() {
       throw new Error("Invalid thumbnail data");
     }
 
-    await thumbnailCache.write(model, dataUrl);
+    const expected = activeLibrarySession!.current();
+    if (!expected || sessionKey !== createThumbnailSessionKey(expected)) {
+      throw new Error("Stale thumbnail session");
+    }
+
+    await thumbnailCache.write(model, dataUrl, {
+      key: sessionKey,
+      publish: (commit) => activeLibrarySession!.publishIfCurrent(expected, commit)
+    });
   });
 
   ipcMain.handle("model:hashes", async (_event, models: ModelHashInput[]) => {
@@ -701,6 +716,10 @@ function requireLibraryPath(): string {
   }
 
   return currentSession.rootPath;
+}
+
+function createThumbnailSessionKey(session: LibrarySessionRef): string {
+  return `${session.libraryId}:${session.generation}:${session.rootPath}`;
 }
 
 function getArchiveToolOptions() {

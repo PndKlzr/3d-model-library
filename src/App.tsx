@@ -51,6 +51,10 @@ import {
 } from "./lib/thumbnailDiagnostics";
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
+import {
+  createSettingsMutationQueue,
+  type SettingsMutationQueue
+} from "./lib/settingsMutationQueue";
 import { convertThreeMfToStlInWorker } from "./lib/threeMfToStlWorker";
 import {
   parseModelViewMode,
@@ -243,6 +247,7 @@ function LibraryApp() {
   const confirmationResolver = useRef<((value: boolean) => void) | null>(null);
   const activeLibrarySessionRef = useRef<LibrarySessionRef | null>(null);
   const activationRequestRef = useRef(0);
+  const settingsMutationQueueRef = useRef<SettingsMutationQueue<AppSettings> | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const isFilteringStale = deferredSearchQuery !== searchQuery;
 
@@ -251,6 +256,10 @@ function LibraryApp() {
     window.modelLibrary.getSettings()
       .then(async (loadedSettings) => {
         if (!isMounted) return;
+        settingsMutationQueueRef.current = createSettingsMutationQueue(
+          loadedSettings,
+          persistSettings
+        );
         setSettings(loadedSettings);
         if (loadedSettings.libraryPath) {
           await activateLibrary(loadedSettings.libraryPath, loadedSettings.monitorLibrary);
@@ -519,23 +528,39 @@ function LibraryApp() {
   }
 
   async function saveSettings(nextSettings: AppSettings) {
-    const libraryChanged = settings?.libraryPath !== nextSettings.libraryPath;
+    if (!settings || !settingsMutationQueueRef.current) return;
+    const patch = createSettingsPatch(settings, nextSettings);
+    try {
+      const savedSettings = await settingsMutationQueueRef.current.enqueue((current) => ({
+        ...current,
+        ...patch
+      }));
+      setSettings(savedSettings);
+    } catch (error) {
+      setOperationMessage(readErrorMessage(error));
+    }
+  }
+
+  async function persistSettings(nextSettings: AppSettings, previousSettings: AppSettings) {
+    const libraryChanged = previousSettings.libraryPath !== nextSettings.libraryPath;
     if (libraryChanged && nextSettings.libraryPath) {
       const activation = await activateLibrary(
         nextSettings.libraryPath,
         nextSettings.monitorLibrary
       );
-      if (!activation) return;
+      if (!activation) return previousSettings;
     }
     const expectedSession = activeLibrarySessionRef.current;
     const savedSettings = await window.modelLibrary.saveSettings(nextSettings);
     if (expectedSession &&
-      !isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
-    setSettings(savedSettings);
+      !isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
+      return previousSettings;
+    }
     const currentSession = activeLibrarySessionRef.current;
     if (!libraryChanged && currentSession) {
       setMonitorStatus(nextSettings.monitorLibrary ? "active" : "disabled");
     }
+    return savedSettings;
   }
 
   function updateFileDragBehavior(fileDragBehavior: FileDragBehavior) {
@@ -799,7 +824,9 @@ function LibraryApp() {
       libraryMetadata,
       metadataStatus,
       libraryViewPreferences,
-      monitorStatus
+      monitorStatus,
+      actionLogEntries: [...actionLogEntries],
+      undoToast
     };
 
     activeLibrarySessionRef.current = null;
@@ -848,6 +875,8 @@ function LibraryApp() {
     setTagPickerDialog(null);
     setThumbnailRetryGenerations({});
     setModelHashes({});
+    setActionLogEntries([]);
+    setUndoToast(null);
     setLibraryViewPreferences(null);
     setLibraryMetadata({ models: {}, tagCatalog: [], slicerHistory: [] });
     setMetadataStatus({
@@ -877,36 +906,43 @@ function LibraryApp() {
       metadataStatus: LibraryMetadataStatus;
       libraryViewPreferences: LibraryViewPreferencesV1 | null;
       monitorStatus: typeof monitorStatus;
+      actionLogEntries: LocalActionLogEntry[];
+      undoToast: LocalActionLogEntry | null;
     },
     requestId: number
   ) {
-    if (!previous.session) return;
-
     try {
-      const restored = await window.modelLibrary.activateLibrary(
-        previous.session.rootPath,
-        previous.monitorStatus === "active"
-      );
+      const restored = await window.modelLibrary.getCurrentLibrary();
       if (activationRequestRef.current !== requestId || !restored) return;
 
       activeLibrarySessionRef.current = restored.session;
       modelThumbnailService.beginLibrarySession(createThumbnailSessionKey(restored.session));
-      setScanResult(previous.scanResult);
-      setSelectedModel(previous.selectedModel);
-      setSelectedModelIds(previous.selectedModelIds);
-      setLastSelectedModelId(previous.lastSelectedModelId);
-      setSelectedFolder(previous.selectedFolder);
-      setFolderHistory(previous.folderHistory);
-      draggedModelIdsRef.current = previous.draggedModelIds;
-      activeFileDragSessionRef.current = previous.activeFileDragSessionId;
-      setDraggedModelIds(previous.draggedModelIds);
-      setSearchQuery(previous.searchQuery);
-      setFolderContextMenu(previous.folderContextMenu);
-      setModelContextMenu(previous.modelContextMenu);
-      setLibraryViewPreferences(previous.libraryViewPreferences);
+      const isPriorRoot = previous.session && samePath(
+        previous.session.rootPath,
+        restored.session.rootPath
+      );
+      setScanResult(restored.cachedResult);
+      setSelectedModel(isPriorRoot ? previous.selectedModel : null);
+      setSelectedModelIds(isPriorRoot ? previous.selectedModelIds : new Set());
+      setLastSelectedModelId(isPriorRoot ? previous.lastSelectedModelId : null);
+      setSelectedFolder(isPriorRoot ? previous.selectedFolder : ALL_FOLDERS_ID);
+      setFolderHistory(
+        isPriorRoot ? previous.folderHistory : createFolderNavigationHistory()
+      );
+      draggedModelIdsRef.current = [];
+      activeFileDragSessionRef.current = null;
+      setDraggedModelIds([]);
+      setSearchQuery(isPriorRoot ? previous.searchQuery : "");
+      setFolderContextMenu(null);
+      setModelContextMenu(null);
+      setActionLogEntries(isPriorRoot ? previous.actionLogEntries : []);
+      setUndoToast(isPriorRoot ? previous.undoToast : null);
+      setLibraryViewPreferences(
+        loadLibraryViewPreferences(window.localStorage, restored.session.libraryId)
+      );
       setLibraryMetadata(restored.metadata);
       setMetadataStatus(restored.metadataStatus);
-      setMonitorStatus(previous.monitorStatus);
+      setMonitorStatus(isPriorRoot ? previous.monitorStatus : "disabled");
       void scanLibrarySession(restored.session);
     } catch (restoreError) {
       if (activationRequestRef.current === requestId) {
@@ -2082,6 +2118,31 @@ function createFileDragSessionId(): string {
 
 function createThumbnailSessionKey(session: LibrarySessionRef): string {
   return `${session.libraryId}:${session.generation}:${session.rootPath}`;
+}
+
+function createSettingsPatch(
+  current: AppSettings,
+  next: AppSettings
+): Partial<AppSettings> {
+  return {
+    ...(current.libraryPath !== next.libraryPath && { libraryPath: next.libraryPath }),
+    ...(current.includeSubfolders !== next.includeSubfolders && {
+      includeSubfolders: next.includeSubfolders
+    }),
+    ...(current.monitorLibrary !== next.monitorLibrary && {
+      monitorLibrary: next.monitorLibrary
+    }),
+    ...(current.fileDragBehavior !== next.fileDragBehavior && {
+      fileDragBehavior: next.fileDragBehavior
+    }),
+    ...(current.archiveExtractorPath !== next.archiveExtractorPath && {
+      archiveExtractorPath: next.archiveExtractorPath
+    }),
+    ...(current.defaultSlicerId !== next.defaultSlicerId && {
+      defaultSlicerId: next.defaultSlicerId
+    }),
+    ...(current.slicers !== next.slicers && { slicers: next.slicers })
+  };
 }
 
 function createRenameRestorePairs(nextPath: string, previousPath: string): FileRestorePair[] {

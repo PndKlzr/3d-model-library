@@ -14,6 +14,8 @@ import { createLibraryWatcher, type LibraryWatcherHandle } from "./libraryWatche
 
 export type ActiveLibrarySession = {
   activate(rootPath: string | null, monitoring: boolean): Promise<LibraryActivationResult | null>;
+  currentState(): Promise<LibraryActivationResult | null>;
+  publishIfCurrent(expected: LibrarySessionRef, publish: () => Promise<void>): Promise<boolean>;
   scan(expected: LibrarySessionRef): Promise<VersionedLibraryScanResult>;
   setMonitoring(expected: LibrarySessionRef, enabled: boolean): Promise<void>;
   current(): LibrarySessionRef | null;
@@ -196,6 +198,31 @@ export function createActiveLibrarySession({
 
           throw activationError;
         }
+      });
+    },
+
+    async currentState() {
+      const expected = active ? cloneSession(active) : null;
+      if (!expected) return null;
+
+      return enqueueCatalogMutation(async () => {
+        assertCurrent(expected);
+        const cachedResult = await indexStore.load(expected.rootPath, expected.libraryId);
+        assertCurrent(expected);
+        return structuredClone({
+          session: expected,
+          cachedResult,
+          metadata: metadataStore.getMetadata(),
+          metadataStatus: metadataStore.getStatus()
+        });
+      });
+    },
+
+    publishIfCurrent(expected, publish) {
+      return enqueueTransition(async () => {
+        if (!isCurrent(expected)) return false;
+        await publish();
+        return true;
       });
     },
 

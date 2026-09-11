@@ -274,6 +274,78 @@ describe("activeLibrarySession", () => {
     expect(harness.session.current()?.rootPath).toBe(harness.firstRoot);
   });
 
+  it("returns restored A state after failed B without starting another activation", async () => {
+    const harness = createHarness({ failWatcherRoot: "second" });
+    await harness.session.activate(harness.firstRoot, true);
+    await expect(harness.session.activate(harness.secondRoot, true)).rejects.toThrow(
+      "cannot create watcher"
+    );
+    const watcherCount = harness.watchers.length;
+    const closeCount = harness.watchers.reduce(
+      (total, watcher) => total + watcher.close.mock.calls.length,
+      0
+    );
+
+    const restored = await harness.session.currentState();
+
+    expect(restored).toMatchObject({
+      session: { generation: 3, rootPath: harness.firstRoot, libraryId: "id-first" },
+      cachedResult: { rootPath: harness.firstRoot },
+      metadata: { tagCatalog: ["first"] },
+      metadataStatus: readyStatus
+    });
+    expect(harness.watchers).toHaveLength(watcherCount);
+    expect(harness.watchers.reduce(
+      (total, watcher) => total + watcher.close.mock.calls.length,
+      0
+    )).toBe(closeCount);
+  });
+
+  it("keeps thumbnail publication atomic with a later activation", async () => {
+    const publicationStarted = createDeferred<void>();
+    const publicationReady = createDeferred<void>();
+    const harness = createHarness();
+    const first = await harness.session.activate(harness.firstRoot, false);
+
+    const publication = harness.session.publishIfCurrent(first!.session, async () => {
+      publicationStarted.resolve();
+      await publicationReady.promise;
+    });
+    await publicationStarted.promise;
+    const activation = harness.session.activate(harness.secondRoot, false);
+    await flushMicrotasks();
+
+    expect(harness.session.current()).toEqual(first!.session);
+    publicationReady.resolve();
+    await expect(publication).resolves.toBe(true);
+    await activation;
+    expect(harness.session.current()?.rootPath).toBe(harness.secondRoot);
+  });
+
+  it("withholds thumbnail publication queued behind session invalidation", async () => {
+    const canonicalizationStarted = createDeferred<void>();
+    const canonicalizationReady = createDeferred<void>();
+    const publish = vi.fn(async () => undefined);
+    let secondRoot = "";
+    const harness = createHarness({
+      beforeCanonicalize: async (rootPath) => {
+        if (rootPath !== secondRoot) return;
+        canonicalizationStarted.resolve();
+        await canonicalizationReady.promise;
+      }
+    });
+    secondRoot = harness.secondRoot;
+    const first = await harness.session.activate(harness.firstRoot, false);
+    const activation = harness.session.activate(harness.secondRoot, false);
+    await canonicalizationStarted.promise;
+    const publication = harness.session.publishIfCurrent(first!.session, publish);
+
+    canonicalizationReady.resolve();
+    await activation;
+    await expect(publication).resolves.toBe(false);
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it("leaves no active session when B and restored A watcher construction both fail", async () => {
     const harness = createHarness({
       failWatcher: (label, attempt) => label === "second" || (label === "first" && attempt === 2)
@@ -352,6 +424,7 @@ type HarnessOptions = {
   failIndexRoot?: string;
   failWatcherRoot?: string;
   failWatcher?: (label: string, attempt: number) => boolean;
+  beforeCanonicalize?: (rootPath: string) => Promise<void>;
   onRestoringMetadata?: () => Promise<void>;
   beforeSave?: (
     rootPath: string,
@@ -439,6 +512,7 @@ function createHarness(options: HarnessOptions = {}) {
   };
   const session = createActiveLibrarySession({
     canonicalizeRoot: async (rootPath) => {
+      await options.beforeCanonicalize?.(rootPath);
       if (options.failCanonicalRoot && rootPath.includes(options.failCanonicalRoot)) {
         throw new Error("cannot canonicalize");
       }
