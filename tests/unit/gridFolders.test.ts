@@ -161,6 +161,46 @@ describe("getGridFolderCards", () => {
       previewModels: []
     });
   });
+
+  it("keeps a parent visible when only a genuinely empty descendant remains", () => {
+    const files = [
+      model("hidden.obj", "parts/type-hidden"),
+      model("excluded.stl", "parts/excluded")
+    ];
+    const folders = buildFolderTree(files, ["parts/empty"]);
+    const options = {
+      visibleExtensions: new Set([".stl"] as const),
+      excludedFolders: ["parts/excluded"]
+    };
+
+    expect(getGridFolderCards(
+      folders,
+      files,
+      ALL_FOLDERS_ID,
+      false,
+      options
+    )).toEqual([{
+      id: "parts",
+      name: "parts",
+      modelCount: 0,
+      childCount: 1,
+      previewModels: []
+    }]);
+
+    expect(getGridFolderCards(
+      folders,
+      files,
+      "parts",
+      false,
+      options
+    )).toEqual([{
+      id: "parts/empty",
+      name: "empty",
+      modelCount: 0,
+      childCount: 0,
+      previewModels: []
+    }]);
+  });
 });
 
 function model(name: string, relativeFolder: string): ModelFile {

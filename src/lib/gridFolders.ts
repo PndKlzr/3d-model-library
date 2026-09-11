@@ -34,7 +34,7 @@ export function getGridFolderCards(
   );
 
   return children.flatMap((folder) => {
-    if (!shouldShowFolder(folder.id, models, filteredModels, options)) {
+    if (!shouldShowFolder(folder, models, filteredModels, options)) {
       return [];
     }
 
@@ -42,7 +42,7 @@ export function getGridFolderCards(
       id: folder.id,
       name: folder.name,
       childCount: folder.children.filter((child) =>
-        shouldShowFolder(child.id, models, filteredModels, options)
+        shouldShowFolder(child, models, filteredModels, options)
       ).length,
       modelCount: countModelsInsideFolder(filteredModels, folder.id),
       previewModels: getFolderPreviewModels(filteredModels, folder.id)
@@ -51,7 +51,7 @@ export function getGridFolderCards(
 }
 
 function shouldShowFolder(
-  folderId: string,
+  folder: FolderNode,
   models: ModelFile[],
   filteredModels: ModelFile[],
   options: {
@@ -61,13 +61,20 @@ function shouldShowFolder(
 ): boolean {
   if (
     options.visibleExtensions?.size === 0 ||
-    isFolderExcluded(folderId, options.excludedFolders ?? [])
+    isFolderExcluded(folder.id, options.excludedFolders ?? [])
   ) {
     return false;
   }
 
-  const totalModelCount = countModelsInsideFolder(models, folderId);
-  return totalModelCount === 0 || countModelsInsideFolder(filteredModels, folderId) > 0;
+  if (countModelsInsideFolder(filteredModels, folder.id) > 0) {
+    return true;
+  }
+
+  if (folder.children.some((child) => shouldShowFolder(child, models, filteredModels, options))) {
+    return true;
+  }
+
+  return countModelsInsideFolder(models, folder.id) === 0;
 }
 
 function findFolderNode(folders: FolderNode[], folderId: string): FolderNode | null {
