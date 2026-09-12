@@ -1,6 +1,14 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { getDefaultFileOpenAction } from "../../src/lib/fileOpenAction";
+import { ALL_FOLDERS_ID, filterModels } from "../../src/lib/folderFilters";
+import { getDragModelIds, getDragOutFilePaths } from "../../src/lib/dragFiles";
+import {
+  createLibrarySessionResetState,
+  isCurrentLibraryResult
+} from "../../src/lib/librarySessionState";
+import { SUPPORTED_FILE_EXTENSIONS } from "../../src/shared/fileCapabilities";
+import type { LibrarySessionRef, ModelFile } from "../../src/shared/types";
 
 describe("interaction flow contract", () => {
   it("routes default opening by shared file capability", () => {
@@ -231,6 +239,99 @@ describe("interaction flow contract", () => {
     );
   });
 
+  it("resets transient view state and thumbnail identity before publishing a cached catalog", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const activationSource = appSource.match(
+      /async function activateLibrary\([\s\S]*?\n  }\n/
+    )?.[0];
+    const reset = createLibrarySessionResetState();
+
+    expect(reset).toMatchObject({
+      scanResult: null,
+      selectedModel: null,
+      selectedFolder: ALL_FOLDERS_ID,
+      searchQuery: "",
+      folderContextMenu: null,
+      modelContextMenu: null,
+      previewModel: null
+    });
+    expect(reset.selectedModelIds.size).toBe(0);
+    expect(reset.folderHistory).toEqual({ back: [], forward: [] });
+    expect(activationSource).toBeTruthy();
+    expect(activationSource!.indexOf("applyLibraryReset()"))
+      .toBeLessThan(activationSource!.indexOf("await window.modelLibrary.activateLibrary"));
+    expect(activationSource!.indexOf("modelThumbnailService.beginLibrarySession"))
+      .toBeLessThan(activationSource!.indexOf("setScanResult(activation.cachedResult)"));
+  });
+
+  it("accepts asynchronous results only for the active session identity", () => {
+    const active: LibrarySessionRef = {
+      generation: 7,
+      libraryId: "library-a",
+      rootPath: "C:\\LibraryA"
+    };
+
+    expect(isCurrentLibraryResult(active, { ...active })).toBe(true);
+    expect(isCurrentLibraryResult(active, { ...active, generation: 6 })).toBe(false);
+    expect(isCurrentLibraryResult(active, { ...active, libraryId: "library-b" })).toBe(false);
+    expect(isCurrentLibraryResult(active, { ...active, rootPath: "C:\\LibraryB" })).toBe(false);
+    expect(isCurrentLibraryResult(null, active)).toBe(false);
+  });
+
+  it("composes catalog filters in memory without starting a filesystem scan", () => {
+    const scanLibrary = vi.fn();
+    const now = Date.parse("2026-09-12T12:00:00.000Z");
+    const target = contractModel("target.obj", ".obj", "keep", 200);
+    const files = [
+      target,
+      contractModel("wrong-type.stl", ".stl", "keep", 900),
+      contractModel("excluded.obj", ".obj", "excluded/nested", 800),
+      contractModel("plain.obj", ".obj", "keep", 100)
+    ];
+    const result = filterModels(files, ALL_FOLDERS_ID, true, "calibrated", {
+      visibleExtensions: new Set([".obj"]),
+      excludedFolders: ["excluded"],
+      sort: "size",
+      onlySelected: true,
+      selectedIds: new Set([target.id, files[2].id]),
+      onlyDuplicates: true,
+      duplicateIds: new Set([target.id, files[3].id]),
+      onlyFavorites: true,
+      selectedTags: ["fixture", "ready"],
+      tagMatchMode: "all",
+      usageFilter: "recent",
+      notesFilter: "with-notes",
+      now,
+      slicerHistory: [{
+        modelPath: target.absolutePath,
+        slicerId: "slicer-a",
+        openedAt: "2026-09-11T12:00:00.000Z"
+      }],
+      metadataByPath: {
+        [target.absolutePath]: {
+          favorite: true,
+          tags: ["fixture", "ready"],
+          notes: "calibrated"
+        }
+      }
+    });
+
+    expect(result).toEqual([target]);
+    expect(scanLibrary).not.toHaveBeenCalled();
+  });
+
+  it("keeps every supported format available to internal and external drag selection", () => {
+    const files = SUPPORTED_FILE_EXTENSIONS.map((extension, index) =>
+      contractModel(`file-${index}${extension}`, extension, "", index + 1)
+    );
+    const selectedIds = new Set(files.map((file) => file.id));
+
+    expect(getDragModelIds(files[0], files, selectedIds)).toEqual(files.map((file) => file.id));
+    expect(getDragOutFilePaths(files[0], files, selectedIds)).toEqual(
+      files.map((file) => file.absolutePath)
+    );
+  });
+
   it("does not create undo restore pairs for no-op renames", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
@@ -368,3 +469,24 @@ describe("interaction flow contract", () => {
     expect(mainSource).toContain("clipboard.writeText(value)");
   });
 });
+
+function contractModel(
+  name: string,
+  extension: ModelFile["extension"],
+  relativeFolder: string,
+  sizeBytes: number
+): ModelFile {
+  const absolutePath = `C:\\Library\\${relativeFolder ? `${relativeFolder}\\` : ""}${name}`;
+  return {
+    id: absolutePath,
+    name,
+    extension,
+    absolutePath,
+    relativeFolder,
+    sizeBytes,
+    modifiedAt: "2026-09-12T00:00:00.000Z",
+    dimensionsMm: null,
+    objectCount: null,
+    previewError: null
+  };
+}

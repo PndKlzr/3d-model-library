@@ -1,5 +1,8 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createModelThumbnailService } from "../../src/lib/modelThumbnailService";
+import { OBJ_PREVIEW_BUDGET } from "../../src/shared/objPreviewBudget";
+import type { ModelFile } from "../../src/shared/types";
 
 describe("performance contract", () => {
   it("documents bounded thumbnail memory and reproducible benchmark commands", async () => {
@@ -119,4 +122,59 @@ describe("performance contract", () => {
     expect(viewerSource).toContain("RIGHT: THREE.MOUSE.ROTATE");
     expect(viewerSource).toContain("enableZoom");
   });
+
+  it("routes images, bounded OBJ, and archives through separate thumbnail pipelines", async () => {
+    const readImageDataUrl = vi.fn(async () => "data:image/png;base64,AA==");
+    const readObjPreviewFile = vi.fn(async () => new ArrayBuffer(16));
+    const readModelFile = vi.fn(async () => new ArrayBuffer(16));
+    const renderThumbnail = vi.fn(() => "data:image/webp;base64,AA==");
+    const writeCachedThumbnail = vi.fn(async () => undefined);
+    const service = createModelThumbnailService({
+      readCachedThumbnail: async () => null,
+      readEmbeddedThumbnail: async () => null,
+      readImageDataUrl,
+      readObjPreviewFile,
+      readModelFile,
+      writeCachedThumbnail,
+      renderThumbnail,
+      yieldBeforeRender: async () => undefined
+    });
+    service.beginLibrarySession({
+      generation: 1,
+      libraryId: "pipeline-library",
+      rootPath: "C:\\Library"
+    });
+
+    const image = service.request(performanceModel("preview.png", ".png"), "visible");
+    const obj = service.request(performanceModel("shape.obj", ".obj"), "visible");
+    const archive = service.request(performanceModel("bundle.zip", ".zip"), "visible");
+
+    await expect(image.promise).resolves.toMatch(/^data:image\/png/);
+    await expect(obj.promise).resolves.toMatch(/^data:image\/webp/);
+    await expect(archive.promise).resolves.toBeNull();
+    await service.onIdle();
+
+    expect(OBJ_PREVIEW_BUDGET.maxSourceBytes).toBe(64 * 1024 * 1024);
+    expect(readImageDataUrl).toHaveBeenCalledOnce();
+    expect(readObjPreviewFile).toHaveBeenCalledOnce();
+    expect(readModelFile).not.toHaveBeenCalled();
+    expect(renderThumbnail).toHaveBeenCalledOnce();
+    expect(renderThumbnail).toHaveBeenCalledWith(".obj", expect.any(ArrayBuffer));
+    expect(writeCachedThumbnail).toHaveBeenCalledTimes(2);
+  });
 });
+
+function performanceModel(name: string, extension: ModelFile["extension"]): ModelFile {
+  return {
+    id: name,
+    name,
+    extension,
+    absolutePath: `C:\\Library\\${name}`,
+    relativeFolder: "",
+    sizeBytes: 16,
+    modifiedAt: "2026-09-12T00:00:00.000Z",
+    dimensionsMm: null,
+    objectCount: null,
+    previewError: null
+  };
+}

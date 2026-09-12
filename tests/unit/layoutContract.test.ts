@@ -95,4 +95,23 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.file-type-popover\s*\{[\s\S]*?max-height:\s*min\(520px, calc\(100vh - 32px\)\);/);
     expect(css).toMatch(/\.filter-bar\s*\{[\s\S]*?flex-wrap:\s*wrap;/);
   });
+
+  it("keeps search, filters, and active chips in one opaque sticky stacking context", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+    const stickyHeader = gridSource.match(
+      /<div className="library-sticky-header">[\s\S]*?\n      \{scanErrors/
+    )?.[0];
+
+    expect(stickyHeader).toBeTruthy();
+    expect(stickyHeader).toContain('className="search-box"');
+    expect(stickyHeader).toContain('className="filter-bar"');
+    expect(stickyHeader).toContain('className="exclusion-filter-row"');
+    expect(stickyHeader).toContain('className="tag-filter-row"');
+    expect(stickyHeader).toContain('selectedTags.has(tag) ? "active" : ""');
+    expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?z-index:\s*20;/);
+    expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?isolation:\s*isolate;/);
+    expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?background:\s*var\(--panel\);/);
+    expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?flex-wrap:\s*wrap;/);
+  });
 });
