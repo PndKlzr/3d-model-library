@@ -23,6 +23,7 @@ export function isCurrentLibraryResult(
 ): boolean {
   return Boolean(active) &&
     active!.generation === incoming.generation &&
+    active!.libraryId === incoming.libraryId &&
     normalizeRoot(active!.rootPath) === normalizeRoot(incoming.rootPath);
 }
 

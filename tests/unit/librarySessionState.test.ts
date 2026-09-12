@@ -26,6 +26,7 @@ describe("librarySessionState", () => {
       rootPath: path.join("c:", "models", ".")
     })).toBe(true);
     expect(isCurrentLibraryResult(active, { ...active, generation: 3 })).toBe(false);
+    expect(isCurrentLibraryResult(active, { ...active, libraryId: "other-id" })).toBe(false);
     expect(isCurrentLibraryResult(active, { ...active, rootPath: path.join("C:", "Other") })).toBe(false);
     expect(isCurrentLibraryResult(null, active)).toBe(false);
   });
