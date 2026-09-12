@@ -14,6 +14,13 @@ const NEUTRAL_MATERIAL = {
   metalness: 0.08
 } as const;
 
+type GeometryGroupRef = {
+  start: number;
+  count: number;
+  materialIndex: number;
+  key: number;
+};
+
 export function parseObjPreview(modelBytes: ArrayBuffer): THREE.Group {
   let object: THREE.Group | null = null;
 
@@ -75,6 +82,8 @@ function removeDegenerateTriangles(geometry: THREE.BufferGeometry) {
   const elementCount = index?.count ?? position.count;
   const retainedIndices: number[] = [];
   const retainedOffsets: number[] = [];
+  const originalGroups = geometry.groups.map((group, key) => ({ ...group, key }));
+  const retainedGroups: Array<{ key: number; materialIndex: number } | null> = [];
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
@@ -98,6 +107,7 @@ function removeDegenerateTriangles(geometry: THREE.BufferGeometry) {
     if (edgeA.cross(edgeB).lengthSq() <= 0) continue;
     if (index) retainedIndices.push(aIndex, bIndex, cIndex);
     else retainedOffsets.push(offset, offset + 1, offset + 2);
+    retainedGroups.push(findTriangleGroup(originalGroups, offset));
   }
 
   const retainedCount = index ? retainedIndices.length : retainedOffsets.length;
@@ -106,11 +116,45 @@ function removeDegenerateTriangles(geometry: THREE.BufferGeometry) {
 
   if (index) geometry.setIndex(retainedIndices);
   else compactNonIndexedAttributes(geometry, retainedOffsets, position.count);
-  geometry.clearGroups();
+  rebuildGeometryGroups(geometry, retainedGroups, originalGroups.length > 0);
   geometry.setDrawRange(0, retainedCount);
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return true;
+}
+
+function findTriangleGroup(
+  groups: GeometryGroupRef[],
+  triangleOffset: number
+) {
+  const group = groups.find(({ start, count }) =>
+    triangleOffset >= start && triangleOffset + 3 <= start + count
+  );
+  return group
+    ? { key: group.key, materialIndex: group.materialIndex }
+    : null;
+}
+
+function rebuildGeometryGroups(
+  geometry: THREE.BufferGeometry,
+  retainedGroups: Array<{ key: number; materialIndex: number } | null>,
+  hadGroups: boolean
+) {
+  geometry.clearGroups();
+  if (!hadGroups) return;
+
+  let rangeStart = 0;
+  let range = retainedGroups[0] ?? { key: -1, materialIndex: 0 };
+  for (let triangle = 1; triangle <= retainedGroups.length; triangle += 1) {
+    const next = triangle < retainedGroups.length
+      ? retainedGroups[triangle] ?? { key: -1, materialIndex: 0 }
+      : null;
+    if (next && next.key === range.key && next.materialIndex === range.materialIndex) continue;
+
+    geometry.addGroup(rangeStart * 3, (triangle - rangeStart) * 3, range.materialIndex);
+    rangeStart = triangle;
+    if (next) range = next;
+  }
 }
 
 function compactNonIndexedAttributes(

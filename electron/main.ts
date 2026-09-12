@@ -44,7 +44,6 @@ import {
 } from "./services/fileOrganizer.js";
 import { scanLibrary } from "./services/libraryScanner.js";
 import {
-  createInMemoryLibraryIndexStore,
   createLibraryIndexStore,
   type LibraryIndexStore
 } from "./services/libraryIndexStore.js";
@@ -69,12 +68,19 @@ import {
   readLibraryImageDataUrl
 } from "./services/libraryImage.js";
 import { readLibraryObjPreview } from "./services/libraryObj.js";
+import {
+  createBenchmarkLibraryContext,
+  type BenchmarkLibraryContext
+} from "./services/benchmarkLibraryContext.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const isDev = !app.isPackaged;
 const benchmarkEnvironment = readBenchmarkEnvironment();
+const benchmarkLibraryContext = benchmarkEnvironment
+  ? createBenchmarkLibraryContext(benchmarkEnvironment.root)
+  : null;
 const benchmarkFailureProbe = process.env.MODEL_LIBRARY_BENCHMARK_FAILURE_PROBE;
 
 if (benchmarkEnvironment) {
@@ -515,14 +521,18 @@ function registerIpcHandlers() {
   });
 }
 
-function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
+function registerBenchmarkIpcHandlers(
+  environment: BenchmarkEnvironment,
+  context: BenchmarkLibraryContext
+) {
   ipcMain.handle("system:runtime-versions", () => getRuntimeVersions());
   ipcMain.handle("benchmark:get-config", () => {
     startBenchmarkReconciliation(environment);
     return {
       scenario: environment.scenario,
       models: benchmarkScanResult?.models ?? [],
-      cachedIndexReadyMs: benchmarkCachedIndexReadyMs
+      cachedIndexReadyMs: benchmarkCachedIndexReadyMs,
+      session: context.session
     };
   });
   ipcMain.handle("benchmark:cached-grid-visible", () => {
@@ -548,7 +558,7 @@ function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
     _event,
     session: LibrarySessionRef,
     absolutePath: string
-  ) => readLibraryObjPreview(session, absolutePath, createLibraryObjAccess()));
+  ) => readLibraryObjPreview(session, absolutePath, context.objAccess));
   ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
     assertThumbnailSignature(model);
     assertPathInsideLibrary(model.absolutePath);
@@ -587,7 +597,11 @@ function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
 function startBenchmarkReconciliation(environment: BenchmarkEnvironment) {
   if (benchmarkReconciliationPromise) return benchmarkReconciliationPromise;
   benchmarkReconciliationPromise = scanLibrary(environment.root).then(async (result) => {
-    await libraryIndexStore.save(environment.root, "benchmark-library", result);
+    await libraryIndexStore.save(
+      environment.root,
+      benchmarkLibraryContext!.session.libraryId,
+      result
+    );
     benchmarkScanResult = result;
     benchmarkLibraryReconciliationSettledMs = performance.now() - benchmarkStartupStartedAt;
   });
@@ -886,23 +900,28 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   if (benchmarkEnvironment) {
+    const context = benchmarkLibraryContext!;
     thumbnailCache = createThumbnailCache({
       cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache"),
       maxImageBytes: MAX_DIRECT_IMAGE_BYTES
     });
-    libraryIndexStore = createInMemoryLibraryIndexStore();
+    libraryIndexStore = context.indexStore;
     const seededIndex = await scanLibrary(benchmarkEnvironment.root);
-    await libraryIndexStore.save(benchmarkEnvironment.root, "benchmark-library", seededIndex);
+    await libraryIndexStore.save(
+      benchmarkEnvironment.root,
+      context.session.libraryId,
+      seededIndex
+    );
 
     benchmarkStartupStartedAt = performance.now();
     benchmarkScanResult = await libraryIndexStore.load(
       benchmarkEnvironment.root,
-      "benchmark-library"
+      context.session.libraryId
     );
     if (!benchmarkScanResult) throw new Error("Benchmark cached index was not restored");
     benchmarkCachedIndexReadyMs = performance.now() - benchmarkStartupStartedAt;
 
-    registerBenchmarkIpcHandlers(benchmarkEnvironment);
+    registerBenchmarkIpcHandlers(benchmarkEnvironment, context);
     await createWindow();
     return;
   }

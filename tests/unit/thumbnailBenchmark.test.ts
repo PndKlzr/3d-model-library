@@ -232,6 +232,27 @@ describe("thumbnail benchmark runner", () => {
     expect(report.timingsMs).not.toHaveProperty("fullReconciliation");
   });
 
+  it("includes OBJ models in the measured thumbnail pass", async () => {
+    const obj = model({
+      id: "obj-model",
+      name: "part.obj",
+      extension: ".obj",
+      absolutePath: "C:\\Synthetic\\part.obj"
+    });
+    const request = vi.fn(() => resolvedRequest());
+
+    const report = await runThumbnailBenchmark({
+      scenario: "cold",
+      models: [obj],
+      request,
+      now: () => 0,
+      diagnostics: diagnosticsSnapshot
+    });
+
+    expect(request).toHaveBeenCalledWith(obj, "selected");
+    expect(report.modelCount).toBe(1);
+  });
+
   it("populates the isolated cache before measuring the warm pass", async () => {
     const request = vi.fn(() => resolvedRequest());
     const resetDiagnostics = vi.fn();

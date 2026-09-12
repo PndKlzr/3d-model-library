@@ -70,7 +70,9 @@ export async function runThumbnailBenchmark(
 ): Promise<ThumbnailBenchmarkReport> {
   const now = options.now ?? (() => performance.now());
   const supportedModels = options.models.filter(
-    (model) => model.extension === ".stl" || model.extension === ".3mf"
+    (model) => model.extension === ".stl" ||
+      model.extension === ".3mf" ||
+      model.extension === ".obj"
   );
 
   if (options.scenario === "warm") {

@@ -103,6 +103,7 @@ type BenchmarkConfiguration = {
   scenario: ThumbnailBenchmarkScenario;
   models: ModelFile[];
   cachedIndexReadyMs: number;
+  session: LibrarySessionRef;
 };
 
 function App() {
@@ -127,6 +128,10 @@ function App() {
 
 function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfiguration }) {
   const [cachedGridVisible, setCachedGridVisible] = useState(false);
+
+  useLayoutEffect(() => {
+    modelThumbnailService.beginLibrarySession(configuration.session);
+  }, [configuration.session]);
 
   useLayoutEffect(() => {
     let active = true;

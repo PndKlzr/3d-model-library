@@ -29,6 +29,7 @@ export type ModelLibraryApi = {
     scenario: ThumbnailBenchmarkScenario;
     models: ModelFile[];
     cachedIndexReadyMs: number;
+    session: LibrarySessionRef;
   } | null>;
   markThumbnailBenchmarkCachedGridVisible: () => Promise<void>;
   submitThumbnailBenchmark: (report: ThumbnailBenchmarkReport) => Promise<void>;

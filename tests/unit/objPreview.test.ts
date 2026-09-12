@@ -204,6 +204,56 @@ describe("parseObjPreview", () => {
     loaderParse.mockRestore();
   });
 
+  it("rebuilds indexed material groups around degenerates at the beginning, middle, and end", () => {
+    const geometry = groupedTriangleGeometry(true);
+    const parsed = new THREE.Group();
+    const mesh = new THREE.Mesh(geometry, [
+      new THREE.MeshBasicMaterial(),
+      new THREE.MeshBasicMaterial(),
+      new THREE.MeshBasicMaterial()
+    ]);
+    const externalGroup = new THREE.Group();
+    externalGroup.name = "external assembly";
+    externalGroup.add(mesh);
+    parsed.add(externalGroup);
+    const loaderParse = vi.spyOn(OBJLoader.prototype, "parse").mockReturnValueOnce(parsed);
+
+    const object = parseObjPreview(objBytes(["f 1 2 3"]));
+    const [result] = collectMeshes(object);
+
+    expect(result.geometry.getIndex()?.count).toBe(9);
+    expect(triangleAreas(result.geometry)).toEqual([0.5, 0.5, 0.5]);
+    expect(result.geometry.groups).toEqual([
+      { start: 0, count: 6, materialIndex: 1 },
+      { start: 6, count: 3, materialIndex: 2 }
+    ]);
+    expect(result.parent?.name).toBe("external assembly");
+    loaderParse.mockRestore();
+  });
+
+  it("rebuilds non-indexed material groups around degenerates at the beginning, middle, and end", () => {
+    const geometry = groupedTriangleGeometry(false);
+    const parsed = new THREE.Group();
+    parsed.add(new THREE.Mesh(geometry, [
+      new THREE.MeshBasicMaterial(),
+      new THREE.MeshBasicMaterial(),
+      new THREE.MeshBasicMaterial()
+    ]));
+    const loaderParse = vi.spyOn(OBJLoader.prototype, "parse").mockReturnValueOnce(parsed);
+
+    const object = parseObjPreview(objBytes(["f 1 2 3"]));
+    const [result] = collectMeshes(object);
+
+    expect(result.geometry.getIndex()).toBeNull();
+    expect(result.geometry.getAttribute("position").count).toBe(9);
+    expect(triangleAreas(result.geometry)).toEqual([0.5, 0.5, 0.5]);
+    expect(result.geometry.groups).toEqual([
+      { start: 0, count: 6, materialIndex: 1 },
+      { start: 6, count: 3, materialIndex: 2 }
+    ]);
+    loaderParse.mockRestore();
+  });
+
   it("rejects source bytes above the centralized budget before decoding", () => {
     expect(OBJ_PREVIEW_BUDGET.maxSourceBytes).toBe(64 * 1024 * 1024);
     expect(() => parseObjPreview(
@@ -252,6 +302,36 @@ function mixedTriangleGeometry(indexed: boolean) {
   geometry.setAttribute("normal", new THREE.Float32BufferAttribute(new Array(vertexCount * 3).fill(1), 3));
   geometry.setAttribute("uv", new THREE.Float32BufferAttribute(new Array(vertexCount * 2).fill(0.5), 2));
   if (indexed) geometry.setIndex([0, 1, 2, 3, 3, 3]);
+  return geometry;
+}
+
+function groupedTriangleGeometry(indexed: boolean) {
+  const triangles = [
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 1, 0, 0, 0, 1, 0],
+    [2, 2, 2, 2, 2, 2, 2, 2, 2],
+    [2, 0, 0, 3, 0, 0, 2, 1, 0],
+    [4, 0, 0, 5, 0, 0, 4, 1, 0],
+    [6, 6, 6, 6, 6, 6, 6, 6, 6]
+  ];
+  const geometry = new THREE.BufferGeometry();
+
+  if (indexed) {
+    geometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(triangles.flat(), 3)
+    );
+    geometry.setIndex(Array.from({ length: triangles.length * 3 }, (_, index) => index));
+  } else {
+    geometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(triangles.flat(), 3)
+    );
+  }
+
+  geometry.addGroup(0, 3, 0);
+  geometry.addGroup(3, 9, 1);
+  geometry.addGroup(12, 6, 2);
   return geometry;
 }
 
