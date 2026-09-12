@@ -11,6 +11,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { TagSelector } from "./components/TagSelector";
 import { TextInputDialog, type TextInputDialogOptions } from "./components/TextInputDialog";
 import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
+import { runAfterCommittedUpdate } from "./lib/committedExternalAction";
 import { getContextMenuPosition } from "./lib/contextMenuPosition";
 import { buildFolderTree, type FolderNode } from "./lib/folderTree";
 import {
@@ -1148,16 +1149,19 @@ function LibraryApp() {
   }
 
   async function showFolderInExplorer(folderId: string) {
-    setFolderContextMenu(null);
     const session = activeLibrarySessionRef.current;
     if (!session) {
+      flushSync(() => setFolderContextMenu(null));
       setOperationMessage("A biblioteca não está ativa.");
       return;
     }
 
     const relativeFolder = folderId === ALL_FOLDERS_ID ? "" : folderId;
     try {
-      await window.modelLibrary.showLibraryFolder(session, relativeFolder);
+      await runAfterCommittedUpdate(
+        () => setFolderContextMenu(null),
+        () => window.modelLibrary.showLibraryFolder(session, relativeFolder)
+      );
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
         setOperationMessage(relativeFolder ? "Pasta aberta no Explorer." : "Biblioteca aberta no Explorer.");
       }
