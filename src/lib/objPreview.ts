@@ -60,7 +60,7 @@ function collectFaceMeshes(object: THREE.Group): THREE.Mesh[] {
       invalidGeometry = true;
       return;
     }
-    if (hasNonDegenerateTriangle(child.geometry)) meshes.push(child);
+    if (removeDegenerateTriangles(child.geometry)) meshes.push(child);
     else discarded.push(child);
   });
 
@@ -69,10 +69,12 @@ function collectFaceMeshes(object: THREE.Group): THREE.Mesh[] {
   return meshes;
 }
 
-function hasNonDegenerateTriangle(geometry: THREE.BufferGeometry) {
+function removeDegenerateTriangles(geometry: THREE.BufferGeometry) {
   const position = geometry.getAttribute("position");
   const index = geometry.getIndex();
   const elementCount = index?.count ?? position.count;
+  const retainedIndices: number[] = [];
+  const retainedOffsets: number[] = [];
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
@@ -83,14 +85,59 @@ function hasNonDegenerateTriangle(geometry: THREE.BufferGeometry) {
     const aIndex = index ? index.getX(offset) : offset;
     const bIndex = index ? index.getX(offset + 1) : offset + 1;
     const cIndex = index ? index.getX(offset + 2) : offset + 2;
+    if (!isValidVertexIndex(aIndex, position.count) ||
+        !isValidVertexIndex(bIndex, position.count) ||
+        !isValidVertexIndex(cIndex, position.count)) {
+      continue;
+    }
     a.fromBufferAttribute(position, aIndex);
     b.fromBufferAttribute(position, bIndex);
     c.fromBufferAttribute(position, cIndex);
     edgeA.subVectors(b, a);
     edgeB.subVectors(c, a);
-    if (edgeA.cross(edgeB).lengthSq() > 0) return true;
+    if (edgeA.cross(edgeB).lengthSq() <= 0) continue;
+    if (index) retainedIndices.push(aIndex, bIndex, cIndex);
+    else retainedOffsets.push(offset, offset + 1, offset + 2);
   }
-  return false;
+
+  const retainedCount = index ? retainedIndices.length : retainedOffsets.length;
+  if (retainedCount === 0) return false;
+  if (retainedCount === elementCount) return true;
+
+  if (index) geometry.setIndex(retainedIndices);
+  else compactNonIndexedAttributes(geometry, retainedOffsets, position.count);
+  geometry.clearGroups();
+  geometry.setDrawRange(0, retainedCount);
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return true;
+}
+
+function compactNonIndexedAttributes(
+  geometry: THREE.BufferGeometry,
+  retainedOffsets: number[],
+  originalPositionCount: number
+) {
+  for (const [name, attribute] of Object.entries(geometry.attributes)) {
+    if (attribute.count !== originalPositionCount) {
+      geometry.deleteAttribute(name);
+      continue;
+    }
+
+    const values = new Float32Array(retainedOffsets.length * attribute.itemSize);
+    let target = 0;
+    for (const sourceIndex of retainedOffsets) {
+      for (let component = 0; component < attribute.itemSize; component += 1) {
+        values[target++] = attribute.getComponent(sourceIndex, component);
+      }
+    }
+    geometry.setAttribute(name, new THREE.BufferAttribute(values, attribute.itemSize));
+  }
+  geometry.setIndex(null);
+}
+
+function isValidVertexIndex(value: number, vertexCount: number) {
+  return Number.isInteger(value) && value >= 0 && value < vertexCount;
 }
 
 function disposeDiscardedNodes(nodes: THREE.Object3D[], retainedRoot: THREE.Object3D) {

@@ -9,7 +9,6 @@ import { yieldBeforeThumbnailRender } from "./thumbnailFrameGate";
 import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
 import type { LibrarySessionRef, ModelFile } from "../shared/types";
 import { isArchive, isDirectImage } from "../shared/fileCapabilities";
-import { isObjSourceSizeWithinBudget } from "../shared/objPreviewBudget";
 
 export type { ThumbnailPriority } from "./thumbnailScheduler";
 
@@ -17,6 +16,7 @@ export type ModelThumbnailServiceDependencies = {
   readCachedThumbnail: (model: ModelFile) => Promise<string | null>;
   readEmbeddedThumbnail: (absolutePath: string) => Promise<string | null>;
   readImageDataUrl: (session: LibrarySessionRef, absolutePath: string) => Promise<string>;
+  readObjPreviewFile: (session: LibrarySessionRef, absolutePath: string) => Promise<ArrayBuffer>;
   readModelFile: (absolutePath: string) => Promise<ArrayBuffer>;
   writeCachedThumbnail: (
     model: ModelFile,
@@ -114,9 +114,6 @@ export function createModelThumbnailService(
 
   function request(model: ModelFile, priority: ThumbnailPriority): ModelThumbnailRequest {
     if (isArchive(model.extension)) return resolvedRequest();
-    if (model.extension === ".obj" && !isObjSourceSizeWithinBudget(model.sizeBytes)) {
-      return resolvedRequest();
-    }
 
     const key = `${currentSessionKey}:${createIdentity(model)}`;
     if (failedSignatures.has(key)) return resolvedRequest();
@@ -255,7 +252,9 @@ export function createModelThumbnailService(
         if (!isEntryCurrent(entry)) return undefined;
         await dependencies.yieldBeforeRender();
         if (!isEntryCurrent(entry)) return undefined;
-        const modelBytes = await dependencies.readModelFile(entry.model.absolutePath);
+        const modelBytes = entry.model.extension === ".obj"
+          ? await dependencies.readObjPreviewFile(entry.session, entry.model.absolutePath)
+          : await dependencies.readModelFile(entry.model.absolutePath);
         if (!isEntryCurrent(entry)) return undefined;
         const thumbnail = dependencies.renderThumbnail(entry.model.extension, modelBytes);
         return isEntryCurrent(entry) ? thumbnail : undefined;
@@ -391,6 +390,8 @@ export const modelThumbnailService = createModelThumbnailService({
   readEmbeddedThumbnail: (absolutePath) => window.modelLibrary.readModelThumbnail(absolutePath),
   readImageDataUrl: (session, absolutePath) =>
     window.modelLibrary.readImageDataUrl(session, absolutePath),
+  readObjPreviewFile: (session, absolutePath) =>
+    window.modelLibrary.readObjPreviewFile(session, absolutePath),
   readModelFile: (absolutePath) => window.modelLibrary.readModelFile(absolutePath),
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     window.modelLibrary.writeCachedThumbnail(model, dataUrl, sessionKey),

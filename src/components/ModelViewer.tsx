@@ -8,10 +8,6 @@ import { parseThreeMfPreview } from "../lib/threeMfPreview";
 import { parseObjPreview } from "../lib/objPreview";
 import { orientModelForBed } from "../lib/modelOrientation";
 import type { ModelFile } from "../shared/types";
-import {
-  isObjSourceSizeWithinBudget,
-  OBJ_PREVIEW_LIMIT_ERROR
-} from "../shared/objPreviewBudget";
 import { disposeObjectResources } from "../lib/threeResourceDisposal";
 
 type ModelViewerProps = {
@@ -29,15 +25,16 @@ export function ModelViewer({ model }: ModelViewerProps) {
     setModelBytes(null);
     setLoadError(null);
 
-    if (model.extension === ".obj" && !isObjSourceSizeWithinBudget(model.sizeBytes)) {
-      setLoadError(OBJ_PREVIEW_LIMIT_ERROR);
-      return () => {
-        isMounted = false;
-      };
-    }
+    const readModel = async () => {
+      if (model.extension !== ".obj") {
+        return window.modelLibrary.readModelFile(model.absolutePath);
+      }
+      const state = await window.modelLibrary.getCurrentLibrary();
+      if (!state.session) throw new Error("A sessão da biblioteca não está ativa.");
+      return window.modelLibrary.readObjPreviewFile(state.session, model.absolutePath);
+    };
 
-    window.modelLibrary
-      .readModelFile(model.absolutePath)
+    readModel()
       .then((bytes) => {
         if (isMounted) {
           setModelBytes(bytes);
@@ -52,7 +49,7 @@ export function ModelViewer({ model }: ModelViewerProps) {
     return () => {
       isMounted = false;
     };
-  }, [model.absolutePath, model.extension, model.sizeBytes]);
+  }, [model.absolutePath, model.extension]);
 
   useEffect(() => {
     setParsedModel(null);

@@ -29,4 +29,10 @@ describe("OBJ preview complexity budget", () => {
 
     expect(() => assertObjTextWithinBudget(source)).not.toThrow();
   });
+
+  it("does not count an empty logical line after a final newline", () => {
+    const source = "#\n".repeat(OBJ_PREVIEW_BUDGET.maxLines);
+
+    expect(() => assertObjTextWithinBudget(source)).not.toThrow();
+  });
 });

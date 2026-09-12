@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
   readImageDataUrl: (session, absolutePath) =>
     ipcRenderer.invoke("image:read-data-url", session, absolutePath),
+  readObjPreviewFile: (session, absolutePath) =>
+    ipcRenderer.invoke("obj:read-preview-file", session, absolutePath),
   readCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-read", model),
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl, sessionKey),

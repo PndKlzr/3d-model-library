@@ -68,6 +68,7 @@ import {
   openLibraryImage,
   readLibraryImageDataUrl
 } from "./services/libraryImage.js";
+import { readLibraryObjPreview } from "./services/libraryObj.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -363,6 +364,12 @@ function registerIpcHandlers() {
     readLibraryImageDataUrl(session, absolutePath, createLibraryImageAccess())
   );
 
+  ipcMain.handle("obj:read-preview-file", (
+    _event,
+    session: LibrarySessionRef,
+    absolutePath: string
+  ) => readLibraryObjPreview(session, absolutePath, createLibraryObjAccess()));
+
   ipcMain.handle("system:open-library-file", (
     _event,
     session: LibrarySessionRef,
@@ -537,6 +544,11 @@ function registerBenchmarkIpcHandlers(environment: BenchmarkEnvironment) {
   ) =>
     readLibraryImageDataUrl(session, absolutePath, createLibraryImageAccess())
   );
+  ipcMain.handle("obj:read-preview-file", (
+    _event,
+    session: LibrarySessionRef,
+    absolutePath: string
+  ) => readLibraryObjPreview(session, absolutePath, createLibraryObjAccess()));
   ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
     assertThumbnailSignature(model);
     assertPathInsideLibrary(model.absolutePath);
@@ -752,6 +764,12 @@ function createLibraryImageAccess() {
     decodeImage: (bytes: Uint8Array) =>
       !nativeImage.createFromBuffer(Buffer.from(bytes)).isEmpty(),
     openPath: (targetPath: string) => shell.openPath(targetPath)
+  };
+}
+
+function createLibraryObjAccess() {
+  return {
+    getCurrentSession: () => activeLibrarySession?.current() ?? null
   };
 }
 

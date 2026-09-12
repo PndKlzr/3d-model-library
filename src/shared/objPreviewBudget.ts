@@ -35,7 +35,7 @@ export function assertObjTextWithinBudget(source: string) {
   let faceReferenceCount = 0;
   let lineStart = 0;
 
-  while (lineStart <= source.length) {
+  while (lineStart < source.length || (source.length === 0 && lineStart === 0)) {
     lineCount += 1;
     assertCount(lineCount, OBJ_PREVIEW_BUDGET.maxLines);
 

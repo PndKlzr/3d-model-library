@@ -170,6 +170,40 @@ describe("parseObjPreview", () => {
     expect(collectMeshes(object).map((mesh) => mesh.name)).toEqual(["tiny"]);
   });
 
+  it("removes only the degenerate triangle from non-indexed geometry", () => {
+    const geometry = mixedTriangleGeometry(false);
+    const parsed = new THREE.Group();
+    parsed.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+    const loaderParse = vi.spyOn(OBJLoader.prototype, "parse").mockReturnValueOnce(parsed);
+
+    const object = parseObjPreview(objBytes(["f 1 2 3"]));
+    const [mesh] = collectMeshes(object);
+
+    expect(mesh.geometry.getIndex()).toBeNull();
+    expect(mesh.geometry.getAttribute("position").count).toBe(3);
+    expect(mesh.geometry.getAttribute("normal").count).toBe(3);
+    expect(mesh.geometry.getAttribute("uv").count).toBe(3);
+    expect(triangleAreas(mesh.geometry)).toEqual([0.5]);
+    loaderParse.mockRestore();
+  });
+
+  it("removes only the degenerate triangle from indexed geometry", () => {
+    const geometry = mixedTriangleGeometry(true);
+    const parsed = new THREE.Group();
+    parsed.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+    const loaderParse = vi.spyOn(OBJLoader.prototype, "parse").mockReturnValueOnce(parsed);
+
+    const object = parseObjPreview(objBytes(["f 1 2 3"]));
+    const [mesh] = collectMeshes(object);
+
+    expect(mesh.geometry.getIndex()?.count).toBe(3);
+    expect(mesh.geometry.getAttribute("position").count).toBe(4);
+    expect(mesh.geometry.getAttribute("normal").count).toBe(4);
+    expect(mesh.geometry.getAttribute("uv").count).toBe(4);
+    expect(triangleAreas(mesh.geometry)).toEqual([0.5]);
+    loaderParse.mockRestore();
+  });
+
   it("rejects source bytes above the centralized budget before decoding", () => {
     expect(OBJ_PREVIEW_BUDGET.maxSourceBytes).toBe(64 * 1024 * 1024);
     expect(() => parseObjPreview(
@@ -206,4 +240,35 @@ function collectMeshes(object: THREE.Object3D) {
     if (child instanceof THREE.Mesh) meshes.push(child);
   });
   return meshes;
+}
+
+function mixedTriangleGeometry(indexed: boolean) {
+  const positions = indexed
+    ? [0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 2, 2]
+    : [0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2];
+  const vertexCount = positions.length / 3;
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setAttribute("normal", new THREE.Float32BufferAttribute(new Array(vertexCount * 3).fill(1), 3));
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(new Array(vertexCount * 2).fill(0.5), 2));
+  if (indexed) geometry.setIndex([0, 1, 2, 3, 3, 3]);
+  return geometry;
+}
+
+function triangleAreas(geometry: THREE.BufferGeometry) {
+  const position = geometry.getAttribute("position");
+  const index = geometry.getIndex();
+  const count = index?.count ?? position.count;
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const cross = new THREE.Vector3();
+  const areas: number[] = [];
+  for (let offset = 0; offset + 2 < count; offset += 3) {
+    a.fromBufferAttribute(position, index ? index.getX(offset) : offset);
+    b.fromBufferAttribute(position, index ? index.getX(offset + 1) : offset + 1);
+    c.fromBufferAttribute(position, index ? index.getX(offset + 2) : offset + 2);
+    areas.push(cross.crossVectors(b.sub(a), c.sub(a)).length() / 2);
+  }
+  return areas;
 }

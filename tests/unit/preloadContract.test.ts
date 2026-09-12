@@ -13,6 +13,8 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("readImageDataUrl");
     expect(preloadSource).toContain("readImageDataUrl: (session, absolutePath)");
     expect(preloadSource).toContain('ipcRenderer.invoke("image:read-data-url"');
+    expect(preloadSource).toContain("readObjPreviewFile: (session, absolutePath)");
+    expect(preloadSource).toContain('ipcRenderer.invoke("obj:read-preview-file"');
     expect(preloadSource).toContain("openLibraryFile");
     expect(preloadSource).toContain("openLibraryFile: (session, absolutePath)");
     expect(preloadSource).toContain('ipcRenderer.invoke("system:open-library-file"');
@@ -58,6 +60,7 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain('ipcRenderer.invoke("system:runtime-versions")');
     expect(mainSource).toContain('ipcMain.handle("system:runtime-versions"');
     expect(mainSource).toContain('ipcMain.handle("image:read-data-url"');
+    expect(mainSource).toContain('ipcMain.handle("obj:read-preview-file"');
     expect(mainSource).toContain('ipcMain.handle("system:open-library-file"');
     expect(mainSource).toContain("nativeImage.createFromBuffer");
     expect(mainSource).toContain("maxImageBytes: MAX_DIRECT_IMAGE_BYTES");

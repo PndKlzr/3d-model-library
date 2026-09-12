@@ -91,6 +91,7 @@ export type ModelLibraryApi = {
   }>;
   readModelThumbnail: (absolutePath: string) => Promise<string | null>;
   readImageDataUrl: (session: LibrarySessionRef, absolutePath: string) => Promise<string>;
+  readObjPreviewFile: (session: LibrarySessionRef, absolutePath: string) => Promise<ArrayBuffer>;
   readCachedThumbnail: (model: ThumbnailSignature) => Promise<string | null>;
   writeCachedThumbnail: (
     model: ThumbnailSignature,

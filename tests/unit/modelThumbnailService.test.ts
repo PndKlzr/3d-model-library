@@ -4,7 +4,10 @@ import {
   type ModelThumbnailServiceDependencies
 } from "../../src/lib/modelThumbnailService";
 import type { ModelFile } from "../../src/shared/types";
-import { OBJ_PREVIEW_BUDGET } from "../../src/shared/objPreviewBudget";
+import {
+  OBJ_PREVIEW_BUDGET,
+  OBJ_PREVIEW_LIMIT_ERROR
+} from "../../src/shared/objPreviewBudget";
 
 const WEBP = "data:image/webp;base64,UklGRgAAAABXRUJQ";
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
@@ -228,24 +231,64 @@ describe("modelThumbnailService", () => {
     expect(renderThumbnail).toHaveBeenCalledTimes(2);
   });
 
-  it("does not read an oversized OBJ and lets the next render request pass", async () => {
+  it("uses the bounded real-file read when OBJ metadata is stale and oversized", async () => {
+    const readObjPreviewFile = vi.fn(async () => new ArrayBuffer(8));
     const readModelFile = vi.fn(async () => new ArrayBuffer(8));
     const renderThumbnail = vi.fn(() => WEBP);
-    const service = createModelThumbnailService(dependencies({ readModelFile, renderThumbnail }));
+    const service = createModelThumbnailService(dependencies({
+      readObjPreviewFile,
+      readModelFile,
+      renderThumbnail
+    }));
+    const active = librarySession("library-a", 1);
+    service.beginLibrarySession(active);
 
     await expect(service.request(model({
       name: "oversized.obj",
       extension: ".obj",
       absolutePath: "C:\\Models\\oversized.obj",
       sizeBytes: OBJ_PREVIEW_BUDGET.maxSourceBytes + 1
-    }), "visible").promise).resolves.toBeNull();
+    }), "visible").promise).resolves.toBe(WEBP);
     await expect(service.request(model({
       absolutePath: "C:\\Models\\next.stl"
     }), "visible").promise).resolves.toBe(WEBP);
 
+    expect(readObjPreviewFile).toHaveBeenCalledWith(active, "C:\\Models\\oversized.obj");
     expect(readModelFile).toHaveBeenCalledOnce();
     expect(readModelFile).toHaveBeenCalledWith("C:\\Models\\next.stl");
-    expect(renderThumbnail).toHaveBeenCalledOnce();
+    expect(renderThumbnail).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses session-bound limited reads for OBJ and recovers after a real-size rejection", async () => {
+    const readObjPreviewFile = vi.fn()
+      .mockRejectedValueOnce(new Error(OBJ_PREVIEW_LIMIT_ERROR))
+      .mockResolvedValueOnce(new ArrayBuffer(8));
+    const readModelFile = vi.fn(async () => new ArrayBuffer(8));
+    const renderThumbnail = vi.fn(() => WEBP);
+    const service = createModelThumbnailService(dependencies({
+      readObjPreviewFile,
+      readModelFile,
+      renderThumbnail
+    }));
+    const active = librarySession("library-a", 1);
+    service.beginLibrarySession(active);
+
+    await expect(service.request(model({
+      name: "changed.obj",
+      extension: ".obj",
+      absolutePath: "C:\\Models\\changed.obj"
+    }), "visible").promise)
+      .resolves.toBeNull();
+    await expect(service.request(model({
+      name: "next.obj",
+      extension: ".obj",
+      absolutePath: "C:\\Models\\next.obj"
+    }), "visible").promise)
+      .resolves.toBe(WEBP);
+
+    expect(readObjPreviewFile).toHaveBeenNthCalledWith(1, active, "C:\\Models\\changed.obj");
+    expect(readObjPreviewFile).toHaveBeenNthCalledWith(2, active, "C:\\Models\\next.obj");
+    expect(readModelFile).not.toHaveBeenCalled();
   });
 
   it("reads direct images after a cache miss without entering the render queue", async () => {
@@ -540,6 +583,7 @@ function dependencies(
     readCachedThumbnail: async () => null,
     readEmbeddedThumbnail: async () => null,
     readImageDataUrl: async () => PNG,
+    readObjPreviewFile: async () => new ArrayBuffer(8),
     readModelFile: async () => new ArrayBuffer(8),
     writeCachedThumbnail: async () => undefined,
     renderThumbnail: () => WEBP,

@@ -19,6 +19,7 @@ vi.mock("../../src/lib/objPreview", () => ({ parseObjPreview: objPreview.parse }
 
 describe("ModelViewer OBJ lifecycle", () => {
   const readModelFile = vi.fn();
+  const readObjPreviewFile = vi.fn();
   let createdObjects: Array<{
     object: THREE.Group;
     geometryDispose: ReturnType<typeof vi.fn>;
@@ -29,6 +30,7 @@ describe("ModelViewer OBJ lifecycle", () => {
     vi.clearAllMocks();
     createdObjects = [];
     readModelFile.mockResolvedValue(objBytes());
+    readObjPreviewFile.mockResolvedValue(objBytes());
     objPreview.parse.mockImplementation(() => {
       const geometry = new THREE.BufferGeometry();
       const material = new THREE.MeshStandardMaterial();
@@ -41,7 +43,13 @@ describe("ModelViewer OBJ lifecycle", () => {
     });
     Object.defineProperty(window, "modelLibrary", {
       configurable: true,
-      value: { readModelFile }
+      value: {
+        readModelFile,
+        getCurrentLibrary: vi.fn(async () => ({
+          session: { rootPath: "C:\\Models", libraryId: "library-a", generation: 1 }
+        })),
+        readObjPreviewFile
+      }
     });
   });
 
@@ -49,10 +57,20 @@ describe("ModelViewer OBJ lifecycle", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not read an OBJ above the preview byte budget", async () => {
+  it("uses the bounded real-file read when OBJ metadata is stale and oversized", async () => {
     render(<ModelViewer model={model({
       sizeBytes: OBJ_PREVIEW_BUDGET.maxSourceBytes + 1
     })} />);
+
+    expect(await screen.findByTestId("canvas")).toBeTruthy();
+    expect(readModelFile).not.toHaveBeenCalled();
+    expect(readObjPreviewFile).toHaveBeenCalled();
+  });
+
+  it("shows the real-file limit rejection returned by the main process", async () => {
+    readObjPreviewFile.mockRejectedValueOnce(new Error(OBJ_PREVIEW_LIMIT_ERROR));
+
+    render(<ModelViewer model={model({ sizeBytes: 1 })} />);
 
     expect(await screen.findByText(OBJ_PREVIEW_LIMIT_ERROR)).toBeTruthy();
     expect(readModelFile).not.toHaveBeenCalled();
@@ -62,6 +80,11 @@ describe("ModelViewer OBJ lifecycle", () => {
     const view = render(<StrictMode><ModelViewer model={model()} /></StrictMode>);
 
     await waitFor(() => expect(createdObjects).toHaveLength(1));
+    expect(readObjPreviewFile).toHaveBeenCalledWith(
+      { rootPath: "C:\\Models", libraryId: "library-a", generation: 1 },
+      "C:\\Models\\shape.obj"
+    );
+    expect(readModelFile).not.toHaveBeenCalled();
     expect(createdObjects[0].geometryDispose).not.toHaveBeenCalled();
 
     view.rerender(<StrictMode><ModelViewer model={model({
