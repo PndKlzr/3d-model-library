@@ -14,12 +14,14 @@ const NEUTRAL_MATERIAL = {
   metalness: 0.08
 } as const;
 
-type GeometryGroupRef = {
+export type GeometryGroupRef = {
   start: number;
   count: number;
   materialIndex: number;
   key: number;
 };
+
+type GeometryGroupAssignment = Pick<GeometryGroupRef, "key" | "materialIndex">;
 
 export function parseObjPreview(modelBytes: ArrayBuffer): THREE.Group {
   let object: THREE.Group | null = null;
@@ -82,8 +84,8 @@ function removeDegenerateTriangles(geometry: THREE.BufferGeometry) {
   const elementCount = index?.count ?? position.count;
   const retainedIndices: number[] = [];
   const retainedOffsets: number[] = [];
+  const retainedTriangleOffsets: number[] = [];
   const originalGroups = geometry.groups.map((group, key) => ({ ...group, key }));
-  const retainedGroups: Array<{ key: number; materialIndex: number } | null> = [];
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   const c = new THREE.Vector3();
@@ -107,7 +109,7 @@ function removeDegenerateTriangles(geometry: THREE.BufferGeometry) {
     if (edgeA.cross(edgeB).lengthSq() <= 0) continue;
     if (index) retainedIndices.push(aIndex, bIndex, cIndex);
     else retainedOffsets.push(offset, offset + 1, offset + 2);
-    retainedGroups.push(findTriangleGroup(originalGroups, offset));
+    retainedTriangleOffsets.push(offset);
   }
 
   const retainedCount = index ? retainedIndices.length : retainedOffsets.length;
@@ -116,28 +118,78 @@ function removeDegenerateTriangles(geometry: THREE.BufferGeometry) {
 
   if (index) geometry.setIndex(retainedIndices);
   else compactNonIndexedAttributes(geometry, retainedOffsets, position.count);
-  rebuildGeometryGroups(geometry, retainedGroups, originalGroups.length > 0);
+  rebuildGeometryGroups(
+    geometry,
+    mapOrderedTrianglesToGroups(originalGroups, retainedTriangleOffsets),
+    originalGroups.length > 0
+  );
   geometry.setDrawRange(0, retainedCount);
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return true;
 }
 
-function findTriangleGroup(
-  groups: GeometryGroupRef[],
+export function mapOrderedTrianglesToGroups(
+  groups: readonly GeometryGroupRef[],
+  triangleOffsets: readonly number[]
+): Array<GeometryGroupAssignment | null> {
+  const assignments: Array<GeometryGroupAssignment | null> = [];
+  let groupIndex = 0;
+  let current: (GeometryGroupRef & { end: number }) | null = null;
+  let pending: (GeometryGroupRef & { end: number }) | null = null;
+
+  for (const triangleOffset of triangleOffsets) {
+    if (!containsTriangle(current, triangleOffset)) {
+      current = null;
+      while (pending || groupIndex < groups.length) {
+        const group = pending ?? snapshotGroup(groups[groupIndex++]);
+        pending = null;
+        if (!group) continue;
+        if (group.start > triangleOffset) {
+          pending = group;
+          break;
+        }
+        if (containsTriangle(group, triangleOffset)) {
+          current = group;
+          break;
+        }
+      }
+    }
+
+    assignments.push(current
+      ? { key: current.key, materialIndex: current.materialIndex }
+      : null);
+  }
+
+  return assignments;
+}
+
+function snapshotGroup(group: GeometryGroupRef) {
+  const start = group.start;
+  const count = group.count;
+  const materialIndex = group.materialIndex;
+  const key = group.key;
+  if (!Number.isFinite(start) || !Number.isFinite(count) || count < 0) return null;
+  return {
+    start,
+    count,
+    end: start + count,
+    materialIndex: Number.isInteger(materialIndex) ? materialIndex : 0,
+    key
+  };
+}
+
+function containsTriangle(
+  group: (GeometryGroupRef & { end: number }) | null,
   triangleOffset: number
 ) {
-  const group = groups.find(({ start, count }) =>
-    triangleOffset >= start && triangleOffset + 3 <= start + count
-  );
-  return group
-    ? { key: group.key, materialIndex: group.materialIndex }
-    : null;
+  return Boolean(group &&
+    triangleOffset >= group.start && triangleOffset + 3 <= group.end);
 }
 
 function rebuildGeometryGroups(
   geometry: THREE.BufferGeometry,
-  retainedGroups: Array<{ key: number; materialIndex: number } | null>,
+  retainedGroups: Array<GeometryGroupAssignment | null>,
   hadGroups: boolean
 ) {
   geometry.clearGroups();

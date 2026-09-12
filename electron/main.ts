@@ -558,7 +558,7 @@ function registerBenchmarkIpcHandlers(
     _event,
     session: LibrarySessionRef,
     absolutePath: string
-  ) => readLibraryObjPreview(session, absolutePath, context.objAccess));
+  ) => context.readObjPreview(session, absolutePath));
   ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
     assertThumbnailSignature(model);
     assertPathInsideLibrary(model.absolutePath);

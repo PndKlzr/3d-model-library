@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
-import { parseObjPreview } from "../../src/lib/objPreview";
+import {
+  mapOrderedTrianglesToGroups,
+  parseObjPreview
+} from "../../src/lib/objPreview";
 import {
   OBJ_PREVIEW_BUDGET,
   OBJ_PREVIEW_LIMIT_ERROR
@@ -252,6 +255,60 @@ describe("parseObjPreview", () => {
       { start: 6, count: 3, materialIndex: 2 }
     ]);
     loaderParse.mockRestore();
+  });
+
+  it("maps many ordered groups with linear property access", () => {
+    let propertyReads = 0;
+    const groupCount = 2_000;
+    const groups = Array.from({ length: groupCount }, (_, key) => ({
+      get start() { propertyReads += 1; return key * 3; },
+      get count() { propertyReads += 1; return 3; },
+      get materialIndex() { propertyReads += 1; return key % 4; },
+      key
+    }));
+    const offsets = Array.from({ length: groupCount }, (_, index) => index * 3);
+
+    const assignments = mapOrderedTrianglesToGroups(groups, offsets);
+
+    expect(assignments).toHaveLength(groupCount);
+    expect(assignments[0]).toEqual({ key: 0, materialIndex: 0 });
+    expect(assignments.at(-1)).toEqual({ key: groupCount - 1, materialIndex: 3 });
+    expect(propertyReads).toBeLessThanOrEqual(groupCount * 8);
+  });
+
+  it("handles ordered overlaps, gaps, and ungrouped triangles deterministically", () => {
+    const assignments = mapOrderedTrianglesToGroups([
+      { start: 0, count: 9, materialIndex: 4, key: 0 },
+      { start: 3, count: 9, materialIndex: 7, key: 1 },
+      { start: 15, count: 3, materialIndex: 9, key: 2 }
+    ], [0, 3, 6, 9, 12, 15, 18]);
+
+    expect(assignments).toEqual([
+      { key: 0, materialIndex: 4 },
+      { key: 0, materialIndex: 4 },
+      { key: 0, materialIndex: 4 },
+      { key: 1, materialIndex: 7 },
+      null,
+      { key: 2, materialIndex: 9 },
+      null
+    ]);
+  });
+
+  it("reads a future group only once while crossing a large gap", () => {
+    let propertyReads = 0;
+    const futureGroup = {
+      get start() { propertyReads += 1; return 30_000; },
+      get count() { propertyReads += 1; return 3; },
+      get materialIndex() { propertyReads += 1; return 6; },
+      get key() { propertyReads += 1; return 1; }
+    };
+    const offsets = Array.from({ length: 10_001 }, (_, index) => index * 3);
+
+    const assignments = mapOrderedTrianglesToGroups([futureGroup], offsets);
+
+    expect(assignments.slice(0, -1).every((assignment) => assignment === null)).toBe(true);
+    expect(assignments.at(-1)).toEqual({ key: 1, materialIndex: 6 });
+    expect(propertyReads).toBe(4);
   });
 
   it("rejects source bytes above the centralized budget before decoding", () => {

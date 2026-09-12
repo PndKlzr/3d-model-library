@@ -5,20 +5,13 @@ import {
   BENCHMARK_LIBRARY_ID,
   createBenchmarkLibraryContext
 } from "../../electron/services/benchmarkLibraryContext";
-import { readLibraryObjPreview } from "../../electron/services/libraryObj";
-import type { LibrarySessionRef, LibraryScanResult } from "../../src/shared/types";
+import type { LibraryScanResult } from "../../src/shared/types";
 
 describe("benchmark library context", () => {
   it("reads OBJ with its immutable benchmark session without consulting normal state", async () => {
     const rootPath = path.resolve("C:\\Benchmark Models");
     const filePath = path.join(rootPath, "sample.obj");
     const bytes = Buffer.from("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3");
-    const normalSession: LibrarySessionRef = {
-      rootPath: path.resolve("C:\\Normal Models"),
-      libraryId: "normal-library",
-      generation: 17
-    };
-    const getNormalSession = vi.fn(() => normalSession);
     const context = createBenchmarkLibraryContext(rootPath);
     const fileStat = {
       isFile: () => true,
@@ -38,13 +31,10 @@ describe("benchmark library context", () => {
       close: vi.fn(async () => undefined)
     };
 
-    const result = await readLibraryObjPreview(context.session, filePath, {
-      ...context.objAccess,
-      fileSystem: {
-        realpath: vi.fn(async (value: string) => value),
-        open: vi.fn(async () => handle),
-        stat: vi.fn(async () => fileStat)
-      }
+    const result = await context.readObjPreview(context.session, filePath, {
+      realpath: vi.fn(async (value: string) => value),
+      open: vi.fn(async () => handle),
+      stat: vi.fn(async () => fileStat)
     });
 
     expect(Buffer.from(result)).toEqual(bytes);
@@ -54,12 +44,6 @@ describe("benchmark library context", () => {
       generation: BENCHMARK_LIBRARY_GENERATION
     });
     expect(Object.isFrozen(context.session)).toBe(true);
-    expect(getNormalSession).not.toHaveBeenCalled();
-    expect(normalSession).toEqual({
-      rootPath: path.resolve("C:\\Normal Models"),
-      libraryId: "normal-library",
-      generation: 17
-    });
   });
 
   it("keeps benchmark catalog writes inside its private in-memory index", async () => {
