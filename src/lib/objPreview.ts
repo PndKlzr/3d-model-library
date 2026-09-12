@@ -1,5 +1,11 @@
 import * as THREE from "three";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
+import {
+  assertObjSourceSizeWithinBudget,
+  assertObjTextWithinBudget,
+  OBJ_PREVIEW_LIMIT_ERROR
+} from "../shared/objPreviewBudget";
+import { disposeMaterials, disposeObjectResources } from "./threeResourceDisposal";
 
 const OBJ_PREVIEW_ERROR = "Não foi possível carregar o OBJ.";
 const NEUTRAL_MATERIAL = {
@@ -12,11 +18,13 @@ export function parseObjPreview(modelBytes: ArrayBuffer): THREE.Group {
   let object: THREE.Group | null = null;
 
   try {
+    assertObjSourceSizeWithinBudget(modelBytes.byteLength);
     const source = new TextDecoder("utf-8", { fatal: true }).decode(modelBytes);
+    assertObjTextWithinBudget(source);
     if (!source.trim()) throw new Error(OBJ_PREVIEW_ERROR);
 
     object = new OBJLoader().parse(source);
-    const meshes = collectValidMeshes(object);
+    const meshes = collectFaceMeshes(object);
     if (meshes.length === 0) throw new Error(OBJ_PREVIEW_ERROR);
 
     const importedMaterials = new Set<THREE.Material>();
@@ -27,30 +35,72 @@ export function parseObjPreview(modelBytes: ArrayBuffer): THREE.Group {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
     }
-    importedMaterials.forEach((material) => material.dispose());
+    disposeMaterials(importedMaterials);
     return object;
-  } catch {
-    if (object) disposeParsedObject(object);
+  } catch (error) {
+    if (object) disposeObjectResources(object);
+    if (error instanceof Error && error.message === OBJ_PREVIEW_LIMIT_ERROR) throw error;
     throw new Error(OBJ_PREVIEW_ERROR);
   }
 }
 
-function collectValidMeshes(object: THREE.Object3D): THREE.Mesh[] {
+function collectFaceMeshes(object: THREE.Group): THREE.Mesh[] {
   const meshes: THREE.Mesh[] = [];
+  const discarded: THREE.Object3D[] = [];
   let invalidGeometry = false;
 
   object.traverse((child) => {
+    if (child instanceof THREE.Line || child instanceof THREE.Points) {
+      discarded.push(child);
+      return;
+    }
     if (!(child instanceof THREE.Mesh)) return;
     const position = child.geometry.getAttribute("position");
     if (!position || position.itemSize < 3 || position.count < 3 || !hasFiniteValues(position)) {
       invalidGeometry = true;
       return;
     }
-    meshes.push(child);
+    if (hasNonDegenerateTriangle(child.geometry)) meshes.push(child);
+    else discarded.push(child);
   });
 
   if (invalidGeometry) throw new Error(OBJ_PREVIEW_ERROR);
+  disposeDiscardedNodes(discarded, object);
   return meshes;
+}
+
+function hasNonDegenerateTriangle(geometry: THREE.BufferGeometry) {
+  const position = geometry.getAttribute("position");
+  const index = geometry.getIndex();
+  const elementCount = index?.count ?? position.count;
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const edgeA = new THREE.Vector3();
+  const edgeB = new THREE.Vector3();
+
+  for (let offset = 0; offset + 2 < elementCount; offset += 3) {
+    const aIndex = index ? index.getX(offset) : offset;
+    const bIndex = index ? index.getX(offset + 1) : offset + 1;
+    const cIndex = index ? index.getX(offset + 2) : offset + 2;
+    a.fromBufferAttribute(position, aIndex);
+    b.fromBufferAttribute(position, bIndex);
+    c.fromBufferAttribute(position, cIndex);
+    edgeA.subVectors(b, a);
+    edgeB.subVectors(c, a);
+    if (edgeA.cross(edgeB).lengthSq() > 0) return true;
+  }
+  return false;
+}
+
+function disposeDiscardedNodes(nodes: THREE.Object3D[], retainedRoot: THREE.Object3D) {
+  if (nodes.length === 0) return;
+  const discardedRoot = new THREE.Group();
+  nodes.forEach((node) => {
+    node.removeFromParent();
+    discardedRoot.add(node);
+  });
+  disposeObjectResources(discardedRoot, { preserve: retainedRoot });
 }
 
 function hasFiniteValues(attribute: THREE.BufferAttribute | THREE.InterleavedBufferAttribute) {
@@ -76,14 +126,4 @@ function collectMaterials(
 ) {
   if (Array.isArray(material)) material.forEach((item) => target.add(item));
   else target.add(material);
-}
-
-function disposeParsedObject(object: THREE.Object3D) {
-  const materials = new Set<THREE.Material>();
-  object.traverse((child) => {
-    if (!(child instanceof THREE.Mesh)) return;
-    child.geometry.dispose();
-    collectMaterials(child.material, materials);
-  });
-  materials.forEach((material) => material.dispose());
 }

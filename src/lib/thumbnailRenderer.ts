@@ -4,6 +4,7 @@ import { parseThreeMfPreview } from "./threeMfPreview";
 import { parseObjPreview } from "./objPreview";
 import { orientModelForBed } from "./modelOrientation";
 import type { ModelFile } from "../shared/types";
+import { disposeObjectResources } from "./threeResourceDisposal";
 
 const THUMBNAIL_WIDTH = 260;
 const THUMBNAIL_HEIGHT = 180;
@@ -39,7 +40,7 @@ export function renderThumbnail(extension: ModelFile["extension"], modelBytes: A
     resetSharedRenderer();
     throw error;
   } finally {
-    disposeObject(scene);
+    disposeObjectResources(scene);
     scene.clear();
   }
 }
@@ -92,18 +93,4 @@ function fitCamera(camera: THREE.PerspectiveCamera, object: THREE.Object3D) {
   camera.far = distance * 100;
   camera.lookAt(0, targetY, 0);
   camera.updateProjectionMatrix();
-}
-
-function disposeObject(object: THREE.Object3D) {
-  object.traverse((child) => {
-    if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
-      child.geometry.dispose();
-      disposeMaterial(child.material);
-    }
-  });
-}
-
-function disposeMaterial(material: THREE.Material | THREE.Material[]) {
-  if (Array.isArray(material)) material.forEach((item) => item.dispose());
-  else material.dispose();
 }

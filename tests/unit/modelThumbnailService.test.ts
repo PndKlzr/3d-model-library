@@ -4,6 +4,7 @@ import {
   type ModelThumbnailServiceDependencies
 } from "../../src/lib/modelThumbnailService";
 import type { ModelFile } from "../../src/shared/types";
+import { OBJ_PREVIEW_BUDGET } from "../../src/shared/objPreviewBudget";
 
 const WEBP = "data:image/webp;base64,UklGRgAAAABXRUJQ";
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
@@ -225,6 +226,26 @@ describe("modelThumbnailService", () => {
     }), "visible").promise).resolves.toBe(WEBP);
 
     expect(renderThumbnail).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not read an oversized OBJ and lets the next render request pass", async () => {
+    const readModelFile = vi.fn(async () => new ArrayBuffer(8));
+    const renderThumbnail = vi.fn(() => WEBP);
+    const service = createModelThumbnailService(dependencies({ readModelFile, renderThumbnail }));
+
+    await expect(service.request(model({
+      name: "oversized.obj",
+      extension: ".obj",
+      absolutePath: "C:\\Models\\oversized.obj",
+      sizeBytes: OBJ_PREVIEW_BUDGET.maxSourceBytes + 1
+    }), "visible").promise).resolves.toBeNull();
+    await expect(service.request(model({
+      absolutePath: "C:\\Models\\next.stl"
+    }), "visible").promise).resolves.toBe(WEBP);
+
+    expect(readModelFile).toHaveBeenCalledOnce();
+    expect(readModelFile).toHaveBeenCalledWith("C:\\Models\\next.stl");
+    expect(renderThumbnail).toHaveBeenCalledOnce();
   });
 
   it("reads direct images after a cache miss without entering the render queue", async () => {

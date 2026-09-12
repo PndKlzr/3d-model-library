@@ -9,6 +9,7 @@ import { yieldBeforeThumbnailRender } from "./thumbnailFrameGate";
 import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
 import type { LibrarySessionRef, ModelFile } from "../shared/types";
 import { isArchive, isDirectImage } from "../shared/fileCapabilities";
+import { isObjSourceSizeWithinBudget } from "../shared/objPreviewBudget";
 
 export type { ThumbnailPriority } from "./thumbnailScheduler";
 
@@ -113,6 +114,9 @@ export function createModelThumbnailService(
 
   function request(model: ModelFile, priority: ThumbnailPriority): ModelThumbnailRequest {
     if (isArchive(model.extension)) return resolvedRequest();
+    if (model.extension === ".obj" && !isObjSourceSizeWithinBudget(model.sizeBytes)) {
+      return resolvedRequest();
+    }
 
     const key = `${currentSessionKey}:${createIdentity(model)}`;
     if (failedSignatures.has(key)) return resolvedRequest();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Bounds, OrbitControls } from "@react-three/drei";
 import { RotateCcw } from "lucide-react";
@@ -8,6 +8,11 @@ import { parseThreeMfPreview } from "../lib/threeMfPreview";
 import { parseObjPreview } from "../lib/objPreview";
 import { orientModelForBed } from "../lib/modelOrientation";
 import type { ModelFile } from "../shared/types";
+import {
+  isObjSourceSizeWithinBudget,
+  OBJ_PREVIEW_LIMIT_ERROR
+} from "../shared/objPreviewBudget";
+import { disposeObjectResources } from "../lib/threeResourceDisposal";
 
 type ModelViewerProps = {
   model: ModelFile;
@@ -16,12 +21,20 @@ type ModelViewerProps = {
 export function ModelViewer({ model }: ModelViewerProps) {
   const [modelBytes, setModelBytes] = useState<ArrayBuffer | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [parsedModel, setParsedModel] = useState<THREE.Object3D | { error: string } | null>(null);
   const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     setModelBytes(null);
     setLoadError(null);
+
+    if (model.extension === ".obj" && !isObjSourceSizeWithinBudget(model.sizeBytes)) {
+      setLoadError(OBJ_PREVIEW_LIMIT_ERROR);
+      return () => {
+        isMounted = false;
+      };
+    }
 
     window.modelLibrary
       .readModelFile(model.absolutePath)
@@ -39,47 +52,27 @@ export function ModelViewer({ model }: ModelViewerProps) {
     return () => {
       isMounted = false;
     };
-  }, [model.absolutePath]);
+  }, [model.absolutePath, model.extension, model.sizeBytes]);
 
-  const parsedModel = useMemo(() => {
+  useEffect(() => {
+    setParsedModel(null);
     if (!modelBytes) {
-      return null;
+      return;
     }
 
+    let object: THREE.Object3D | null = null;
     try {
-      if (model.extension === ".stl") {
-        const geometry = new STLLoader().parse(modelBytes);
-        geometry.computeVertexNormals();
-        const mesh = new THREE.Mesh(
-          geometry,
-          new THREE.MeshStandardMaterial({
-            color: "#78aaa6",
-            roughness: 0.62,
-            metalness: 0.08
-          })
-        );
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        return orientModelForBed(mesh);
-      }
-
-      if (model.extension === ".obj") {
-        return orientModelForBed(parseObjPreview(modelBytes));
-      }
-
-      if (model.extension !== ".3mf") {
-        return {
-          error: "Este arquivo não possui preview 3D."
-        };
-      }
-
-      const group = parseThreeMfPreview(modelBytes, { center: false });
-      return orientModelForBed(group);
+      object = parseModelForViewer(model.extension, modelBytes);
+      setParsedModel(object);
     } catch (error) {
-      return {
+      setParsedModel({
         error: error instanceof Error ? error.message : String(error)
-      };
+      });
     }
+
+    return () => {
+      if (object) disposeObjectResources(object);
+    };
   }, [model.extension, modelBytes]);
 
   if (loadError) {
@@ -134,4 +127,32 @@ export function ModelViewer({ model }: ModelViewerProps) {
       </Canvas>
     </div>
   );
+}
+
+function parseModelForViewer(extension: ModelFile["extension"], modelBytes: ArrayBuffer) {
+  if (extension === ".stl") {
+    const geometry = new STLLoader().parse(modelBytes);
+    geometry.computeVertexNormals();
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({
+        color: "#78aaa6",
+        roughness: 0.62,
+        metalness: 0.08
+      })
+    );
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return orientModelForBed(mesh);
+  }
+
+  if (extension === ".obj") {
+    return orientModelForBed(parseObjPreview(modelBytes));
+  }
+
+  if (extension === ".3mf") {
+    return orientModelForBed(parseThreeMfPreview(modelBytes, { center: false }));
+  }
+
+  throw new Error("Este arquivo não possui preview 3D.");
 }

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { parseObjPreview } from "../../src/lib/objPreview";
+import {
+  OBJ_PREVIEW_BUDGET,
+  OBJ_PREVIEW_LIMIT_ERROR
+} from "../../src/shared/objPreviewBudget";
 
 const OBJ_ERROR = "Não foi possível carregar o OBJ.";
 
@@ -74,6 +79,112 @@ describe("parseObjPreview", () => {
     ]));
 
     expect(dispose).toHaveBeenCalled();
+  });
+
+  it("keeps face meshes and removes line and point renderables", () => {
+    const disposeGeometry = vi.spyOn(THREE.BufferGeometry.prototype, "dispose");
+    const object = parseObjPreview(objBytes([
+      "o mixed",
+      "v 0 0 0",
+      "v 1 0 0",
+      "v 0 1 0",
+      "f 1 2 3",
+      "o wire",
+      "l 1 2",
+      "o marker",
+      "p 3"
+    ]));
+    const unwanted: THREE.Object3D[] = [];
+    object.traverse((child) => {
+      if (child instanceof THREE.Line || child instanceof THREE.Points) unwanted.push(child);
+    });
+
+    expect(collectMeshes(object)).toHaveLength(1);
+    expect(unwanted).toHaveLength(0);
+    expect(disposeGeometry).toHaveBeenCalled();
+  });
+
+  it("does not dispose resources shared by a retained mesh before material replacement", () => {
+    const geometry = new THREE.BufferGeometry().setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3)
+    );
+    const texture = new THREE.Texture();
+    const importedMaterial = new THREE.MeshBasicMaterial({ map: texture });
+    const geometryDispose = vi.spyOn(geometry, "dispose");
+    const materialDispose = vi.spyOn(importedMaterial, "dispose");
+    const textureDispose = vi.spyOn(texture, "dispose");
+    const parsed = new THREE.Group();
+    parsed.add(
+      new THREE.Mesh(geometry, importedMaterial),
+      new THREE.LineSegments(geometry, importedMaterial)
+    );
+    const loaderParse = vi.spyOn(OBJLoader.prototype, "parse").mockReturnValueOnce(parsed);
+
+    const object = parseObjPreview(objBytes([
+      "v 0 0 0",
+      "v 1 0 0",
+      "v 0 1 0",
+      "f 1 2 3"
+    ]));
+
+    expect(collectMeshes(object)).toHaveLength(1);
+    expect(geometryDispose).not.toHaveBeenCalled();
+    expect(materialDispose).toHaveBeenCalledOnce();
+    expect(textureDispose).toHaveBeenCalledOnce();
+    loaderParse.mockRestore();
+  });
+
+  it("rejects an OBJ containing only zero-area faces", () => {
+    expect(() => parseObjPreview(objBytes([
+      "o collapsed",
+      "v 1 1 1",
+      "f 1 1 1"
+    ]))).toThrow(OBJ_ERROR);
+  });
+
+  it("drops a degenerate mesh while preserving valid sibling groups", () => {
+    const object = parseObjPreview(objBytes([
+      "o valid",
+      "v 0 0 0",
+      "v 1 0 0",
+      "v 0 1 0",
+      "f 1 2 3",
+      "o collapsed",
+      "v 5 5 5",
+      "f 4 4 4"
+    ]));
+
+    expect(collectMeshes(object).map((mesh) => mesh.name)).toEqual(["valid"]);
+  });
+
+  it("keeps a very small triangle when its area is non-zero", () => {
+    const object = parseObjPreview(objBytes([
+      "o tiny",
+      "v 0 0 0",
+      "v 0.00001 0 0",
+      "v 0 0.00001 0",
+      "f 1 2 3"
+    ]));
+
+    expect(collectMeshes(object).map((mesh) => mesh.name)).toEqual(["tiny"]);
+  });
+
+  it("rejects source bytes above the centralized budget before decoding", () => {
+    expect(OBJ_PREVIEW_BUDGET.maxSourceBytes).toBe(64 * 1024 * 1024);
+    expect(() => parseObjPreview(
+      new ArrayBuffer(OBJ_PREVIEW_BUDGET.maxSourceBytes + 1)
+    )).toThrow(OBJ_PREVIEW_LIMIT_ERROR);
+  });
+
+  it("rejects excessive textual complexity before OBJLoader parsing", () => {
+    const parse = vi.spyOn(OBJLoader.prototype, "parse");
+    const excessiveLines = new TextEncoder().encode(
+      "\n".repeat(OBJ_PREVIEW_BUDGET.maxLines + 1)
+    ).buffer;
+
+    expect(() => parseObjPreview(excessiveLines)).toThrow(OBJ_PREVIEW_LIMIT_ERROR);
+    expect(parse).not.toHaveBeenCalled();
   });
 
   it.each([
