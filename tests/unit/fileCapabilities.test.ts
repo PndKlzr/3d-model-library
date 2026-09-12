@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   SUPPORTED_FILE_EXTENSIONS,
+  canConvertToStl,
+  canInspectArchive,
+  canOpenWithWindows,
   canSendToSlicer,
+  canShowThumbnail,
   getFileCategory,
   is3dPreviewable,
   isArchive,
@@ -53,5 +57,17 @@ describe("fileCapabilities", () => {
     expect(canSendToSlicer(".3mf")).toBe(true);
     expect(canSendToSlicer(".obj")).toBe(false);
     expect(canSendToSlicer(".png")).toBe(false);
+  });
+
+  it("centralizes user action capabilities", () => {
+    expect(canConvertToStl(".3mf")).toBe(true);
+    expect(canConvertToStl(".obj")).toBe(false);
+    expect(canInspectArchive(".7z")).toBe(true);
+    expect(canInspectArchive(".png")).toBe(false);
+    expect(canOpenWithWindows(".jpeg")).toBe(true);
+    expect(canOpenWithWindows(".stl")).toBe(false);
+    expect(canShowThumbnail(".obj")).toBe(true);
+    expect(canShowThumbnail(".webp")).toBe(true);
+    expect(canShowThumbnail(".rar")).toBe(false);
   });
 });

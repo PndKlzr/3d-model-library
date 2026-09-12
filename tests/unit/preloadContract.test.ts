@@ -18,6 +18,8 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("openLibraryFile");
     expect(preloadSource).toContain("openLibraryFile: (session, absolutePath)");
     expect(preloadSource).toContain('ipcRenderer.invoke("system:open-library-file"');
+    expect(preloadSource).toContain('ipcRenderer.invoke("library:show-folder", session, relativeFolder)');
+    expect(mainSource).toContain('ipcMain.handle("library:show-folder"');
     expect(preloadSource).toContain("readCachedThumbnail");
     expect(preloadSource).toContain("writeCachedThumbnail");
     expect(preloadSource).toContain("activateLibrary");

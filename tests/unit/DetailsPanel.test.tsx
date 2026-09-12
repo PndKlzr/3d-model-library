@@ -66,6 +66,65 @@ describe("DetailsPanel image opening", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Ações" }));
     expect(screen.getByText("Este tipo de arquivo não é enviado ao slicer.")).toBeTruthy();
   });
+
+  it("offers conversion and slicer actions only to capable model formats", () => {
+    const configuredSettings = settings();
+    configuredSettings.slicers = [{
+      id: "cura",
+      name: "Cura",
+      executablePath: "C:\\Cura.exe",
+      enabled: true
+    }];
+
+    const { rerender } = render(<DetailsPanel
+      model={imageModel({ name: "project.3mf", extension: ".3mf" })}
+      settings={configuredSettings}
+      modelMetadata={null}
+      availableTags={[]}
+      launchMessage={null}
+      metadataStatus={{ availability: "ready", writable: true, source: "primary", message: null }}
+      metadataWritable
+      onOpenSettings={vi.fn()}
+      onLaunchSlicer={vi.fn()}
+      onRenameModelFile={vi.fn()}
+      onShowModelInFolder={vi.fn()}
+      onOpenLibraryFile={vi.fn()}
+      onToggleFavorite={vi.fn()}
+      onSetModelTags={vi.fn()}
+      onSetModelNotes={vi.fn()}
+      onRetryMetadata={vi.fn()}
+      onExtractArchiveEntries={vi.fn()}
+      onConvertThreeMfToStl={vi.fn()}
+    />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Ações" }));
+    expect(screen.getByRole("button", { name: "Converter para STL" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Abrir no Cura" })).toBeTruthy();
+
+    rerender(<DetailsPanel
+      model={imageModel({ name: "part.stl", extension: ".stl" })}
+      settings={configuredSettings}
+      modelMetadata={null}
+      availableTags={[]}
+      launchMessage={null}
+      metadataStatus={{ availability: "ready", writable: true, source: "primary", message: null }}
+      metadataWritable
+      onOpenSettings={vi.fn()}
+      onLaunchSlicer={vi.fn()}
+      onRenameModelFile={vi.fn()}
+      onShowModelInFolder={vi.fn()}
+      onOpenLibraryFile={vi.fn()}
+      onToggleFavorite={vi.fn()}
+      onSetModelTags={vi.fn()}
+      onSetModelNotes={vi.fn()}
+      onRetryMetadata={vi.fn()}
+      onExtractArchiveEntries={vi.fn()}
+      onConvertThreeMfToStl={vi.fn()}
+    />);
+    fireEvent.click(screen.getByRole("tab", { name: "Ações" }));
+    expect(screen.queryByRole("button", { name: "Converter para STL" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Abrir no Cura" })).toBeTruthy();
+  });
 });
 
 function imageModel(overrides: Partial<ModelFile> = {}): ModelFile {

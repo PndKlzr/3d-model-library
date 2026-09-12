@@ -1,7 +1,7 @@
 import {
   canSendToSlicer,
-  isArchive,
-  isDirectImage,
+  canInspectArchive,
+  canOpenWithWindows,
   type SupportedFileExtension
 } from "../shared/fileCapabilities";
 
@@ -10,8 +10,8 @@ export type DefaultFileOpenAction = "slicer" | "windows" | "inspect-archive" | "
 export function getDefaultFileOpenAction(
   extension: SupportedFileExtension
 ): DefaultFileOpenAction {
-  if (isDirectImage(extension)) return "windows";
-  if (isArchive(extension)) return "inspect-archive";
+  if (canOpenWithWindows(extension)) return "windows";
+  if (canInspectArchive(extension)) return "inspect-archive";
   if (canSendToSlicer(extension)) return "slicer";
   return "preview";
 }

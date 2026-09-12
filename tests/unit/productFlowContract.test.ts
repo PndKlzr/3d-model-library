@@ -188,6 +188,31 @@ describe("product flow contract", () => {
     expect(appSource).toContain("getSlicerLaunchModelCount(modelContextMenu.model) > 0");
   });
 
+  it("routes file actions through shared capabilities", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+    const archiveSource = await readFile("electron/services/archiveManager.ts", "utf8");
+    const organizerSource = await readFile("electron/services/fileOrganizer.ts", "utf8");
+    const mainSource = await readFile("electron/main.ts", "utf8");
+    const watcherSource = await readFile("electron/services/libraryWatcher.ts", "utf8");
+
+    expect(appSource).toContain("getSlicerLaunchFilePaths");
+    expect(appSource).not.toContain("function isPrintableModel");
+    expect(detailsSource).toContain("canConvertToStl(model.extension)");
+    expect(archiveSource).toContain("isArchive(");
+    expect(archiveSource).toContain("canSendToSlicer(");
+    expect(archiveSource).not.toContain("ARCHIVE_EXTENSIONS");
+    expect(archiveSource).not.toContain("PRINTABLE_EXTENSIONS");
+    expect(organizerSource).toContain("toSupportedFileExtension(");
+    expect(organizerSource).toContain("canConvertToStl(");
+    expect(organizerSource).not.toContain("LIBRARY_FILE_EXTENSIONS");
+    expect(mainSource).toContain("requestedPaths.filter");
+    expect(mainSource).toContain('typeof modelPath !== "string"');
+    expect(mainSource).toContain("canSendToSlicer(extension)");
+    expect(watcherSource).toContain("toSupportedFileExtension(");
+    expect(watcherSource).not.toContain("SUPPORTED_EXTENSIONS");
+  });
+
   it("keeps internal folder organization attached to the native drag session", async () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
     const appSource = await readFile("src/App.tsx", "utf8");

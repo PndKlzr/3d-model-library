@@ -22,6 +22,10 @@ import type {
   ModelHashInput
 } from "../src/shared/types.js";
 import {
+  canSendToSlicer,
+  toSupportedFileExtension
+} from "../src/shared/fileCapabilities.js";
+import {
   createActiveLibrarySession,
   type ActiveLibrarySession
 } from "./services/activeLibrarySession.js";
@@ -68,6 +72,7 @@ import {
   readLibraryImageDataUrl
 } from "./services/libraryImage.js";
 import { readLibraryObjPreview } from "./services/libraryObj.js";
+import { showLibraryFolder } from "./services/libraryFolder.js";
 import {
   createBenchmarkLibraryContext,
   type BenchmarkLibraryContext
@@ -427,6 +432,12 @@ function registerIpcHandlers() {
     shell.showItemInFolder(absolutePath);
   });
 
+  ipcMain.handle("library:show-folder", (
+    _event,
+    session: LibrarySessionRef,
+    relativeFolder: string
+  ) => showLibraryFolder(session, relativeFolder, createLibraryFolderAccess()));
+
   ipcMain.handle("system:copy-text", (_event, value: string) => {
     if (typeof value !== "string" || value.length > 4096 || value.includes("\0")) {
       throw new Error("Texto inválido para copiar.");
@@ -484,10 +495,19 @@ function registerIpcHandlers() {
   ipcMain.handle("slicer:launch", async (_event, slicerId: string, modelPaths: string | string[]) => {
     const settings = settingsStore.getSettings();
     const slicer = settings.slicers.find((item) => item.id === slicerId);
-    const launchPaths = Array.isArray(modelPaths) ? modelPaths : [modelPaths];
+    const requestedPaths = Array.isArray(modelPaths) ? modelPaths : [modelPaths];
+    const launchPaths = requestedPaths.filter((modelPath) => {
+      if (typeof modelPath !== "string") return false;
+      const extension = toSupportedFileExtension(path.extname(modelPath));
+      return extension ? canSendToSlicer(extension) : false;
+    });
 
     if (!slicer) {
       return { ok: false, message: "Slicer não configurado." };
+    }
+
+    if (launchPaths.length === 0) {
+      return { ok: false, message: "Selecione pelo menos um STL ou 3MF para abrir no slicer." };
     }
 
     for (const modelPath of launchPaths) {
@@ -784,6 +804,13 @@ function createLibraryImageAccess() {
 function createLibraryObjAccess() {
   return {
     getCurrentSession: () => activeLibrarySession?.current() ?? null
+  };
+}
+
+function createLibraryFolderAccess() {
+  return {
+    getCurrentSession: () => activeLibrarySession?.current() ?? null,
+    openPath: (targetPath: string) => shell.openPath(targetPath)
   };
 }
 

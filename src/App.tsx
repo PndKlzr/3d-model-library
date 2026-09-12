@@ -31,6 +31,7 @@ import {
 } from "./lib/folderNavigationHistory";
 import { getDragModelIds, getDragOutFilePaths } from "./lib/dragFiles";
 import { getDefaultFileOpenAction } from "./lib/fileOpenAction";
+import { getSlicerLaunchFilePaths } from "./lib/slicerLaunchSelection";
 import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import {
@@ -83,6 +84,9 @@ import type {
 } from "./shared/types";
 import {
   SUPPORTED_FILE_EXTENSIONS,
+  canSendToSlicer,
+  canShowThumbnail,
+  isDirectImage,
   type SupportedFileExtension
 } from "./shared/fileCapabilities";
 
@@ -618,15 +622,11 @@ function LibraryApp() {
   }
 
   function getSlicerLaunchModelPaths(contextModel: ModelFile): string[] {
-    const selectedPrintableModels = (scanResult?.models ?? []).filter(
-      (model) => selectedModelIds.has(model.id) && isPrintableModel(model)
+    return getSlicerLaunchFilePaths(
+      contextModel,
+      scanResult?.models ?? [],
+      selectedModelIds
     );
-
-    if (selectedModelIds.has(contextModel.id) && selectedPrintableModels.length > 0) {
-      return selectedPrintableModels.map((model) => model.absolutePath);
-    }
-
-    return isPrintableModel(contextModel) ? [contextModel.absolutePath] : [];
   }
 
   function getSlicerLaunchModelCount(contextModel: ModelFile): number {
@@ -646,7 +646,7 @@ function LibraryApp() {
   }
 
   async function openModelInDefaultSlicer(model: ModelFile) {
-    if (!isPrintableModel(model)) {
+    if (!canSendToSlicer(model.extension)) {
       setLaunchMessage("Extraia um STL ou 3MF antes de abrir no slicer.");
       return;
     }
@@ -1145,6 +1145,27 @@ function LibraryApp() {
     setModelContextMenu(null);
     expandFolderAncestors(folderId);
     setFolderContextMenu({ folderId, x, y });
+  }
+
+  async function showFolderInExplorer(folderId: string) {
+    setFolderContextMenu(null);
+    const session = activeLibrarySessionRef.current;
+    if (!session) {
+      setOperationMessage("A biblioteca não está ativa.");
+      return;
+    }
+
+    const relativeFolder = folderId === ALL_FOLDERS_ID ? "" : folderId;
+    try {
+      await window.modelLibrary.showLibraryFolder(session, relativeFolder);
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
+        setOperationMessage(relativeFolder ? "Pasta aberta no Explorer." : "Biblioteca aberta no Explorer.");
+      }
+    } catch (error) {
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
+        setOperationMessage(readErrorMessage(error));
+      }
+    }
   }
 
   function toggleExpandedFolder(folderId: string) {
@@ -1982,6 +2003,13 @@ function LibraryApp() {
           <button type="button" role="menuitem" onClick={() => selectFolder(folderContextMenu.folderId)}>
             Abrir pasta
           </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void showFolderInExplorer(folderContextMenu.folderId)}
+          >
+            Mostrar no Explorer
+          </button>
           <button type="button" role="menuitem" onClick={() => createFolder(folderContextMenu.folderId)}>
             Nova pasta aqui
           </button>
@@ -2066,21 +2094,35 @@ function LibraryApp() {
           role="menu"
           onMouseLeave={() => setModelContextMenu(null)}
         >
-          <div className="context-menu-section-title">Modelo</div>
+          <div className="context-menu-section-title">Abrir</div>
           <button
             type="button"
             role="menuitem"
-            onClick={() => openModel(modelContextMenu.model, { ctrlKey: false, shiftKey: false })}
+            onClick={() => {
+              const model = modelContextMenu.model;
+              setModelContextMenu(null);
+              if (isDirectImage(model.extension)) {
+                void openFileByDefault(model);
+              } else {
+                openModel(model, { ctrlKey: false, shiftKey: false });
+              }
+            }}
           >
-            Carregar no painel
+            {isDirectImage(modelContextMenu.model.extension)
+              ? "Abrir no Windows"
+              : getDefaultFileOpenAction(modelContextMenu.model.extension) === "inspect-archive"
+                ? "Inspecionar conteúdo"
+                : "Carregar no painel"}
           </button>
-          <button
-            type="button"
-            role="menuitem"
-            onClick={() => retryModelThumbnail(modelContextMenu.model)}
-          >
-            Tentar miniatura novamente
-          </button>
+          {canShowThumbnail(modelContextMenu.model.extension) ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => retryModelThumbnail(modelContextMenu.model)}
+            >
+              Tentar miniatura novamente
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
@@ -2327,10 +2369,6 @@ function getHashCandidateModels(models: ModelFile[]) {
     .filter((modelsWithSameSize) => modelsWithSameSize.length > 1)
     .flat()
     .map(({ absolutePath, sizeBytes, modifiedAt }) => ({ absolutePath, sizeBytes, modifiedAt }));
-}
-
-function isPrintableModel(model: ModelFile): boolean {
-  return model.extension === ".stl" || model.extension === ".3mf";
 }
 
 function isTextInputTarget(target: EventTarget | null): boolean {

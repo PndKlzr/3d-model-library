@@ -1,10 +1,9 @@
 import path from "node:path";
 import chokidar from "chokidar";
 import type { LibraryWatchEvent } from "../../src/shared/types.js";
+import { toSupportedFileExtension } from "../../src/shared/fileCapabilities.js";
 import { isPathInside } from "./pathContainment.js";
 import { isInternalLibraryPath } from "./portableMetadataCodec.js";
-
-const SUPPORTED_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
 
 export type LibraryWatcherLike = {
   on: (name: string, listener: (...args: unknown[]) => void) => LibraryWatcherLike;
@@ -51,7 +50,7 @@ export function createLibraryWatcher({
       return;
     }
 
-    if (!eventType.endsWith("Dir") && !SUPPORTED_EXTENSIONS.has(path.extname(absolutePath).toLowerCase())) {
+    if (!eventType.endsWith("Dir") && !toSupportedFileExtension(path.extname(absolutePath))) {
       return;
     }
 

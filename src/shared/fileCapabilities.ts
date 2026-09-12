@@ -36,6 +36,35 @@ export function isArchive(extension: SupportedFileExtension): boolean {
   return getFileCategory(extension) === "archive";
 }
 
-export function canSendToSlicer(extension: SupportedFileExtension): boolean {
+export function canSendToSlicer(
+  extension: SupportedFileExtension
+): extension is ".stl" | ".3mf" {
   return extension === ".stl" || extension === ".3mf";
+}
+
+export function canConvertToStl(extension: SupportedFileExtension): boolean {
+  return extension === ".3mf";
+}
+
+export function canInspectArchive(extension: SupportedFileExtension): boolean {
+  return isArchive(extension);
+}
+
+export function canOpenWithWindows(extension: SupportedFileExtension): boolean {
+  return isDirectImage(extension);
+}
+
+export function canShowThumbnail(extension: SupportedFileExtension): boolean {
+  return is3dPreviewable(extension) || isDirectImage(extension);
+}
+
+export function isGeometryOnlyPreview(extension: SupportedFileExtension): boolean {
+  return extension === ".obj";
+}
+
+export function toSupportedFileExtension(value: string): SupportedFileExtension | null {
+  const normalized = value.toLowerCase();
+  return SUPPORTED_FILE_EXTENSIONS.includes(normalized as SupportedFileExtension)
+    ? normalized as SupportedFileExtension
+    : null;
 }

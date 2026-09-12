@@ -4,10 +4,13 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { unzipSync } from "fflate";
 import type { ArchiveEntry, ArchiveListResult, FileOperationResult } from "../../src/shared/types.js";
+import {
+  canSendToSlicer,
+  isArchive,
+  toSupportedFileExtension
+} from "../../src/shared/fileCapabilities.js";
 import { isPathAtOrInside, isPathInside } from "./pathContainment.js";
 
-const ARCHIVE_EXTENSIONS = new Set([".zip", ".rar", ".7z"]);
-const PRINTABLE_EXTENSIONS = new Set([".stl", ".3mf"]);
 const execFileAsync = promisify(execFile);
 
 type SevenZipRunResult = {
@@ -402,7 +405,8 @@ async function resolveArchivePath(rootPath: string, archivePath: string): Promis
   const archiveStat = await stat(normalizedArchivePath);
   const extension = path.extname(normalizedArchivePath).toLowerCase();
 
-  if (!archiveStat.isFile() || !ARCHIVE_EXTENSIONS.has(extension)) {
+  const supportedExtension = toSupportedFileExtension(extension);
+  if (!archiveStat.isFile() || !supportedExtension || !isArchive(supportedExtension)) {
     throw new Error("Arquivo compactado invalido.");
   }
 
@@ -411,16 +415,16 @@ async function resolveArchivePath(rootPath: string, archivePath: string): Promis
 
 function createArchiveEntry(entryPath: string, sizeBytes: number): ArchiveEntry | null {
   const normalizedPath = normalizeArchiveEntryPath(entryPath);
-  const extension = path.posix.extname(normalizedPath).toLowerCase();
+  const extension = toSupportedFileExtension(path.posix.extname(normalizedPath));
 
-  if (!PRINTABLE_EXTENSIONS.has(extension) || normalizedPath.endsWith("/")) {
+  if (!extension || !canSendToSlicer(extension) || normalizedPath.endsWith("/")) {
     return null;
   }
 
   return {
     path: normalizedPath,
     name: path.posix.basename(normalizedPath),
-    extension: extension as ArchiveEntry["extension"],
+    extension,
     sizeBytes
   };
 }

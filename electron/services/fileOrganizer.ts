@@ -1,9 +1,12 @@
 import { mkdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { FileOperationResult, FileRestorePair } from "../../src/shared/types.js";
+import {
+  canConvertToStl,
+  toSupportedFileExtension
+} from "../../src/shared/fileCapabilities.js";
 import { isPathAtOrInside, isPathInside } from "./pathContainment.js";
 
-const LIBRARY_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
 const INVALID_WINDOWS_NAME_CHARS = /[<>:"/\\|?*\u0000-\u001f]/;
 const RESERVED_WINDOWS_NAMES = new Set([
   "con",
@@ -221,7 +224,8 @@ export async function saveConvertedStlFile(
 ): Promise<FileOperationResult> {
   const safeSourcePath = resolveExistingAbsolutePath(rootPath, sourcePath);
 
-  if (path.extname(safeSourcePath).toLowerCase() !== ".3mf") {
+  const sourceExtension = toSupportedFileExtension(path.extname(safeSourcePath));
+  if (!sourceExtension || !canConvertToStl(sourceExtension)) {
     throw new Error("Apenas arquivos 3MF podem ser convertidos para STL.");
   }
 
@@ -376,7 +380,7 @@ async function assertLibraryFile(filePath: string) {
   const fileStat = await stat(filePath);
   const extension = path.extname(filePath).toLowerCase();
 
-  if (!fileStat.isFile() || !LIBRARY_FILE_EXTENSIONS.has(extension)) {
+  if (!fileStat.isFile() || !toSupportedFileExtension(extension)) {
     throw new Error("Arquivo de modelo invalido.");
   }
 }

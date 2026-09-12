@@ -65,6 +65,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
     ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),
   showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
+  showLibraryFolder: (session, relativeFolder) =>
+    ipcRenderer.invoke("library:show-folder", session, relativeFolder),
   openLibraryFile: (session, absolutePath) =>
     ipcRenderer.invoke("system:open-library-file", session, absolutePath),
   copyText: (text) => ipcRenderer.invoke("system:copy-text", text),

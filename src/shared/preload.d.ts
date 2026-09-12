@@ -102,6 +102,7 @@ export type ModelLibraryApi = {
   saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
+  showLibraryFolder: (session: LibrarySessionRef, relativeFolder: string) => Promise<void>;
   openLibraryFile: (session: LibrarySessionRef, absolutePath: string) => Promise<void>;
   copyText: (text: string) => Promise<void>;
   startFileDrag: (request: FileDragRequest) => void;

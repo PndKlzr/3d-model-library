@@ -91,4 +91,18 @@ describe("folder context menu contract", () => {
     expect(folderTreeSource).toContain("excludedFolderIds");
     expect(folderTreeSource).toContain("folder-excluded-indicator");
   });
+
+  it("reveals root and nested folders after closing the context menu", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const revealHandler = appSource.match(/async function showFolderInExplorer[\s\S]*?\n  }\n/)?.[0];
+
+    expect(revealHandler).toBeTruthy();
+    expect(revealHandler).toContain("setFolderContextMenu(null)");
+    expect(revealHandler).toContain("ALL_FOLDERS_ID ? \"\" : folderId");
+    expect(revealHandler).toContain("showLibraryFolder(session, relativeFolder)");
+    expect(revealHandler!.indexOf("setFolderContextMenu(null)"))
+      .toBeLessThan(revealHandler!.indexOf("showLibraryFolder(session, relativeFolder)"));
+    expect(appSource).toContain("Mostrar no Explorer");
+    expect(appSource).toContain("showModelInFolder(model.absolutePath)");
+  });
 });

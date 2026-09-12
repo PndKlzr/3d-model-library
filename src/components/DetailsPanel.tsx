@@ -22,7 +22,13 @@ import type {
   ModelFile,
   ModelUserMetadata
 } from "../shared/types";
-import { canSendToSlicer, isArchive, isDirectImage } from "../shared/fileCapabilities";
+import {
+  canConvertToStl,
+  canSendToSlicer,
+  isArchive,
+  isDirectImage,
+  isGeometryOnlyPreview
+} from "../shared/fileCapabilities";
 
 type DetailsTab = "info" | "notes" | "actions";
 
@@ -361,7 +367,7 @@ export function DetailsPanel({
                     <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
                   </div>
                 </dl>
-                {model.extension === ".obj" ? (
+                {isGeometryOnlyPreview(model.extension) ? (
                   <div className="notice">
                     OBJ exibe somente a geometria; materiais e texturas externas não são carregados.
                   </div>
@@ -446,7 +452,7 @@ export function DetailsPanel({
                     <Pencil size={16} />
                     Renomear arquivo
                   </button>
-                  {model.extension === ".3mf" ? (
+                  {canConvertToStl(model.extension) ? (
                     <div className="conversion-action">
                       <button
                         className="secondary-button"

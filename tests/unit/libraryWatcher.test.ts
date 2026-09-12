@@ -32,6 +32,30 @@ describe("libraryWatcher", () => {
     vi.useRealTimers();
   });
 
+  it("watches models, images, and archives from the shared catalog", async () => {
+    vi.useFakeTimers();
+    const fakeWatcher = createFakeWatcher();
+    const batches: LibraryWatchEvent[][] = [];
+    const rootPath = path.resolve("C:\\Models");
+    const watcher = createLibraryWatcher({
+      rootPath,
+      debounceMs: 25,
+      onBatch: (batch) => batches.push(batch),
+      watchFactory: () => fakeWatcher
+    });
+
+    for (const name of ["mesh.obj", "photo.png", "cover.jpeg", "preview.webp", "pack.7z"]) {
+      fakeWatcher.emit("all", "add", path.join(rootPath, name));
+    }
+    await vi.advanceTimersByTimeAsync(26);
+
+    expect(batches[0].map((event) => path.basename(event.absolutePath))).toEqual([
+      "mesh.obj", "photo.png", "cover.jpeg", "preview.webp", "pack.7z"
+    ]);
+    await watcher.close();
+    vi.useRealTimers();
+  });
+
   it("accepts dot-prefixed child segments and rejects exact parent traversal", async () => {
     vi.useFakeTimers();
     const fakeWatcher = createFakeWatcher();
