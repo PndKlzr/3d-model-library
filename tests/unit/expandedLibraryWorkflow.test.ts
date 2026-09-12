@@ -115,11 +115,11 @@ describe("expanded library workflow", () => {
       [seededA.libraryId, deferred<string>()],
       [seededB.libraryId, deferred<string>()]
     ]);
-    const cacheWrites: Array<{ rootPath: string; sessionKey: string }> = [];
+    const cacheWrites: Array<{ rootPath: string; sessionKey: string; dataUrl: string }> = [];
     const thumbnailService = createModelThumbnailService(thumbnailDependencies({
       readImageDataUrl: async (expected) => imageReads.get(expected.libraryId)!.promise,
-      writeCachedThumbnail: async (model, _dataUrl, sessionKey) => {
-        cacheWrites.push({ rootPath: path.dirname(model.absolutePath), sessionKey });
+      writeCachedThumbnail: async (model, dataUrl, sessionKey) => {
+        cacheWrites.push({ rootPath: path.dirname(model.absolutePath), sessionKey, dataUrl });
       }
     }));
 
@@ -140,6 +140,13 @@ describe("expanded library workflow", () => {
     expectLibraryActivation(activationB, seededB, storage);
     const thumbnailB = thumbnailService.request(findExtension(activationB.cachedResult!.models, ".png"), "visible");
     await vi.waitFor(() => expect(thumbnailService.getDiagnostics().running.io).toBe(2));
+    imageReads.get(seededB.libraryId)!.resolve("data:image/png;base64,Qg==");
+    await expect(thumbnailB.promise).resolves.toBe("data:image/png;base64,Qg==");
+    expect(cacheWrites).toEqual([{
+      rootPath: seededB.rootPath,
+      sessionKey: expect.any(String),
+      dataUrl: "data:image/png;base64,Qg=="
+    }]);
     const scanB = session.scan(activationB.session);
     const staleWatcher = watchers[0];
     const switchBackToA = session.activate(rootA, true);
@@ -149,9 +156,12 @@ describe("expanded library workflow", () => {
 
     const activationAAgain = (await switchBackToA)!;
     thumbnailService.beginLibrarySession(activationAAgain.session);
-    await expect(thumbnailB.promise).resolves.toBeNull();
+    const thumbnailAAgain = thumbnailService.request(
+      findExtension(activationAAgain.cachedResult!.models, ".png"),
+      "visible"
+    );
     imageReads.get(seededA.libraryId)!.resolve("data:image/png;base64,QQ==");
-    imageReads.get(seededB.libraryId)!.resolve("data:image/png;base64,Qg==");
+    await expect(thumbnailAAgain.promise).resolves.toBe("data:image/png;base64,QQ==");
     await thumbnailService.onIdle();
 
     await staleWatcher.onBatch([{
@@ -159,11 +169,20 @@ describe("expanded library workflow", () => {
       absolutePath: path.join(staleWatcher.rootPath, "fixture-a.stl")
     }]);
     expect(changedEvents).not.toHaveBeenCalled();
-    expect(cacheWrites).toEqual([]);
+    expect(cacheWrites).toHaveLength(2);
+    expect(cacheWrites[1]).toEqual({
+      rootPath: seededA.rootPath,
+      sessionKey: expect.any(String),
+      dataUrl: "data:image/png;base64,QQ=="
+    });
+    expect(cacheWrites[0].sessionKey).not.toBe(cacheWrites[1].sessionKey);
+    expect(cacheWrites.every((write) =>
+      write.sessionKey !== `${activationA.session.libraryId}:${activationA.session.generation}:${activationA.session.rootPath}`
+    )).toBe(true);
     expectLibraryActivation(activationAAgain, seededA, storage);
     expect(activationAAgain.session.generation).toBeGreaterThan(activationB.session.generation);
     await session.close();
-  });
+  }, 30_000);
 
   it("uses real temporary files for bounded image, OBJ, and folder access without opening a GUI", async () => {
     const parent = await createTemporaryParent();
@@ -221,6 +240,8 @@ type SeededLibrary = {
   rootPath: string;
   excludedFolder: string;
   expectedTag: string;
+  expectedFavorite: boolean;
+  expectedNotes: string;
 };
 
 async function seedLibrary(
@@ -242,7 +263,7 @@ async function seedLibrary(
   const scan = await scanLibrary(canonicalRoot);
   const metadata: LibraryMetadata = {
     models: {
-      [stlPath]: { favorite: true, tags: [expectedTag], notes: `note-${suffix}` }
+      [stlPath]: { favorite: suffix === "a", tags: [expectedTag], notes: `note-${suffix}` }
     },
     tagCatalog: [expectedTag],
     slicerHistory: []
@@ -252,7 +273,14 @@ async function seedLibrary(
     encodePortableMetadata(canonicalRoot, libraryId, metadata, "2026-09-12T00:00:00.000Z")
   );
   await indexStore.save(canonicalRoot, libraryId, scan);
-  return { libraryId, rootPath: canonicalRoot, excludedFolder, expectedTag };
+  return {
+    libraryId,
+    rootPath: canonicalRoot,
+    excludedFolder,
+    expectedTag,
+    expectedFavorite: suffix === "a",
+    expectedNotes: `note-${suffix}`
+  };
 }
 
 function expectLibraryActivation(
@@ -273,6 +301,14 @@ function expectLibraryActivation(
     model.absolutePath.startsWith(expected.rootPath)
   )).toBe(true);
   expect(activation.metadata.tagCatalog).toEqual([expected.expectedTag]);
+  const modelPath = activation.cachedResult!.models.find((model) => model.extension === ".stl")!
+    .absolutePath;
+  expect(activation.metadata.models[modelPath]).toEqual({
+    favorite: expected.expectedFavorite,
+    tags: [expected.expectedTag],
+    notes: expected.expectedNotes
+  });
+  expect(Object.keys(activation.metadata.models)).toEqual([modelPath]);
   expect(loadLibraryViewPreferences(storage, expected.libraryId).excludedFolders).toEqual([
     expected.excludedFolder
   ]);

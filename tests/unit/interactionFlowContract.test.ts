@@ -239,7 +239,7 @@ describe("interaction flow contract", () => {
     );
   });
 
-  it("resets transient view state and thumbnail identity before publishing a cached catalog", async () => {
+  it("defines the transient state reset used by library activation", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const activationSource = appSource.match(
       /async function activateLibrary\([\s\S]*?\n  }\n/
@@ -278,8 +278,7 @@ describe("interaction flow contract", () => {
     expect(isCurrentLibraryResult(null, active)).toBe(false);
   });
 
-  it("composes catalog filters in memory without starting a filesystem scan", () => {
-    const scanLibrary = vi.fn();
+  it("composes catalog filters in memory", () => {
     const now = Date.parse("2026-09-12T12:00:00.000Z");
     const target = contractModel("target.obj", ".obj", "keep", 200);
     const files = [
@@ -317,7 +316,6 @@ describe("interaction flow contract", () => {
     });
 
     expect(result).toEqual([target]);
-    expect(scanLibrary).not.toHaveBeenCalled();
   });
 
   it("keeps every supported format available to internal and external drag selection", () => {
