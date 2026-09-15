@@ -16,14 +16,10 @@ describe("settingsStore", () => {
     expect(store.getSettings().archiveExtractorPath).toBe("");
     expect(store.getSettings().defaultSlicerId).toBeNull();
     expect(store.getSettings().locale).toBe("pt-BR");
-    expect(store.getSettings().slicers).toEqual([
-      { id: "cura", name: "Cura", executablePath: "", enabled: false },
-      {
-        id: "creality-print",
-        name: "Creality Print",
-        executablePath: "",
-        enabled: false
-      }
+    expect(store.getSettings().slicers).toHaveLength(8);
+    expect(store.getSettings().slicers.slice(0, 2)).toMatchObject([
+      { id: "cura", kind: "built-in", builtInKey: "cura", pathSource: null },
+      { id: "creality-print", kind: "built-in", builtInKey: "creality-print", pathSource: null }
     ]);
   });
 
@@ -110,8 +106,51 @@ describe("settingsStore", () => {
 
     expect(store.getSettings().slicers[0]).toEqual({
       id: "cura",
-      name: "Cura",
+      name: "UltiMaker Cura",
+      kind: "built-in",
+      builtInKey: "cura",
       executablePath: "C:\\Program Files\\UltiMaker Cura\\Cura.exe",
+      enabled: true,
+      pathSource: "manual"
+    });
+  });
+
+  it("migrates legacy Cura and Creality settings without losing user choices", () => {
+    const legacy = {
+      ...createDefaultSettings(),
+      defaultSlicerId: "creality-print",
+      slicers: [
+        {
+          id: "cura",
+          name: "Cura",
+          executablePath: "C:\\Apps\\Cura.exe",
+          enabled: true
+        },
+        {
+          id: "creality-print",
+          name: "Creality Print",
+          executablePath: "C:\\Apps\\CrealityPrint.exe",
+          enabled: true
+        }
+      ]
+    };
+    const store = createSettingsStore({ get: () => legacy as never, set: () => undefined });
+    const migrated = store.getSettings();
+
+    expect(migrated.defaultSlicerId).toBe("creality-print");
+    expect(migrated.slicers).toHaveLength(8);
+    expect(migrated.slicers[0]).toMatchObject({
+      id: "cura",
+      name: "Cura",
+      executablePath: "C:\\Apps\\Cura.exe",
+      enabled: true,
+      kind: "built-in",
+      builtInKey: "cura",
+      pathSource: "manual"
+    });
+    expect(migrated.slicers[1]).toMatchObject({
+      id: "creality-print",
+      executablePath: "C:\\Apps\\CrealityPrint.exe",
       enabled: true
     });
   });

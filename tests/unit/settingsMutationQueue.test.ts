@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { createSettingsMutationQueue } from "../../src/lib/settingsMutationQueue";
 import {
+  addCustomSlicer,
+  removeCustomSlicer,
+  renameCustomSlicer,
+  setDefaultSlicer,
   setSlicerEnabled,
   setSlicerExecutable
 } from "../../src/lib/settingsMutations";
@@ -104,17 +108,51 @@ describe("settingsMutationQueue", () => {
     const [, finalSettings] = await Promise.all([first, second]);
 
     expect(finalSettings).toMatchObject({
-      defaultSlicerId: "slicer-b",
+      defaultSlicerId: null,
       slicers: [
         { id: "slicer-a", enabled: false },
         { id: "slicer-b", enabled: true, executablePath: "C:\\Apps\\B.exe" }
       ]
     });
   });
+
+  it("adds custom slicers with stable unique ids and supports renaming", () => {
+    const initial = settings();
+    const first = addCustomSlicer("Meu Slicer", "C:\\Apps\\One.exe")(initial);
+    const second = addCustomSlicer("Outro", "C:\\Apps\\Two.exe")(first);
+
+    expect(first.slicers[0]).toMatchObject({
+      name: "Meu Slicer",
+      kind: "custom",
+      executablePath: "C:\\Apps\\One.exe",
+      enabled: true,
+      pathSource: "manual"
+    });
+    expect(first.slicers[0].id).not.toBe(second.slicers[1].id);
+
+    const renamed = renameCustomSlicer(first.slicers[0].id, "Slicer Renomeado")(second);
+    expect(renamed.slicers[0]).toMatchObject({
+      id: first.slicers[0].id,
+      name: "Slicer Renomeado"
+    });
+  });
+
+  it("changes the default only explicitly and clears it when a custom slicer is removed", () => {
+    const withCustom = addCustomSlicer("Meu Slicer", "C:\\Apps\\One.exe")(settings());
+    const customId = withCustom.slicers[0].id;
+    const withDefault = setDefaultSlicer(customId)(withCustom);
+
+    expect(withDefault.defaultSlicerId).toBe(customId);
+    expect(removeCustomSlicer(customId)(withDefault)).toMatchObject({
+      defaultSlicerId: null,
+      slicers: []
+    });
+  });
 });
 
 function settings(): AppSettings {
   return {
+    locale: "pt-BR",
     libraryPath: "C:\\Models",
     includeSubfolders: true,
     monitorLibrary: true,

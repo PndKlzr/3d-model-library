@@ -1,5 +1,9 @@
 import type { AppSettings, SlicerConfig } from "../../src/shared/types.js";
 import { resolveAppLocale } from "../../src/i18n/translate.js";
+import {
+  createBuiltInSlicerConfigs,
+  normalizeSlicerConfigs
+} from "../../src/shared/slicerCatalog.js";
 
 export type SettingsBackend = {
   get: () => AppSettings | undefined;
@@ -20,15 +24,7 @@ export function createDefaultSettings(systemLocale?: string): AppSettings {
     fileDragBehavior: "organize-default",
     archiveExtractorPath: "",
     defaultSlicerId: null,
-    slicers: [
-      { id: "cura", name: "Cura", executablePath: "", enabled: false },
-      {
-        id: "creality-print",
-        name: "Creality Print",
-        executablePath: "",
-        enabled: false
-      }
-    ]
+    slicers: createBuiltInSlicerConfigs()
   };
 }
 
@@ -84,7 +80,7 @@ export async function createElectronSettingsStore(systemLocale?: string): Promis
 }
 
 function normalizeSettings(settings: AppSettings, systemLocale?: string): AppSettings {
-  const slicers = settings.slicers.map((slicer: SlicerConfig) => ({ ...slicer }));
+  const slicers = normalizeSlicerConfigs(settings.slicers as Partial<SlicerConfig>[] | undefined);
 
   return {
     locale: settings.locale ? resolveAppLocale(settings.locale) : resolveAppLocale(systemLocale),

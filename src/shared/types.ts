@@ -1,10 +1,14 @@
 import type { SupportedFileExtension } from "./fileCapabilities.js";
+import type { BuiltInSlicerKey } from "./slicerCatalog.js";
 
 export type SlicerConfig = {
   id: string;
   name: string;
+  kind: "built-in" | "custom";
+  builtInKey?: BuiltInSlicerKey;
   executablePath: string;
   enabled: boolean;
+  pathSource: "detected" | "manual" | null;
 };
 
 export type FileDragBehavior = "organize-default" | "external-default";
