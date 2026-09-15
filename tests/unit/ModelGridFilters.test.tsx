@@ -100,6 +100,23 @@ describe("ModelGrid filters", () => {
     expect(stickyHeader).not.toContainElement(view.container.querySelector(".empty-state"));
   });
 
+  it("exposes accessible responsive panel controls", () => {
+    const onToggleFolders = vi.fn();
+    const onToggleDetails = vi.fn();
+    const view = renderGrid({
+      responsivePanel: "folders",
+      onToggleFolders,
+      onToggleDetails
+    });
+
+    const folders = view.getByRole("button", { name: "Pastas" });
+    const details = view.getByRole("button", { name: "Detalhes" });
+    expect(folders).toHaveAttribute("aria-expanded", "true");
+    expect(details).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(details);
+    expect(onToggleDetails).toHaveBeenCalledOnce();
+  });
+
   it("restores and reports the library scroll position", () => {
     const onScrollTopChange = vi.fn();
     const view = renderGrid({
@@ -167,6 +184,7 @@ function renderGrid(overrides: Partial<ComponentProps<typeof ModelGrid>> = {}) {
     fileDragBehavior: "organize-default",
     canNavigateBack: false,
     canNavigateForward: false,
+    responsivePanel: null,
     onSearchChange: noop,
     onVisibleExtensionsChange: noop,
     onRemoveFolderExclusion: noop,
@@ -194,6 +212,8 @@ function renderGrid(overrides: Partial<ComponentProps<typeof ModelGrid>> = {}) {
     onDragEndModel: noop,
     onRefresh: noop,
     onOpenSettings: noop,
+    onToggleFolders: noop,
+    onToggleDetails: noop,
     ...overrides
   };
 

@@ -29,6 +29,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { FolderCardThumbnail } from "./FolderCardThumbnail";
 import { ThumbnailQueueStatus } from "./ThumbnailQueueStatus";
+import { ResponsivePanelControls } from "./ResponsivePanelControls";
 import { startThumbnailWarmup, type ThumbnailWarmupProgress } from "../lib/thumbnailWarmup";
 import { modelThumbnailService } from "../lib/modelThumbnailService";
 import { FileTypeFilter } from "./FileTypeFilter";
@@ -45,6 +46,7 @@ import { buildVirtualRows, findVirtualRowIndex } from "../lib/virtualGrid";
 import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
 import { isArchive, SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } from "../shared/fileCapabilities";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
+import type { ResponsivePanel } from "../lib/responsivePanels";
 
 type ModelGridProps = {
   models: ModelFile[];
@@ -80,6 +82,7 @@ type ModelGridProps = {
   fileDragBehavior: FileDragBehavior;
   canNavigateBack: boolean;
   canNavigateForward: boolean;
+  responsivePanel: ResponsivePanel;
   scrollRestoreRequest?: { key: number; top: number } | null;
   modelRevealRequest?: { key: number; modelId: string } | null;
   onScrollTopChange?: (top: number) => void;
@@ -110,6 +113,8 @@ type ModelGridProps = {
   onDragEndModel: () => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
+  onToggleFolders: () => void;
+  onToggleDetails: () => void;
 };
 
 type CollectionItem =
@@ -150,6 +155,7 @@ export function ModelGrid({
   fileDragBehavior,
   canNavigateBack,
   canNavigateForward,
+  responsivePanel,
   scrollRestoreRequest = null,
   modelRevealRequest = null,
   onScrollTopChange = () => undefined,
@@ -179,7 +185,9 @@ export function ModelGrid({
   onDragStartModel,
   onDragEndModel,
   onRefresh,
-  onOpenSettings
+  onOpenSettings,
+  onToggleFolders,
+  onToggleDetails
 }: ModelGridProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
@@ -396,6 +404,11 @@ export function ModelGrid({
           </div>
         </div>
         <div className="toolbar-actions">
+          <ResponsivePanelControls
+            openPanel={responsivePanel}
+            onToggleFolders={onToggleFolders}
+            onToggleDetails={onToggleDetails}
+          />
           <div className="drag-behavior-toggle" role="group" aria-label="Modo de arraste">
             <button
               className={fileDragBehavior === "organize-default" ? "active" : ""}

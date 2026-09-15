@@ -892,8 +892,8 @@ async function createWindow() {
     show: !benchmarkEnvironment,
     width: 1320,
     height: 820,
-    minWidth: 980,
-    minHeight: 640,
+    minWidth: 760,
+    minHeight: 560,
     backgroundColor: "#e9edf0",
     title: "3D Model Library",
     webPreferences: {

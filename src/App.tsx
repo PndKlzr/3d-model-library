@@ -60,6 +60,10 @@ import {
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
 import {
+  toggleResponsivePanel,
+  type ResponsivePanel
+} from "./lib/responsivePanels";
+import {
   createSettingsMutationQueue,
   type SettingsMutationQueue
 } from "./lib/settingsMutationQueue";
@@ -272,6 +276,7 @@ function LibraryApp() {
   const [isScanning, setIsScanning] = useState(false);
   const [monitorStatus, setMonitorStatus] = useState<"active" | "disabled" | "error">("disabled");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [responsivePanel, setResponsivePanel] = useState<ResponsivePanel>(null);
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [actionLogEntries, setActionLogEntries] = useState<LocalActionLogEntry[]>([]);
@@ -476,7 +481,8 @@ function LibraryApp() {
     selectedModel,
     selectedModelIds,
     tagPickerDialog,
-    textInputDialog
+    textInputDialog,
+    responsivePanel
   ]);
 
   useEffect(() => {
@@ -818,6 +824,11 @@ function LibraryApp() {
       return true;
     }
 
+    if (responsivePanel) {
+      setResponsivePanel(null);
+      return true;
+    }
+
     return false;
   }
 
@@ -1152,6 +1163,7 @@ function LibraryApp() {
     setFolderContextMenu(null);
     setModelContextMenu(null);
     setSelectedFolder(folderId);
+    setResponsivePanel(null);
     expandFolderAncestors(folderId);
   }
 
@@ -1924,7 +1936,11 @@ function LibraryApp() {
     : false;
 
   return (
-    <main className="app-shell" data-theme={themeMode}>
+    <main
+      className="app-shell"
+      data-theme={themeMode}
+      data-responsive-panel={responsivePanel ?? "none"}
+    >
       <FolderTree
         folders={folders}
         selectedFolder={selectedFolder}
@@ -1977,6 +1993,7 @@ function LibraryApp() {
         fileDragBehavior={settings.fileDragBehavior}
         canNavigateBack={folderHistory.back.length > 0}
         canNavigateForward={folderHistory.forward.length > 0}
+        responsivePanel={responsivePanel}
         scrollRestoreRequest={gridScrollRestoreRequest}
         modelRevealRequest={modelRevealRequest}
         onScrollTopChange={(top) => { gridScrollTopRef.current = top; }}
@@ -2007,6 +2024,12 @@ function LibraryApp() {
         onDragEndModel={clearDraggedModels}
         onRefresh={() => scanCurrentLibrary()}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onToggleFolders={() =>
+          setResponsivePanel((current) => toggleResponsivePanel(current, "folders"))
+        }
+        onToggleDetails={() =>
+          setResponsivePanel((current) => toggleResponsivePanel(current, "details"))
+        }
       />
       <DetailsPanel
         model={selectedModel}
@@ -2030,6 +2053,14 @@ function LibraryApp() {
         onExtractArchive={extractArchiveFile}
         onConvertThreeMfToStl={convertSelectedThreeMfToStl}
       />
+      {responsivePanel ? (
+        <button
+          className="responsive-panel-scrim"
+          type="button"
+          onClick={() => setResponsivePanel(null)}
+          aria-label="Fechar painel"
+        />
+      ) : null}
       {isSettingsOpen ? (
         <SettingsDialog
           settings={settings}
