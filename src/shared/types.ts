@@ -8,6 +8,7 @@ export type SlicerConfig = {
 };
 
 export type FileDragBehavior = "organize-default" | "external-default";
+export type AppLocale = "pt-BR" | "en";
 
 export type AppSettings = {
   libraryPath: string | null;

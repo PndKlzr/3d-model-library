@@ -1,0 +1,24 @@
+import { en, ptBR, type TranslationKey } from "./catalog";
+import type { AppLocale } from "../shared/types";
+
+export type TranslationParams = Record<string, string | number>;
+
+export function resolveAppLocale(value?: string | null): AppLocale {
+  const locale = value?.trim().toLowerCase();
+  if (locale === "en" || locale?.startsWith("en-")) return "en";
+  if (locale === "pt" || locale?.startsWith("pt-")) return "pt-BR";
+  return "pt-BR";
+}
+
+export function translate(
+  locale: AppLocale,
+  key: TranslationKey,
+  params: TranslationParams = {}
+): string {
+  const catalog = locale === "en" ? en : ptBR;
+  const resolvedKey = key === "library.modelCount"
+    ? (`library.modelCount.${Number(params.count) === 1 ? "one" : "other"}` as keyof typeof ptBR)
+    : key;
+  const template = catalog[resolvedKey as keyof typeof ptBR];
+  return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(params[name] ?? ""));
+}
