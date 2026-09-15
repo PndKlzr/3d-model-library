@@ -51,7 +51,8 @@ describe("FileTypeFilter", () => {
 
     const trigger = getByRole("button", { name: "Filtrar tipos de arquivo" });
     fireEvent.click(trigger);
-    expect(getByRole("dialog", { name: "Tipos de arquivo" })).toBeVisible();
+    expect(getByRole("dialog", { name: "Tipos de arquivo" }))
+      .toHaveClass("viewport-safe-popover");
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     fireEvent.keyDown(window, { key: "Escape" });
     expect(queryByRole("dialog", { name: "Tipos de arquivo" })).toBeNull();

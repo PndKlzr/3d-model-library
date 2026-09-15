@@ -1,5 +1,5 @@
 import { ChevronDown, Files } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   SUPPORTED_FILE_EXTENSIONS,
   type SupportedFileExtension
@@ -43,6 +43,7 @@ const FILE_TYPE_CATEGORIES: Array<{
 
 export function FileTypeFilter({ visibleExtensions, onChange }: FileTypeFilterProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [placeAbove, setPlaceAbove] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -61,6 +62,12 @@ export function FileTypeFilter({ visibleExtensions, onChange }: FileTypeFilterPr
       document.removeEventListener("pointerdown", closeOnOutsideClick);
       window.removeEventListener("keydown", closeOnEscape);
     };
+  }, [isOpen]);
+
+  useLayoutEffect(() => {
+    if (!isOpen || !wrapRef.current) return;
+    const bounds = wrapRef.current.getBoundingClientRect();
+    setPlaceAbove(window.innerHeight - bounds.bottom < 340 && bounds.top > 340);
   }, [isOpen]);
 
   function emit(nextValues: Set<SupportedFileExtension>) {
@@ -99,7 +106,11 @@ export function FileTypeFilter({ visibleExtensions, onChange }: FileTypeFilterPr
         <ChevronDown size={13} />
       </button>
       {isOpen ? (
-        <div className="file-type-popover" role="dialog" aria-label="Tipos de arquivo">
+        <div
+          className={`file-type-popover viewport-safe-popover ${placeAbove ? "place-above" : ""}`}
+          role="dialog"
+          aria-label="Tipos de arquivo"
+        >
           <strong>Tipos de arquivo</strong>
           {FILE_TYPE_CATEGORIES.map((category) => {
             const categoryExtensions = category.extensions.map(({ extension }) => extension);

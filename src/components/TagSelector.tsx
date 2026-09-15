@@ -1,5 +1,5 @@
 import { Plus, Search, Tag } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 type TagSelectorProps = {
   selectedTags: string[];
@@ -22,6 +22,7 @@ export function TagSelector({
 }: TagSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [placeAbove, setPlaceAbove] = useState(false);
   const selectorRef = useRef<HTMLDivElement | null>(null);
   const listboxId = useId();
   const normalizedSelectedTags = useMemo(() => normalizeTags(selectedTags), [selectedTags]);
@@ -71,6 +72,12 @@ export function TagSelector({
     };
   }, [isOpen]);
 
+  useLayoutEffect(() => {
+    if (!isOpen || !selectorRef.current) return;
+    const bounds = selectorRef.current.getBoundingClientRect();
+    setPlaceAbove(window.innerHeight - bounds.bottom < 290 && bounds.top > 290);
+  }, [isOpen]);
+
   async function toggleTag(tag: string) {
     if (selectedTagSet.has(tag)) {
       await onChange(normalizedSelectedTags.filter((selectedTag) => selectedTag !== tag));
@@ -117,7 +124,7 @@ export function TagSelector({
       </button>
       {isOpen ? (
         <div
-          className="tag-selector-popover"
+          className={`tag-selector-popover viewport-safe-popover ${placeAbove ? "place-above" : ""}`}
           role="listbox"
           id={listboxId}
           aria-label={label}

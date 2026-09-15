@@ -9,11 +9,21 @@ type DialogShellProps = {
 
 export function DialogShell({ title, className, children, onCancel }: DialogShellProps) {
   const dialogRef = useRef<HTMLElement | null>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
   const previousFocusRef = useRef<HTMLElement | null>(
     document.activeElement instanceof HTMLElement ? document.activeElement : null
   );
 
   useEffect(() => {
+    const cancelOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onCancelRef.current();
+    };
+
+    window.addEventListener("keydown", cancelOnEscape, true);
     if (
       dialogRef.current &&
       document.activeElement instanceof HTMLElement &&
@@ -23,6 +33,7 @@ export function DialogShell({ title, className, children, onCancel }: DialogShel
     }
 
     return () => {
+      window.removeEventListener("keydown", cancelOnEscape, true);
       previousFocusRef.current?.focus();
     };
   }, []);
@@ -38,7 +49,7 @@ export function DialogShell({ title, className, children, onCancel }: DialogShel
       }}
     >
       <section
-        className={className}
+        className={`${className} app-dialog`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
