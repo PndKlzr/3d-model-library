@@ -5,6 +5,11 @@ import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDi
 import { I18nProvider } from "./i18n/I18nProvider";
 import type { TranslationKey } from "./i18n/catalog";
 import { translate, type TranslationParams } from "./i18n/translate";
+import {
+  localizeOperationMessage,
+  toAppErrorPayload,
+  translateAppError
+} from "./shared/appError";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { DialogHeader } from "./components/DialogHeader";
 import { DialogShell } from "./components/DialogShell";
@@ -208,6 +213,10 @@ function LibraryApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const t = (key: TranslationKey, params?: TranslationParams) =>
     translate(settings?.locale ?? "pt-BR", key, params);
+  const localizeResult = (message: string) =>
+    localizeOperationMessage(settings?.locale ?? "pt-BR", message);
+  const readLocalizedErrorMessage = (error: unknown) =>
+    translateAppError(settings?.locale ?? "pt-BR", toAppErrorPayload(error));
   const [scanResult, setScanResult] = useState<LibraryScanResult | null>(null);
   const [selectedFolder, setSelectedFolder] = useState(ALL_FOLDERS_ID);
   const [folderHistory, setFolderHistory] = useState(createFolderNavigationHistory);
@@ -423,7 +432,7 @@ function LibraryApp() {
       .catch((error) => {
         if (!isStale && expectedSession &&
           isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
-          setOperationMessage(readErrorMessage(error));
+          setOperationMessage(readLocalizedErrorMessage(error));
         }
       });
 
@@ -568,7 +577,7 @@ function LibraryApp() {
       setOperationMessage(nextStatus.message ?? t("message.metadataReconnected"));
     } catch (error) {
       setOperationMessage(
-        t("message.metadataReconnectFailed", { detail: readErrorMessage(error) })
+        t("message.metadataReconnectFailed", { detail: readLocalizedErrorMessage(error) })
       );
     }
   }
@@ -589,7 +598,7 @@ function LibraryApp() {
       const savedSettings = await settingsMutationQueueRef.current.enqueue(mutation);
       setSettings(savedSettings);
     } catch (error) {
-      setOperationMessage(readErrorMessage(error));
+      setOperationMessage(readLocalizedErrorMessage(error));
     }
   }
 
@@ -651,7 +660,7 @@ function LibraryApp() {
 
   async function launchSlicer(slicerId: string, modelPaths: string | string[]) {
     const result = await window.modelLibrary.launchSlicer(slicerId, modelPaths);
-    setLaunchMessage(result.message);
+    setLaunchMessage(localizeResult(result.message));
 
     if (result.ok) {
       await refreshMetadataState();
@@ -765,7 +774,7 @@ function LibraryApp() {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setMetadataStatus(nextStatus);
       setOperationMessage(
-        t("message.metadataSaveFailed", { detail: readErrorMessage(error) })
+        t("message.metadataSaveFailed", { detail: readLocalizedErrorMessage(error) })
       );
     }
   }
@@ -979,7 +988,7 @@ function LibraryApp() {
       if (activationRequestRef.current !== requestId) return null;
       await restorePreviousLibrary(previousRendererState, requestId);
       if (activationRequestRef.current === requestId) {
-        setOperationMessage(readErrorMessage(error));
+        setOperationMessage(readLocalizedErrorMessage(error));
       }
       return null;
     }
@@ -1077,7 +1086,7 @@ function LibraryApp() {
       void scanLibrarySession(restored.session);
     } catch (restoreError) {
       if (activationRequestRef.current === requestId) {
-        setOperationMessage(readErrorMessage(restoreError));
+        setOperationMessage(readLocalizedErrorMessage(restoreError));
       }
     }
   }
@@ -1133,7 +1142,7 @@ function LibraryApp() {
       return nextScanResult;
     } catch (error) {
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
-        setOperationMessage(readErrorMessage(error));
+        setOperationMessage(readLocalizedErrorMessage(error));
       }
       return null;
     } finally {
@@ -1255,7 +1264,7 @@ function LibraryApp() {
       }
     } catch (error) {
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
-        setOperationMessage(readErrorMessage(error));
+        setOperationMessage(readLocalizedErrorMessage(error));
       }
     }
   }
@@ -1441,7 +1450,7 @@ function LibraryApp() {
       const result = await window.modelLibrary.createFolder(parentFolder, folderName);
       selectFolder(joinFolder(parentFolder, folderName.trim()));
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
         preserveScroll: false,
         action: createActionLogEntry(t("action.folderCreated"), joinFolder(parentFolder, folderName.trim()))
@@ -1481,7 +1490,7 @@ function LibraryApp() {
       const restorePairs = createRenameRestorePairs(nextPath, sourcePath);
       selectFolder(destinationLabel);
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
         preserveScroll: false,
         action:
@@ -1527,7 +1536,7 @@ function LibraryApp() {
       selectFolder(destinationLabel);
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
         preserveScroll: false,
         action:
@@ -1564,7 +1573,7 @@ function LibraryApp() {
       selectFolder(ALL_FOLDERS_ID);
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
         preserveScroll: false,
         action: createActionLogEntry(t("action.folderTrashed"), folderId)
@@ -1598,7 +1607,7 @@ function LibraryApp() {
         ? createRenameRestorePairs(result.path, previousPath)
         : [];
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: result.path ? [result.path] : [],
         action:
           restorePairs.length > 0
@@ -1655,7 +1664,7 @@ function LibraryApp() {
       );
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: restorePairs.map((pair) => pair.sourcePath),
         action:
           restorePairs.length > 0
@@ -1704,7 +1713,7 @@ function LibraryApp() {
       );
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
         action: createActionLogEntry(
           t("action.modelsTrashed"),
@@ -1723,7 +1732,7 @@ function LibraryApp() {
       const result = await window.modelLibrary.extractArchive(archivePath, mode);
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: result.paths ?? []
       };
     });
@@ -1743,7 +1752,7 @@ function LibraryApp() {
       const result = await window.modelLibrary.saveConvertedStl(modelPath, stlContent);
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: result.paths ?? []
       };
     });
@@ -1774,7 +1783,7 @@ function LibraryApp() {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setActionLogEntries((entries) => markActionUndone(entries, undoableAction.id));
       setUndoToast(null);
-      setOperationMessage(result.message);
+      setOperationMessage(localizeResult(result.message));
       const nextMetadata = await window.modelLibrary.getLibraryMetadata();
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setLibraryMetadata(nextMetadata);
@@ -1782,7 +1791,7 @@ function LibraryApp() {
       requestGridScroll(preservedScrollTop);
     } catch (error) {
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
-        setOperationMessage(readErrorMessage(error));
+        setOperationMessage(readLocalizedErrorMessage(error));
       }
     }
   }
@@ -1806,7 +1815,7 @@ function LibraryApp() {
     try {
       const result = await operation();
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
-      setOperationMessage(result.message);
+      setOperationMessage(localizeResult(result.message));
       if (result.action) {
         setActionLogEntries((entries) => appendActionLogEntry(entries, result.action!));
         setUndoToast(result.action);
@@ -1818,7 +1827,7 @@ function LibraryApp() {
       if (result.preserveScroll !== false) requestGridScroll(preservedScrollTop);
     } catch (error) {
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
-        setOperationMessage(readErrorMessage(error));
+        setOperationMessage(readLocalizedErrorMessage(error));
       }
     } finally {
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {

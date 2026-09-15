@@ -22,7 +22,10 @@ export function translate(
     "library.folderModelCount",
     "library.childFolderCount",
     "dialog.trashFilesQuestion",
-    "action.fileCount"
+    "action.fileCount",
+    "operation.filesMoved",
+    "operation.filesTrashed",
+    "operation.filesExtracted"
   ];
   const resolvedKey = pluralKeys.includes(key)
     ? (`${key}.${Number(params.count) === 1 ? "one" : "other"}` as keyof typeof ptBR)

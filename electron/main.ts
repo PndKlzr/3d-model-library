@@ -12,6 +12,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import type { TranslationKey } from "../src/i18n/catalog.js";
+import { translate, type TranslationParams } from "../src/i18n/translate.js";
 import type {
   AppSettings,
   ArchiveExtractionMode,
@@ -109,6 +111,10 @@ let benchmarkReconciliationPromise: Promise<void> | null = null;
 let benchmarkStartupStartedAt = 0;
 const dragIcon = createFileDragIcon();
 
+function mainT(key: TranslationKey, params?: TranslationParams) {
+  return translate(settingsStore?.getSettings().locale ?? "pt-BR", key, params);
+}
+
 type BenchmarkEnvironment = {
   root: string;
   scenario: "cold" | "warm" | "scroll";
@@ -178,7 +184,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle("settings:choose-library-folder", async () => {
     const result = await dialog.showOpenDialog({
-      title: "Escolha sua pasta de STLs e 3MFs",
+      title: mainT("dialog.chooseLibraryFolder"),
       properties: ["openDirectory"]
     });
 
@@ -481,8 +487,8 @@ function registerIpcHandlers() {
 
   ipcMain.handle("settings:choose-slicer-executable", async () => {
     const result = await dialog.showOpenDialog({
-      title: "Escolha o executável do slicer",
-      filters: [{ name: "Executáveis", extensions: ["exe"] }],
+      title: mainT("dialog.chooseSlicerExecutable"),
+      filters: [{ name: mainT("dialog.executables"), extensions: ["exe"] }],
       properties: ["openFile"]
     });
 
@@ -491,7 +497,7 @@ function registerIpcHandlers() {
 
   ipcMain.handle("settings:choose-archive-extractor", async () => {
     const result = await dialog.showOpenDialog({
-      title: "Escolha o 7z.exe",
+      title: mainT("dialog.choose7Zip"),
       filters: [{ name: "7-Zip", extensions: ["exe"] }],
       properties: ["openFile"]
     });

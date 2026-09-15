@@ -241,6 +241,10 @@ export const ptBR = {
   "context.viewFolder": "Ver pasta na biblioteca",
   "context.openSelectedIn": "Abrir selecionados no {name}",
   "dialog.modelTags": "Tags do modelo",
+  "dialog.chooseLibraryFolder": "Escolha sua pasta de STLs e 3MFs",
+  "dialog.chooseSlicerExecutable": "Escolha o executável do slicer",
+  "dialog.executables": "Executáveis",
+  "dialog.choose7Zip": "Escolha o 7z.exe",
   "dialog.newTag": "Nova tag",
   "dialog.tagName": "Nome da tag",
   "dialog.createTag": "Criar tag",
@@ -291,6 +295,30 @@ export const ptBR = {
   "action.fileCount.other": "{count} arquivos",
   "message.organizingFiles": "Organizando {count} arquivo(s).",
   "message.draggingFiles": "Arrastando {count} arquivo(s).",
+  "operation.completed": "Operação concluída.",
+  "operation.folderCreated": "Pasta criada.",
+  "operation.folderRenamed": "Pasta renomeada.",
+  "operation.folderMoved": "Pasta movida.",
+  "operation.folderTrashed": "Pasta movida para a Lixeira.",
+  "operation.fileRenamed": "Arquivo renomeado.",
+  "operation.convertedStl": "STL convertido salvo.",
+  "operation.undoDone": "Ação desfeita.",
+  "operation.nothingToUndo": "Nada para desfazer.",
+  "operation.noFilesSelected": "Nenhum arquivo selecionado.",
+  "operation.noFilesExtracted": "Nenhum arquivo extraído.",
+  "operation.filesMoved.one": "{count} arquivo movido.",
+  "operation.filesMoved.other": "{count} arquivos movidos.",
+  "operation.filesTrashed.one": "{count} arquivo movido para a Lixeira.",
+  "operation.filesTrashed.other": "{count} arquivos movidos para a Lixeira.",
+  "operation.filesExtracted.one": "{count} arquivo extraído.",
+  "operation.filesExtracted.other": "{count} arquivos extraídos.",
+  "operation.openingFile": "Abrindo {file} no {name}.",
+  "operation.openingModels": "Abrindo {count} modelos no {name}.",
+  "operation.slicerDisabled": "{name} está desativado nas configurações.",
+  "operation.configureSlicer": "Configure o caminho do executável do {name} antes de abrir modelos.",
+  "operation.slicerMissing": "O executável do {name} não foi encontrado.",
+  "operation.selectModel": "Selecione pelo menos um modelo para abrir no slicer.",
+  "operation.modelMissing": "O modelo selecionado não foi encontrado.",
   "diagnostics.title": "Diagnóstico de miniaturas",
   "diagnostics.description": "Resumo local da fila e do tempo de processamento desta sessão.",
   "diagnostics.copy": "Copiar diagnóstico",
@@ -318,7 +346,10 @@ export const ptBR = {
   "diagnostics.longTasks": "Tarefas longas",
   "diagnostics.longTasksValue": "{count} / máx. {maximum}",
   "diagnostics.privacy": "O relatório inclui somente versões do aplicativo e valores agregados. Nomes, caminhos e conteúdo dos modelos não são incluídos.",
-  "error.unexpected": "Algo deu errado. Tente novamente."
+  "error.unexpected": "Algo deu errado. Tente novamente.",
+  "error.libraryInactive": "A biblioteca não está ativa.",
+  "error.slicerExecutableMissing": "O executável do {name} não foi encontrado.",
+  "error.pathOutsideLibrary": "{path} está fora da biblioteca ativa."
 } as const;
 
 export type TranslationKey =
@@ -328,7 +359,10 @@ export type TranslationKey =
   | "library.folderModelCount"
   | "library.childFolderCount"
   | "dialog.trashFilesQuestion"
-  | "action.fileCount";
+  | "action.fileCount"
+  | "operation.filesMoved"
+  | "operation.filesTrashed"
+  | "operation.filesExtracted";
 
 export const en: Record<keyof typeof ptBR, string> = {
   "app.name": "Model Library",
@@ -573,6 +607,10 @@ export const en: Record<keyof typeof ptBR, string> = {
   "context.viewFolder": "View folder in library",
   "context.openSelectedIn": "Open selected in {name}",
   "dialog.modelTags": "Model tags",
+  "dialog.chooseLibraryFolder": "Choose your STL and 3MF folder",
+  "dialog.chooseSlicerExecutable": "Choose the slicer executable",
+  "dialog.executables": "Executables",
+  "dialog.choose7Zip": "Choose 7z.exe",
   "dialog.newTag": "New tag",
   "dialog.tagName": "Tag name",
   "dialog.createTag": "Create tag",
@@ -623,6 +661,30 @@ export const en: Record<keyof typeof ptBR, string> = {
   "action.fileCount.other": "{count} files",
   "message.organizingFiles": "Organizing {count} file(s).",
   "message.draggingFiles": "Dragging {count} file(s).",
+  "operation.completed": "Operation completed.",
+  "operation.folderCreated": "Folder created.",
+  "operation.folderRenamed": "Folder renamed.",
+  "operation.folderMoved": "Folder moved.",
+  "operation.folderTrashed": "Folder moved to the Recycle Bin.",
+  "operation.fileRenamed": "File renamed.",
+  "operation.convertedStl": "Converted STL saved.",
+  "operation.undoDone": "Action undone.",
+  "operation.nothingToUndo": "Nothing to undo.",
+  "operation.noFilesSelected": "No files selected.",
+  "operation.noFilesExtracted": "No files extracted.",
+  "operation.filesMoved.one": "{count} file moved.",
+  "operation.filesMoved.other": "{count} files moved.",
+  "operation.filesTrashed.one": "{count} file moved to the Recycle Bin.",
+  "operation.filesTrashed.other": "{count} files moved to the Recycle Bin.",
+  "operation.filesExtracted.one": "{count} file extracted.",
+  "operation.filesExtracted.other": "{count} files extracted.",
+  "operation.openingFile": "Opening {file} in {name}.",
+  "operation.openingModels": "Opening {count} models in {name}.",
+  "operation.slicerDisabled": "{name} is disabled in settings.",
+  "operation.configureSlicer": "Configure the {name} executable path before opening models.",
+  "operation.slicerMissing": "The {name} executable was not found.",
+  "operation.selectModel": "Select at least one model to open in the slicer.",
+  "operation.modelMissing": "The selected model was not found.",
   "diagnostics.title": "Thumbnail diagnostics",
   "diagnostics.description": "Local summary of the queue and processing time for this session.",
   "diagnostics.copy": "Copy diagnostics",
@@ -650,5 +712,8 @@ export const en: Record<keyof typeof ptBR, string> = {
   "diagnostics.longTasks": "Long tasks",
   "diagnostics.longTasksValue": "{count} / max {maximum}",
   "diagnostics.privacy": "The report includes only application versions and aggregate values. Model names, paths, and contents are not included.",
-  "error.unexpected": "Something went wrong. Please try again."
+  "error.unexpected": "Something went wrong. Please try again.",
+  "error.libraryInactive": "The library is not active.",
+  "error.slicerExecutableMissing": "The {name} executable was not found.",
+  "error.pathOutsideLibrary": "{path} is outside the active library."
 };
