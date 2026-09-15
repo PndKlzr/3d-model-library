@@ -114,6 +114,7 @@ import {
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
 const MODEL_VIEW_MODE_STORAGE_KEY = "model-library-view-mode";
 const THEME_MODE_STORAGE_KEY = "model-library-theme-mode";
+const FOLDERS_PINNED_STORAGE_KEY = "model-library-folders-pinned";
 const OPERATION_MESSAGE_TIMEOUT_MS = 6000;
 const UNDO_TOAST_TIMEOUT_MS = 8000;
 const CONTEXT_MENU_WIDTH = 320;
@@ -298,6 +299,9 @@ function LibraryApp() {
   const [isDetectingSlicers, setIsDetectingSlicers] = useState(false);
   const initialSlicerDetectionRef = useRef(false);
   const [responsivePanel, setResponsivePanel] = useState<ResponsivePanel>(null);
+  const [foldersPinned, setFoldersPinned] = useState(() =>
+    window.localStorage.getItem(FOLDERS_PINNED_STORAGE_KEY) === "true"
+  );
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [actionLogEntries, setActionLogEntries] = useState<LocalActionLogEntry[]>([]);
@@ -416,6 +420,10 @@ function LibraryApp() {
   useEffect(() => {
     window.localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(FOLDERS_PINNED_STORAGE_KEY, String(foldersPinned));
+  }, [foldersPinned]);
 
   useEffect(() => {
     if (!undoToast) {
@@ -2050,6 +2058,7 @@ function LibraryApp() {
       className="app-shell"
       data-theme={themeMode}
       data-responsive-panel={responsivePanel ?? "none"}
+      data-folders-pinned={foldersPinned ? "true" : "false"}
     >
       <FolderTree
         folders={folders}
@@ -2068,6 +2077,11 @@ function LibraryApp() {
         onToggleIncludeSubfolders={updateIncludeSubfolders}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
+        foldersPinned={foldersPinned}
+        onToggleFoldersPinned={() => {
+          setFoldersPinned((current) => !current);
+          setResponsivePanel(null);
+        }}
       />
       <ModelGrid
         models={filteredModels}

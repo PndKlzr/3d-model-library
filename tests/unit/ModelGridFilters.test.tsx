@@ -109,8 +109,8 @@ describe("ModelGrid filters", () => {
       onToggleDetails
     });
 
-    const folders = view.getByRole("button", { name: "Pastas" });
-    const details = view.getByRole("button", { name: "Detalhes" });
+    const folders = view.getByRole("button", { name: "Mostrar ou ocultar pastas" });
+    const details = view.getByRole("button", { name: "Mostrar ou ocultar detalhes do arquivo" });
     expect(folders).toHaveAttribute("aria-expanded", "true");
     expect(details).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(details);

@@ -17,13 +17,13 @@ export function ResponsivePanelControls({
   return (
     <div className="responsive-panel-controls" role="group" aria-label={t("navigation.panels")}>
       <button className="icon-only responsive-folders-button" type="button"
-        onClick={onToggleFolders} aria-label={t("navigation.folders")}
-        aria-expanded={openPanel === "folders"} title={t("navigation.folders")}>
+        onClick={onToggleFolders} aria-label={t("navigation.openFolders")}
+        aria-expanded={openPanel === "folders"} title={t("navigation.openFolders")}>
         <PanelLeft size={17} />
       </button>
       <button className="icon-only responsive-details-button" type="button"
-        onClick={onToggleDetails} aria-label={t("navigation.details")}
-        aria-expanded={openPanel === "details"} title={t("navigation.details")}>
+        onClick={onToggleDetails} aria-label={t("navigation.openDetails")}
+        aria-expanded={openPanel === "details"} title={t("navigation.openDetails")}>
         <PanelRight size={17} />
       </button>
     </div>

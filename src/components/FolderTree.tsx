@@ -5,7 +5,9 @@ import {
   EyeOff,
   Folder,
   FolderOpen,
-  Layers3
+  Layers3,
+  Pin,
+  PinOff
 } from "lucide-react";
 import type { CSSProperties, DragEvent, MouseEvent } from "react";
 import { useRef, useState } from "react";
@@ -30,6 +32,8 @@ type FolderTreeProps = {
   onToggleIncludeSubfolders: (value: boolean) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
+  foldersPinned: boolean;
+  onToggleFoldersPinned: () => void;
 };
 
 export function FolderTree({
@@ -48,7 +52,9 @@ export function FolderTree({
   onCollapseAllFolders,
   onToggleIncludeSubfolders,
   onOpenFolderContextMenu,
-  onMoveModelsToFolder
+  onMoveModelsToFolder,
+  foldersPinned,
+  onToggleFoldersPinned
 }: FolderTreeProps) {
   const { t } = useI18n();
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
@@ -130,6 +136,16 @@ export function FolderTree({
       <div className="folder-tree-heading">
         <span>{t("navigation.folders")}</span>
         <div className="folder-tree-actions" aria-label={t("navigation.folderActions")}>
+          <button
+            className="folder-pin-button"
+            type="button"
+            onClick={onToggleFoldersPinned}
+            aria-pressed={foldersPinned}
+            title={t(foldersPinned ? "navigation.unpinFolders" : "navigation.pinFolders")}
+            aria-label={t(foldersPinned ? "navigation.unpinFolders" : "navigation.pinFolders")}
+          >
+            {foldersPinned ? <PinOff size={15} /> : <Pin size={15} />}
+          </button>
           <button
             type="button"
             onClick={onExpandAllFolders}

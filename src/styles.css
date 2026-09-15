@@ -36,7 +36,7 @@
 
 body {
   margin: 0;
-  min-width: 900px;
+  min-width: 0;
   min-height: 100dvh;
   overflow: hidden;
 }
@@ -426,6 +426,10 @@ button:disabled {
   color: var(--accent-strong);
 }
 
+.folder-tree-actions .folder-pin-button {
+  display: none;
+}
+
 .folder-tools {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -626,7 +630,7 @@ button:disabled {
 }
 
 .thumbnail-queue-status.idle {
-  visibility: hidden;
+  display: none;
 }
 
 .thumbnail-queue-status i {
@@ -2856,22 +2860,6 @@ button:disabled {
     --library-padding: 18px;
   }
 
-  .toolbar {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .toolbar > :first-child {
-    flex-basis: 100%;
-  }
-
-  .toolbar-actions {
-    max-width: 100%;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-  }
-
   .library-status {
     width: 7px;
     overflow: hidden;
@@ -3445,7 +3433,8 @@ button:disabled {
   .toolbar {
     align-items: flex-start;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 8px;
+    min-height: 0;
   }
 
   .library-heading {
@@ -3454,12 +3443,17 @@ button:disabled {
 
   .toolbar-actions {
     width: 100%;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-start;
   }
 
   .toolbar-statuses {
+    margin-left: 0;
+  }
+
+  .toolbar-actions > .icon-only:last-child {
     margin-left: auto;
+    flex: 0 0 36px;
   }
 
   .responsive-panel-controls,
@@ -3507,6 +3501,18 @@ button:disabled {
     display: flex;
   }
 
+  .folder-tree-actions .folder-pin-button {
+    display: grid;
+  }
+
+  .app-shell[data-folders-pinned="true"] {
+    grid-template-columns: clamp(190px, 27vw, 240px) minmax(0, 1fr);
+  }
+
+  .app-shell[data-folders-pinned="true"] .responsive-folders-button {
+    display: none;
+  }
+
   .library-panel {
     --library-padding: 16px;
   }
@@ -3519,6 +3525,33 @@ button:disabled {
     transform: translateX(-100%);
     transition: transform 180ms ease;
     box-shadow: 14px 0 32px rgba(20, 28, 32, 0.2);
+  }
+
+  .app-shell[data-folders-pinned="true"] .sidebar {
+    position: static;
+    z-index: auto;
+    inset: auto;
+    width: auto;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .app-shell[data-folders-pinned="true"] .brand-block {
+    gap: 8px;
+  }
+
+  .app-shell[data-folders-pinned="true"] .brand-mark {
+    width: 34px;
+    height: 34px;
+    flex: 0 0 34px;
+  }
+
+  .app-shell[data-folders-pinned="true"] .brand-block > div {
+    min-width: 0;
+  }
+
+  .app-shell[data-folders-pinned="true"] .brand-block h1 {
+    font-size: 14px;
   }
 
   .app-shell[data-responsive-panel="folders"] .sidebar {

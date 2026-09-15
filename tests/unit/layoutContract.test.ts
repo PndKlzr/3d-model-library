@@ -68,7 +68,7 @@ describe("layout scroll contract", () => {
     expect(folderTreeSource).not.toContain("paddingLeft: 10 + depth * 14");
   });
 
-  it("reserves toolbar status space and collapses diagnostics responsively", async () => {
+  it("hides idle thumbnail status and collapses diagnostics responsively", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
     const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
@@ -76,7 +76,7 @@ describe("layout scroll contract", () => {
 
     expect(gridSource).toContain("ThumbnailQueueStatus");
     expect(gridSource).toContain('className="toolbar-statuses"');
-    expect(css).toMatch(/\.toolbar-statuses\s*\{[\s\S]*?height:\s*18px;/);
+    expect(css).toMatch(/\.thumbnail-queue-status\.idle\s*\{\s*display:\s*none;/);
     expect(css).toMatch(/\.thumbnail-queue-status\.complete i\s*\{[\s\S]*?background:\s*var\(--accent\);/);
     expect(css).toMatch(/\.thumbnail-queue-status\.failed\s*\{[\s\S]*?color:\s*var\(--warn\);/);
     expect(css).toMatch(/\.thumbnail-queue-status\.failed i\s*\{[\s\S]*?background:\s*var\(--warn\);/);
@@ -112,7 +112,7 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?z-index:\s*20;/);
     expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?isolation:\s*isolate;/);
     expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?background:\s*var\(--panel\);/);
-    expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?flex-wrap:\s*wrap;/);
+    expect(css).toMatch(/@media \(max-width: 1179px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?justify-content:\s*flex-start;/);
   });
 
   it("reflows the library header without overlapping labels or controls", async () => {
@@ -128,5 +128,17 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.responsive-panel-controls \.icon-only\s*\{[\s\S]*?width:\s*36px;/);
     expect(css).toContain("@media (max-width: 1179px)");
     expect(css).toContain("@media (max-width: 899px)");
+  });
+
+  it("keeps a persisted pinned folder column at narrow widths", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const folderSource = await readFile("src/components/FolderTree.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(appSource).toContain("FOLDERS_PINNED_STORAGE_KEY");
+    expect(appSource).toContain("data-folders-pinned={foldersPinned");
+    expect(folderSource).toContain("onToggleFoldersPinned");
+    expect(css).toMatch(/@media \(max-width: 899px\)[\s\S]*?\.app-shell\[data-folders-pinned="true"\]\s*\{[\s\S]*?grid-template-columns:/);
+    expect(css).toMatch(/\.app-shell\[data-folders-pinned="true"\] \.sidebar\s*\{[\s\S]*?position:\s*static;/);
   });
 });

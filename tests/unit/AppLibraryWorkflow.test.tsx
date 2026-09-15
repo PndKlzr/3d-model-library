@@ -36,8 +36,17 @@ vi.mock("../../src/components/ModelCardThumbnail", () => ({ ModelCardThumbnail: 
 vi.mock("../../src/components/FolderCardThumbnail", () => ({ FolderCardThumbnail: () => null }));
 vi.mock("../../src/components/ThumbnailQueueStatus", () => ({ ThumbnailQueueStatus: () => null }));
 vi.mock("../../src/components/FolderTree", () => ({
-  FolderTree: ({ onSelectFolder }: { onSelectFolder: (folderId: string) => void }) => (
-    <button type="button" onClick={() => onSelectFolder("parts")}>Open parts</button>
+  FolderTree: ({ onSelectFolder, onToggleFoldersPinned, foldersPinned }: {
+    onSelectFolder: (folderId: string) => void;
+    onToggleFoldersPinned: () => void;
+    foldersPinned: boolean;
+  }) => (
+    <>
+      <button type="button" onClick={() => onSelectFolder("parts")}>Open parts</button>
+      <button type="button" onClick={onToggleFoldersPinned} aria-pressed={foldersPinned}>
+        Pin synthetic folders
+      </button>
+    </>
   )
 }));
 vi.mock("../../src/components/DetailsPanel", () => ({ DetailsPanel: () => null }));
@@ -62,6 +71,22 @@ beforeEach(() => {
 });
 
 describe("App library workflow", () => {
+  it("persists a pinned folder column across reopening", async () => {
+    installApi();
+    const view = render(<App />);
+    await screen.findByRole("button", { name: "Pin synthetic folders" });
+    expect(view.container.querySelector(".app-shell")).toHaveAttribute("data-folders-pinned", "false");
+    fireEvent.click(screen.getByRole("button", { name: "Pin synthetic folders" }));
+    expect(view.container.querySelector(".app-shell")).toHaveAttribute("data-folders-pinned", "true");
+    await waitFor(() => expect(window.localStorage.getItem("model-library-folders-pinned"))
+      .toBe("true"));
+    view.unmount();
+
+    const reopened = render(<App />);
+    await screen.findByRole("button", { name: "Pin synthetic folders" });
+    expect(reopened.container.querySelector(".app-shell")).toHaveAttribute("data-folders-pinned", "true");
+  });
+
   it("applies real search, type, and favorite controls without scanning, after a positive activation scan", async () => {
     const api = installApi();
     render(<App />);

@@ -107,7 +107,11 @@ export function ThumbnailQueueStatus({
   const displayedStatus = warmupStatus ?? status;
 
   return (
-    <div className={`thumbnail-queue-status ${displayedStatus?.kind ?? "idle"}`} aria-live="polite">
+    <div
+      className={`thumbnail-queue-status ${displayedStatus?.kind ?? "idle"}`}
+      aria-live="polite"
+      title={displayedStatus ? getStatusLabel(displayedStatus, t) : undefined}
+    >
       {displayedStatus ? <i aria-hidden="true" /> : null}
       {displayedStatus ? (
         <span className="thumbnail-status-label">{getStatusLabel(displayedStatus, t)}</span>
