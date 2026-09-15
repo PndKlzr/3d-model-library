@@ -108,6 +108,7 @@ type ModelGridProps = {
   onFileDragBehaviorChange: (behavior: FileDragBehavior) => void;
   onNavigateBack: () => void;
   onNavigateForward: () => void;
+  onCopyCurrentFolderPath: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
@@ -181,6 +182,7 @@ export function ModelGrid({
   onFileDragBehaviorChange,
   onNavigateBack,
   onNavigateForward,
+  onCopyCurrentFolderPath,
   onOpenFolder,
   onOpenFolderContextMenu,
   onMoveModelsToFolder,
@@ -422,6 +424,15 @@ export function ModelGrid({
               onDropOnFolder={dropOnFolder}
               onDragLeaveFolder={() => setDragOverFolder(null)}
             />
+            <button
+              className="icon-only small-icon breadcrumb-copy-button"
+              type="button"
+              onClick={onCopyCurrentFolderPath}
+              aria-label={t("library.copyFolderPath")}
+              title={t("library.copyFolderPath")}
+            >
+              <Copy size={14} />
+            </button>
           </div>
         </div>
         <div className="toolbar-actions">
@@ -925,6 +936,7 @@ function Breadcrumb({
         }
         data-folder-drop-id={ALL_FOLDERS_ID}
         type="button"
+        title={t("navigation.allModels")}
         onClick={() => onOpenFolder(ALL_FOLDERS_ID)}
         onDragOver={(event) => onDragOverFolder(event, ALL_FOLDERS_ID)}
         onDragLeave={onDragLeaveFolder}
@@ -946,6 +958,7 @@ function Breadcrumb({
               }
               data-folder-drop-id={folderId}
               type="button"
+              title={part}
               onClick={() => onOpenFolder(folderId)}
               onDragOver={(event) => onDragOverFolder(event, folderId)}
               onDragLeave={onDragLeaveFolder}

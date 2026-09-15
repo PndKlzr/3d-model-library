@@ -811,6 +811,10 @@ button:disabled {
   overflow: hidden;
 }
 
+.breadcrumb-copy-button {
+  flex: 0 0 auto;
+}
+
 .breadcrumbs {
   display: flex;
   min-width: 0;
@@ -3443,7 +3447,7 @@ button:disabled {
 
   .toolbar-actions {
     width: 100%;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: flex-start;
   }
 

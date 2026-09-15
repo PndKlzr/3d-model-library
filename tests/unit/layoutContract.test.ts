@@ -127,6 +127,9 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.toolbar-actions\s*\{[\s\S]*?min-width:\s*0;/);
     expect(css).toMatch(/\.responsive-panel-controls \.icon-only\s*\{[\s\S]*?width:\s*36px;/);
     expect(css).toContain("@media (max-width: 1179px)");
+    expect(css).toMatch(
+      /@media \(max-width: 1179px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?flex-wrap:\s*wrap;/
+    );
     expect(css).toContain("@media (max-width: 899px)");
   });
 

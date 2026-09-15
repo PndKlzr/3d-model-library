@@ -199,6 +199,18 @@ describe("interaction flow contract", () => {
     expect(gridSource).toContain("onDropOnFolder(event, ALL_FOLDERS_ID)");
   });
 
+  it("provides tooltips for truncated folder navigation controls", async () => {
+    const [gridSource, folderTreeSource] = await Promise.all([
+      readFile("src/components/ModelGrid.tsx", "utf8"),
+      readFile("src/components/FolderTree.tsx", "utf8")
+    ]);
+
+    expect(gridSource).toContain('title={t("navigation.allModels")}');
+    expect(gridSource).toContain("title={part}");
+    expect(folderTreeSource).toContain("title={t(isExpanded ?");
+    expect(folderTreeSource).toContain("title={folder.name}");
+  });
+
   it("shows archive contents and extraction actions in the details panel", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
     const appSource = await readFile("src/App.tsx", "utf8");

@@ -1365,6 +1365,17 @@ function LibraryApp() {
     }
   }
 
+  async function copyCurrentFolderPath() {
+    const folderId = selectedFolder === ALL_FOLDERS_ID ? "" : selectedFolder;
+
+    try {
+      await window.modelLibrary.copyText(buildFolderPath(settings?.libraryPath ?? "", folderId));
+      setOperationMessage(t("message.folderPathCopied"));
+    } catch (error) {
+      setOperationMessage(readLocalizedErrorMessage(error));
+    }
+  }
+
   function toggleExpandedFolder(folderId: string) {
     setExpandedFolderIds((currentIds) => {
       const nextIds = new Set(currentIds);
@@ -2157,6 +2168,7 @@ function LibraryApp() {
         onFileDragBehaviorChange={updateFileDragBehavior}
         onNavigateBack={goBackFolder}
         onNavigateForward={goForwardFolder}
+        onCopyCurrentFolderPath={copyCurrentFolderPath}
         onOpenFolder={selectFolder}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}

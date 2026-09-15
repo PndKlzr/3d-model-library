@@ -280,6 +280,9 @@ function FolderNodeButton({
             aria-label={t(isExpanded ? "navigation.collapseFolder" : "navigation.expandFolder", {
               name: folder.name
             })}
+            title={t(isExpanded ? "navigation.collapseFolder" : "navigation.expandFolder", {
+              name: folder.name
+            })}
             aria-expanded={isExpanded}
           >
             <ChevronRight size={14} />
@@ -290,7 +293,12 @@ function FolderNodeButton({
         <span className="folder-node-icon" aria-hidden="true">
           {isExpanded && hasChildren ? <FolderOpen size={15} /> : <Folder size={15} />}
         </span>
-        <button className="folder-name-button" type="button" onClick={() => onSelectFolder(folder.id)}>
+        <button
+          className="folder-name-button"
+          type="button"
+          title={folder.name}
+          onClick={() => onSelectFolder(folder.id)}
+        >
           <span>{folder.name}</span>
         </button>
         {isExcluded ? (

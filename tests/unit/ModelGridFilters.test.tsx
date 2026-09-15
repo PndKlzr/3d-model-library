@@ -117,6 +117,19 @@ describe("ModelGrid filters", () => {
     expect(onToggleDetails).toHaveBeenCalledOnce();
   });
 
+  it("offers a compact action to copy the current folder path", () => {
+    const onCopyCurrentFolderPath = vi.fn();
+    const view = renderGrid({
+      selectedFolder: "projects/robot-arm",
+      onCopyCurrentFolderPath
+    });
+
+    const copyPath = view.getByRole("button", { name: "Copiar caminho da pasta atual" });
+    expect(copyPath).toHaveAttribute("title", "Copiar caminho da pasta atual");
+    fireEvent.click(copyPath);
+    expect(onCopyCurrentFolderPath).toHaveBeenCalledOnce();
+  });
+
   it("restores and reports the library scroll position", () => {
     const onScrollTopChange = vi.fn();
     const view = renderGrid({
@@ -201,6 +214,7 @@ function renderGrid(overrides: Partial<ComponentProps<typeof ModelGrid>> = {}) {
     onFileDragBehaviorChange: noop,
     onNavigateBack: noop,
     onNavigateForward: noop,
+    onCopyCurrentFolderPath: noop,
     onOpenFolder: noop,
     onOpenFolderContextMenu: noop,
     onMoveModelsToFolder: noop,
