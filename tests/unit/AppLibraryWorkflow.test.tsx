@@ -12,6 +12,7 @@ import type {
 
 const thumbnail = vi.hoisted(() => ({
   beginLibrarySession: vi.fn(),
+  isReady: vi.fn(() => false),
   getDiagnostics: vi.fn(() => ({ queued: { total: 0 }, running: { io: 0, render: 0 }, failures: 0 })),
   subscribe: vi.fn(() => () => undefined)
 }));

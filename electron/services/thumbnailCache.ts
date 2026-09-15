@@ -35,6 +35,7 @@ export type ThumbnailCache = {
     dataUrl: string,
     publication?: ThumbnailCachePublication
   ) => Promise<void>;
+  invalidate: (signature: ThumbnailSignature) => Promise<void>;
   prune: () => Promise<void>;
 };
 
@@ -116,6 +117,20 @@ export function createThumbnailCache({
       });
       pendingWrites.set(pendingKey, writePromise);
       return writePromise;
+    },
+
+    async invalidate(signature) {
+      await ensureDirectory();
+      const key = createThumbnailCacheKey(signature, THUMBNAIL_RENDER_VERSION);
+      const matchingWrites = [...pendingWrites.entries()]
+        .filter(([pendingKey]) => pendingKey === key || pendingKey.startsWith(`${key}\0`))
+        .map(([, pendingWrite]) => pendingWrite);
+      await Promise.allSettled(matchingWrites);
+      await Promise.all(
+        Object.values(IMAGE_FORMATS).map((extension) =>
+          unlink(path.join(cacheDirectory, `${key}.${extension}`)).catch(() => undefined)
+        )
+      );
     },
 
     async prune() {

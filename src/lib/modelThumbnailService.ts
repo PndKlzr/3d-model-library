@@ -16,6 +16,7 @@ export type { ThumbnailPriority } from "./thumbnailScheduler";
 
 export type ModelThumbnailServiceDependencies = {
   readCachedThumbnail: (model: ModelFile) => Promise<string | null>;
+  invalidateCachedThumbnail?: (model: ModelFile) => Promise<void>;
   readEmbeddedThumbnail: (absolutePath: string) => Promise<string | null>;
   readImageDataUrl: (session: LibrarySessionRef, absolutePath: string) => Promise<string>;
   readObjPreviewFile: (session: LibrarySessionRef, absolutePath: string) => Promise<ArrayBuffer>;
@@ -35,7 +36,8 @@ export type ModelThumbnailServiceDependencies = {
 export type ModelThumbnailService = {
   beginLibrarySession: (session: LibrarySessionRef) => void;
   request: (model: ModelFile, priority: ThumbnailPriority) => ModelThumbnailRequest;
-  retry: (model: ModelFile) => void;
+  isReady: (model: ModelFile) => boolean;
+  retry: (model: ModelFile) => Promise<void>;
   subscribe: (listener: (snapshot: ThumbnailDiagnosticsSnapshot) => void) => () => void;
   getDiagnostics: () => ThumbnailDiagnosticsSnapshot;
   resetDiagnostics: () => void;
@@ -91,6 +93,7 @@ export function createModelThumbnailService(
   });
   const pipelineEntries = new Map<string, PipelineEntry>();
   const failedSignatures = new Set<string>();
+  const readySignatures = new Set<string>();
   const listeners = new Set<(snapshot: ThumbnailDiagnosticsSnapshot) => void>();
   let peakRetainedResults = 0;
   let currentSession = createUnboundSession();
@@ -107,6 +110,7 @@ export function createModelThumbnailService(
     currentSessionKey = sessionKey;
     dependencies.cancelThumbnailWorker();
     failedSignatures.clear();
+    readySignatures.clear();
     renderScheduler.clearCompleted();
 
     for (const entry of pipelineEntries.values()) {
@@ -150,6 +154,10 @@ export function createModelThumbnailService(
         updateStagePriority(entry!);
       }
     };
+  }
+
+  function isReady(model: ModelFile) {
+    return readySignatures.has(`${currentSessionKey}:${createIdentity(model)}`);
   }
 
   function createPipelineEntry(key: string, model: ModelFile): PipelineEntry {
@@ -223,6 +231,7 @@ export function createModelThumbnailService(
     } finally {
       entry.stageRequest = null;
       if (pipelineEntries.get(entry.key) === entry) pipelineEntries.delete(entry.key);
+      if (thumbnail && isEntryCurrent(entry)) readySignatures.add(entry.key);
       entry.requestOperation.settled();
       entry.resolve(isEntryCurrent(entry) ? thumbnail ?? null : null);
       publishDiagnostics();
@@ -287,10 +296,19 @@ export function createModelThumbnailService(
     }
   }
 
-  function retry(model: ModelFile) {
+  async function retry(model: ModelFile) {
     const key = `${currentSessionKey}:${createIdentity(model)}`;
     failedSignatures.delete(key);
+    readySignatures.delete(key);
+    const entry = pipelineEntries.get(key);
+    if (entry) {
+      entry.invalidated = true;
+      entry.stageRequest?.release();
+      entry.resolve(null);
+      pipelineEntries.delete(key);
+    }
     renderScheduler.clearCompleted(`render:${key}`);
+    await dependencies.invalidateCachedThumbnail?.(model);
   }
 
   function subscribe(listener: (snapshot: ThumbnailDiagnosticsSnapshot) => void) {
@@ -346,6 +364,7 @@ export function createModelThumbnailService(
   return {
     beginLibrarySession,
     request,
+    isReady,
     retry,
     subscribe,
     getDiagnostics,
@@ -403,6 +422,7 @@ function sum(total: number, value: number) {
 
 export const modelThumbnailService = createModelThumbnailService({
   readCachedThumbnail: (model) => window.modelLibrary.readCachedThumbnail(model),
+  invalidateCachedThumbnail: (model) => window.modelLibrary.invalidateCachedThumbnail(model),
   readEmbeddedThumbnail: (absolutePath) => window.modelLibrary.readModelThumbnail(absolutePath),
   readImageDataUrl: (session, absolutePath) =>
     window.modelLibrary.readImageDataUrl(session, absolutePath),

@@ -1,9 +1,58 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { startThumbnailWarmup } from "../../src/lib/thumbnailWarmup";
+import { reconcileThumbnailWarmupProgress, startThumbnailWarmup } from "../../src/lib/thumbnailWarmup";
 
 afterEach(() => vi.useRealTimers());
 
 describe("thumbnail warmup", () => {
+  it("reconciles displayed remaining work with foreground completions", () => {
+    const ready = new Set(["a", "b", "c"]);
+    expect(reconcileThumbnailWarmupProgress(
+      { phase: "preparing", remaining: 4, total: 5, failures: 0 },
+      ["a", "b", "c", "d", "e"],
+      (item) => ready.has(item)
+    )).toEqual({ phase: "preparing", remaining: 2, total: 5, failures: 0 });
+  });
+
+  it("skips thumbnails already completed by foreground loading", async () => {
+    vi.useFakeTimers();
+    const ready = new Set(["a", "b"]);
+    const progress = vi.fn();
+    const request = vi.fn((item: string) => ({
+      promise: Promise.resolve(item), release: vi.fn()
+    }));
+    const queue = startThumbnailWarmup(["a", "b", "c"], request, progress,
+      (item) => ready.has(item));
+
+    expect(progress).toHaveBeenLastCalledWith({
+      phase: "preparing", remaining: 1, total: 3, failures: 0
+    });
+    await vi.advanceTimersByTimeAsync(600);
+    expect(request).toHaveBeenCalledOnce();
+    expect(request).toHaveBeenCalledWith("c", "mosaic");
+    expect(progress).toHaveBeenLastCalledWith({
+      phase: "complete", remaining: 0, total: 3, failures: 0
+    });
+    queue.stop();
+  });
+
+  it("skips items that become ready while background work waits", async () => {
+    vi.useFakeTimers();
+    const ready = new Set<string>();
+    const progress = vi.fn();
+    const request = vi.fn(() => ({ promise: Promise.resolve("image"), release: vi.fn() }));
+    const queue = startThumbnailWarmup(["a", "b", "c"], request, progress,
+      (item) => ready.has(item));
+    ready.add("b");
+    ready.add("c");
+    await vi.advanceTimersByTimeAsync(600);
+    expect(request).toHaveBeenCalledOnce();
+    expect(request).toHaveBeenCalledWith("a", "mosaic");
+    expect(progress).toHaveBeenLastCalledWith({
+      phase: "complete", remaining: 0, total: 3, failures: 0
+    });
+    queue.stop();
+  });
+
   it("keeps processing one low-priority file at a time", async () => {
     vi.useFakeTimers();
     let finish!: () => void;

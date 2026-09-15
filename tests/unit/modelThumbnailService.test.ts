@@ -13,6 +13,34 @@ const WEBP = "data:image/webp;base64,UklGRgAAAABXRUJQ";
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 
 describe("modelThumbnailService", () => {
+  it("tracks completed thumbnails only within the active library and clears them for retry", async () => {
+    const invalidateCachedThumbnail = vi.fn(async () => undefined);
+    const service = createModelThumbnailService(dependencies({ invalidateCachedThumbnail }));
+    const target = model();
+    service.beginLibrarySession(librarySession("library-a", 1));
+    expect(service.isReady(target)).toBe(false);
+    await expect(service.request(target, "visible").promise).resolves.toBe(WEBP);
+    expect(service.isReady(target)).toBe(true);
+
+    await service.retry(target);
+    expect(service.isReady(target)).toBe(false);
+    expect(invalidateCachedThumbnail).toHaveBeenCalledWith(target);
+    await expect(service.request(target, "visible").promise).resolves.toBe(WEBP);
+    expect(service.isReady(target)).toBe(true);
+
+    service.beginLibrarySession(librarySession("library-b", 2));
+    expect(service.isReady(target)).toBe(false);
+  });
+
+  it("does not mark failed thumbnails as ready", async () => {
+    const service = createModelThumbnailService(dependencies({
+      renderThumbnail: () => { throw new Error("broken mesh"); }
+    }));
+    const target = model();
+    await expect(service.request(target, "visible").promise).resolves.toBeNull();
+    expect(service.isReady(target)).toBe(false);
+  });
+
   it("starts fresh diagnostics when the active library changes", async () => {
     const service = createModelThumbnailService(dependencies());
     service.beginLibrarySession(librarySession("library-a", 1));

@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   readObjPreviewFile: (session, absolutePath) =>
     ipcRenderer.invoke("obj:read-preview-file", session, absolutePath),
   readCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-read", model),
+  invalidateCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-invalidate", model),
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl, sessionKey),
   saveConvertedStl: (sourcePath, stlContent) =>

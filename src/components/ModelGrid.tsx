@@ -30,7 +30,11 @@ import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { FolderCardThumbnail } from "./FolderCardThumbnail";
 import { ThumbnailQueueStatus } from "./ThumbnailQueueStatus";
 import { ResponsivePanelControls } from "./ResponsivePanelControls";
-import { startThumbnailWarmup, type ThumbnailWarmupProgress } from "../lib/thumbnailWarmup";
+import {
+  reconcileThumbnailWarmupProgress,
+  startThumbnailWarmup,
+  type ThumbnailWarmupProgress
+} from "../lib/thumbnailWarmup";
 import { modelThumbnailService } from "../lib/modelThumbnailService";
 import { FileTypeFilter } from "./FileTypeFilter";
 import {
@@ -195,6 +199,20 @@ export function ModelGrid({
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const [thumbnailWarmup, setThumbnailWarmup] = useState<ThumbnailWarmupProgress | null>(null);
+  const supportedThumbnailModels = useMemo(
+    () => thumbnailModels.filter((model) => !isArchive(model.extension)),
+    [thumbnailModels]
+  );
+  const displayedThumbnailWarmup = useMemo(
+    () => thumbnailWarmup
+      ? reconcileThumbnailWarmupProgress(
+          thumbnailWarmup,
+          supportedThumbnailModels,
+          modelThumbnailService.isReady
+        )
+      : null,
+    [thumbnailWarmup, supportedThumbnailModels, thumbnailDiagnostics]
+  );
   const panelRef = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (scrollRestoreRequest && panelRef.current) {
@@ -202,7 +220,6 @@ export function ModelGrid({
     }
   }, [scrollRestoreRequest]);
   useEffect(() => {
-    const supportedThumbnailModels = thumbnailModels.filter((model) => !isArchive(model.extension));
     if (supportedThumbnailModels.length === 0) {
       setThumbnailWarmup(null);
       return;
@@ -210,12 +227,13 @@ export function ModelGrid({
     const warmup = startThumbnailWarmup(
       supportedThumbnailModels,
       modelThumbnailService.request,
-      setThumbnailWarmup
+      setThumbnailWarmup,
+      modelThumbnailService.isReady
     );
     return () => {
       warmup.stop();
     };
-  }, [thumbnailModels]);
+  }, [supportedThumbnailModels]);
   const advancedFiltersRef = useRef<HTMLDivElement | null>(null);
   const collectionItems = useMemo<CollectionItem[]>(
     () => [
@@ -466,7 +484,7 @@ export function ModelGrid({
             <Settings size={17} />
           </button>
           <div className="toolbar-statuses">
-            <ThumbnailQueueStatus snapshot={thumbnailDiagnostics} warmup={thumbnailWarmup} />
+            <ThumbnailQueueStatus snapshot={thumbnailDiagnostics} warmup={displayedThumbnailWarmup} />
             <span
               className={`library-status ${isScanning ? "scanning" : monitorStatus}`}
               title={

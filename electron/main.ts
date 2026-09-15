@@ -412,6 +412,12 @@ function registerIpcHandlers() {
     return thumbnailCache.read(model);
   });
 
+  ipcMain.handle("thumbnail:cache-invalidate", async (_event, model) => {
+    assertThumbnailSignature(model);
+    assertPathInsideLibrary(model.absolutePath);
+    await thumbnailCache.invalidate(model);
+  });
+
   ipcMain.handle("thumbnail:cache-write", async (
     _event,
     model,
@@ -629,6 +635,11 @@ function registerBenchmarkIpcHandlers(
     assertThumbnailSignature(model);
     assertPathInsideLibrary(model.absolutePath);
     return thumbnailCache.read(model);
+  });
+  ipcMain.handle("thumbnail:cache-invalidate", async (_event, model) => {
+    assertThumbnailSignature(model);
+    assertPathInsideLibrary(model.absolutePath);
+    await thumbnailCache.invalidate(model);
   });
   ipcMain.handle("thumbnail:cache-write", async (_event, model, dataUrl: string) => {
     assertThumbnailSignature(model);

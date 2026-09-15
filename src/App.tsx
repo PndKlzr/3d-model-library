@@ -1449,13 +1449,17 @@ function LibraryApp() {
     setModelRevealRequest({ key: modelRevealSequenceRef.current, modelId: model.id });
   }
 
-  function retryModelThumbnail(model: ModelFile) {
-    modelThumbnailService.retry(model);
-    setThumbnailRetryGenerations((current) => ({
-      ...current,
-      [model.absolutePath]: (current[model.absolutePath] ?? 0) + 1
-    }));
+  async function retryModelThumbnail(model: ModelFile) {
     setModelContextMenu(null);
+    try {
+      await modelThumbnailService.retry(model);
+      setThumbnailRetryGenerations((current) => ({
+        ...current,
+        [model.absolutePath]: (current[model.absolutePath] ?? 0) + 1
+      }));
+    } catch (error) {
+      setOperationMessage(readLocalizedErrorMessage(error));
+    }
   }
 
   function toggleModelSelection(model: ModelFile, selected: boolean) {

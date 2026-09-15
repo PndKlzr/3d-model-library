@@ -22,6 +22,43 @@ afterEach(async () => {
 });
 
 describe("thumbnailCache", () => {
+  it("invalidates only the requested cached thumbnail even with a valid-looking damaged image", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const target = model();
+    const other = model({ absolutePath: "C:\\Models\\other.stl" });
+    const damaged = `data:image/webp;base64,${Buffer.from("RIFFjunkWEBP").toString("base64")}`;
+    await cache.write(target, damaged);
+    await cache.write(other, damaged);
+    await expect(cache.read(target)).resolves.toBe(damaged);
+
+    await cache.invalidate(target);
+
+    await expect(cache.read(target)).resolves.toBeNull();
+    await expect(cache.read(other)).resolves.toBe(damaged);
+  });
+
+  it("waits for an in-flight write before invalidating its result", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const target = model();
+    const dataUrl = `data:image/webp;base64,${Buffer.from("RIFF0000WEBP").toString("base64")}`;
+    const publicationStarted = deferred<void>();
+    const allowPublication = deferred<void>();
+    const write = cache.write(target, dataUrl, {
+      key: "session-a",
+      async publish(commit) {
+        publicationStarted.resolve();
+        await allowPublication.promise;
+        await commit();
+        return true;
+      }
+    });
+    await publicationStarted.promise;
+    const invalidate = cache.invalidate(target);
+    allowPublication.resolve();
+    await Promise.all([write, invalidate]);
+    await expect(cache.read(target)).resolves.toBeNull();
+  });
+
   it("uses the bed-orientation renderer version", () => {
     expect(THUMBNAIL_RENDER_VERSION).toBe(3);
   });
