@@ -10,13 +10,14 @@ import { orientModelForBed } from "../lib/modelOrientation";
 import type { ModelFile } from "../shared/types";
 import { disposeObjectResources } from "../lib/threeResourceDisposal";
 import { useI18n } from "../i18n/I18nProvider";
+import { localizeErrorMessage } from "../shared/appError";
 
 type ModelViewerProps = {
   model: ModelFile;
 };
 
 export function ModelViewer({ model }: ModelViewerProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [modelBytes, setModelBytes] = useState<ArrayBuffer | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [parsedModel, setParsedModel] = useState<THREE.Object3D | { error: string } | null>(null);
@@ -44,14 +45,14 @@ export function ModelViewer({ model }: ModelViewerProps) {
       })
       .catch((error) => {
         if (isMounted) {
-          setLoadError(error instanceof Error ? error.message : String(error));
+          setLoadError(localizeErrorMessage(locale, error));
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [model.absolutePath, model.extension, t]);
+  }, [locale, model.absolutePath, model.extension, t]);
 
   useEffect(() => {
     setParsedModel(null);
@@ -64,15 +65,18 @@ export function ModelViewer({ model }: ModelViewerProps) {
       object = parseModelForViewer(model.extension, modelBytes, t("viewer.unavailable"));
       setParsedModel(object);
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       setParsedModel({
-        error: error instanceof Error ? error.message : String(error)
+        error: message === t("viewer.unavailable")
+          ? message
+          : localizeErrorMessage(locale, error)
       });
     }
 
     return () => {
       if (object) disposeObjectResources(object);
     };
-  }, [model.extension, modelBytes, t]);
+  }, [locale, model.extension, modelBytes, t]);
 
   if (loadError) {
     return <div className="viewer-message">{loadError}</div>;

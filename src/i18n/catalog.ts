@@ -319,6 +319,10 @@ export const ptBR = {
   "operation.slicerMissing": "O executável do {name} não foi encontrado.",
   "operation.selectModel": "Selecione pelo menos um modelo para abrir no slicer.",
   "operation.modelMissing": "O modelo selecionado não foi encontrado.",
+  "operation.dragStarted.one": "Arraste iniciado para {count} arquivo.",
+  "operation.dragStarted.other": "Arraste iniciado para {count} arquivos.",
+  "operation.slicerNotConfigured": "Slicer não configurado.",
+  "operation.selectSlicerFiles": "Selecione pelo menos um STL ou 3MF para abrir no slicer.",
   "diagnostics.title": "Diagnóstico de miniaturas",
   "diagnostics.description": "Resumo local da fila e do tempo de processamento desta sessão.",
   "diagnostics.copy": "Copiar diagnóstico",
@@ -362,7 +366,8 @@ export type TranslationKey =
   | "action.fileCount"
   | "operation.filesMoved"
   | "operation.filesTrashed"
-  | "operation.filesExtracted";
+  | "operation.filesExtracted"
+  | "operation.dragStarted";
 
 export const en: Record<keyof typeof ptBR, string> = {
   "app.name": "Model Library",
@@ -685,6 +690,10 @@ export const en: Record<keyof typeof ptBR, string> = {
   "operation.slicerMissing": "The {name} executable was not found.",
   "operation.selectModel": "Select at least one model to open in the slicer.",
   "operation.modelMissing": "The selected model was not found.",
+  "operation.dragStarted.one": "Drag started for {count} file.",
+  "operation.dragStarted.other": "Drag started for {count} files.",
+  "operation.slicerNotConfigured": "No slicer is configured.",
+  "operation.selectSlicerFiles": "Select at least one STL or 3MF file to open in the slicer.",
   "diagnostics.title": "Thumbnail diagnostics",
   "diagnostics.description": "Local summary of the queue and processing time for this session.",
   "diagnostics.copy": "Copy diagnostics",

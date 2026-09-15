@@ -6,12 +6,14 @@ import {
 } from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
 import { isArchive } from "../shared/fileCapabilities";
+import { useI18n } from "../i18n/I18nProvider";
 
 type FolderCardThumbnailProps = {
   models: ModelFile[];
 };
 
 export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
+  const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState<string[]>([]);
 
@@ -91,7 +93,7 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
       )}
       <span className="folder-kind-strip" aria-hidden="true">
         <Folder size={14} fill="currentColor" />
-        PASTA
+        {t("common.folder")}
       </span>
     </div>
   );

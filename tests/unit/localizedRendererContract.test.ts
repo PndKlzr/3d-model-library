@@ -6,12 +6,23 @@ import { describe, expect, it } from "vitest";
 const rendererFiles = [
   "src/App.tsx",
   "src/components/AppErrorBoundary.tsx",
+  "src/components/ConfirmDialog.tsx",
   "src/components/DetailsPanel.tsx",
+  "src/components/DialogHeader.tsx",
+  "src/components/DialogShell.tsx",
   "src/components/FileTypeFilter.tsx",
+  "src/components/FirstRun.tsx",
+  "src/components/FolderCardThumbnail.tsx",
+  "src/components/FolderTree.tsx",
+  "src/components/ModelCardThumbnail.tsx",
   "src/components/ModelGrid.tsx",
   "src/components/ModelViewer.tsx",
+  "src/components/PerformanceDiagnostics.tsx",
+  "src/components/ResponsivePanelControls.tsx",
   "src/components/SettingsDialog.tsx",
-  "src/components/TagSelector.tsx"
+  "src/components/TagSelector.tsx",
+  "src/components/TextInputDialog.tsx",
+  "src/components/ThumbnailQueueStatus.tsx"
 ];
 
 const visibleAttributeNames = new Set([

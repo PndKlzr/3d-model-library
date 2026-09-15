@@ -6,9 +6,8 @@ import { I18nProvider } from "./i18n/I18nProvider";
 import type { TranslationKey } from "./i18n/catalog";
 import { translate, type TranslationParams } from "./i18n/translate";
 import {
-  localizeOperationMessage,
-  toAppErrorPayload,
-  translateAppError
+  localizeErrorMessage,
+  localizeOperationMessage
 } from "./shared/appError";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { DialogHeader } from "./components/DialogHeader";
@@ -211,12 +210,13 @@ function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfigu
 
 function LibraryApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const locale = settings?.locale ?? "pt-BR";
   const t = (key: TranslationKey, params?: TranslationParams) =>
-    translate(settings?.locale ?? "pt-BR", key, params);
+    translate(locale, key, params);
   const localizeResult = (message: string) =>
-    localizeOperationMessage(settings?.locale ?? "pt-BR", message);
+    localizeOperationMessage(locale, message);
   const readLocalizedErrorMessage = (error: unknown) =>
-    translateAppError(settings?.locale ?? "pt-BR", toAppErrorPayload(error));
+    localizeErrorMessage(locale, error);
   const [scanResult, setScanResult] = useState<LibraryScanResult | null>(null);
   const [selectedFolder, setSelectedFolder] = useState(ALL_FOLDERS_ID);
   const [folderHistory, setFolderHistory] = useState(createFolderNavigationHistory);
@@ -346,18 +346,24 @@ function LibraryApp() {
     const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((payload) => {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, payload.session)) return;
       setMonitorStatus("error");
-      setOperationMessage(t("message.monitorPaused", { detail: payload.message }));
+      setOperationMessage(translate(locale, "message.monitorPaused", {
+        detail: localizeErrorMessage(locale, new Error(payload.message))
+      }));
     });
 
     return () => {
       unsubscribeChanged();
       unsubscribeError();
     };
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     const unsubscribe = window.modelLibrary.onFileDragStatus?.((status) => {
-      setOperationMessage(status.message);
+      setOperationMessage(
+        status.state === "failed"
+          ? readLocalizedErrorMessage(new Error(status.message))
+          : localizeResult(status.message)
+      );
 
       if (
         status.state !== "started" &&
@@ -368,7 +374,7 @@ function LibraryApp() {
     });
 
     return () => unsubscribe?.();
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -574,7 +580,13 @@ function LibraryApp() {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setMetadataStatus(nextStatus);
       setLibraryMetadata(nextMetadata);
-      setOperationMessage(nextStatus.message ?? t("message.metadataReconnected"));
+      setOperationMessage(
+        nextStatus.availability === "available"
+          ? t("message.metadataReconnected")
+          : nextStatus.message
+            ? readLocalizedErrorMessage(new Error(nextStatus.message))
+            : t("error.unexpected")
+      );
     } catch (error) {
       setOperationMessage(
         t("message.metadataReconnectFailed", { detail: readLocalizedErrorMessage(error) })
@@ -2090,7 +2102,9 @@ function LibraryApp() {
           settings={settings}
           tagCatalog={libraryMetadata.tagCatalog}
           metadataWritable={metadataStatus.writable}
-          metadataMessage={metadataStatus.message}
+          metadataMessage={metadataStatus.message
+            ? readLocalizedErrorMessage(new Error(metadataStatus.message))
+            : null}
           thumbnailDiagnostics={thumbnailDiagnostics}
           onClose={() => setIsSettingsOpen(false)}
           onSaveSettings={saveSettings}
@@ -2146,7 +2160,9 @@ function LibraryApp() {
             availableTags={availableTags}
             onChange={(tags) => setModelTags(tagPickerDialog.model.absolutePath, tags)}
             disabled={!metadataStatus.writable}
-            disabledReason={metadataStatus.message}
+            disabledReason={metadataStatus.message
+              ? readLocalizedErrorMessage(new Error(metadataStatus.message))
+              : undefined}
           />
         </DialogShell>
       ) : null}
@@ -2285,7 +2301,9 @@ function LibraryApp() {
             type="button"
             role="menuitem"
             disabled={!metadataStatus.writable}
-            title={!metadataStatus.writable ? metadataStatus.message ?? undefined : undefined}
+            title={!metadataStatus.writable && metadataStatus.message
+              ? readLocalizedErrorMessage(new Error(metadataStatus.message))
+              : undefined}
             onClick={() => {
               const model = modelContextMenu.model;
               setModelContextMenu(null);
@@ -2302,7 +2320,9 @@ function LibraryApp() {
             type="button"
             role="menuitem"
             disabled={!metadataStatus.writable}
-            title={!metadataStatus.writable ? metadataStatus.message ?? undefined : undefined}
+            title={!metadataStatus.writable && metadataStatus.message
+              ? readLocalizedErrorMessage(new Error(metadataStatus.message))
+              : undefined}
             onClick={() => {
               const model = modelContextMenu.model;
               setModelContextMenu(null);

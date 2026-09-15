@@ -34,6 +34,7 @@ import {
   isGeometryOnlyPreview
 } from "../shared/fileCapabilities";
 import { useI18n } from "../i18n/I18nProvider";
+import { localizeErrorMessage } from "../shared/appError";
 
 type DetailsTab = "info" | "notes" | "actions";
 
@@ -81,7 +82,7 @@ export function DetailsPanel({
   onExtractArchive,
   onConvertThreeMfToStl
 }: DetailsPanelProps) {
-  const { t, formatDate } = useI18n();
+  const { locale, t, formatDate } = useI18n();
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailsTab>("info");
   const [notesDraft, setNotesDraft] = useState("");
@@ -90,6 +91,9 @@ export function DetailsPanel({
   const [imageOpenMessage, setImageOpenMessage] = useState<string | null>(null);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
   const [conversionProgress, setConversionProgress] = useState<number | null>(null);
+  const metadataMessage = metadataStatus.message
+    ? localizeErrorMessage(locale, new Error(metadataStatus.message))
+    : null;
   const enabledSlicers = settings.slicers.filter((slicer) => slicer.enabled && slicer.executablePath);
   const favorite = modelMetadata?.favorite ?? false;
   const archive = Boolean(model && isArchive(model.extension));
@@ -113,7 +117,7 @@ export function DetailsPanel({
     try {
       await onOpenLibraryFile(modelPath);
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = localizeErrorMessage(locale, error);
       setImageOpenMessage(t("details.imageOpenFailed", { detail }));
     }
   }
@@ -153,7 +157,7 @@ export function DetailsPanel({
       })
       .catch((error) => {
         if (isMounted) {
-          setArchiveMessage(error instanceof Error ? error.message : String(error));
+          setArchiveMessage(localizeErrorMessage(locale, error));
           setArchiveEntries([]);
         }
       })
@@ -166,7 +170,7 @@ export function DetailsPanel({
     return () => {
       isMounted = false;
     };
-  }, [archive, model]);
+  }, [archive, locale, model]);
 
   async function saveNotes() {
     if (!model || !metadataWritable) {
@@ -248,9 +252,9 @@ export function DetailsPanel({
           <p>{t("details.selectHelp")}</p>
         ) : (
           <>
-            {metadataStatus.availability !== "ready" || metadataStatus.message ? (
+            {metadataStatus.availability !== "ready" || metadataMessage ? (
               <div className="notice warning metadata-recovery-notice">
-                <span>{metadataStatus.message ?? t("details.readOnly")}</span>
+                <span>{metadataMessage ?? t("details.readOnly")}</span>
                 {metadataStatus.availability !== "ready" ? (
                   <button type="button" onClick={() => void onRetryMetadata()}>
                     {t("common.retry")}
@@ -389,7 +393,7 @@ export function DetailsPanel({
                   availableTags={availableTags}
                   onChange={(tags) => onSetModelTags(model.absolutePath, tags)}
                   disabled={!metadataWritable}
-                  disabledReason={metadataStatus.message}
+                  disabledReason={metadataMessage}
                 />
                 <label>
                   <span>{t("library.notes")}</span>
@@ -398,7 +402,7 @@ export function DetailsPanel({
                     onChange={(event) => setNotesDraft(event.currentTarget.value)}
                     onBlur={() => void saveNotes()}
                     disabled={!metadataWritable}
-                    title={!metadataWritable ? metadataStatus.message ?? undefined : undefined}
+                    title={!metadataWritable ? metadataMessage ?? undefined : undefined}
                     placeholder={t("details.notesPlaceholder")}
                     rows={4}
                   />

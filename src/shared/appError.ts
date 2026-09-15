@@ -31,6 +31,12 @@ export function translateAppError(locale: AppLocale, payload: AppErrorPayload): 
   return translate(locale, `error.${payload.code}`, payload.params);
 }
 
+export function localizeErrorMessage(locale: AppLocale, error: unknown): string {
+  const message = unwrapElectronError(error instanceof Error ? error.message : String(error));
+  if (locale === "pt-BR") return message;
+  return translateAppError(locale, toAppErrorPayload(error));
+}
+
 export function localizeOperationMessage(locale: AppLocale, message: string): string {
   if (locale === "pt-BR") return message;
 
@@ -48,6 +54,8 @@ export function localizeOperationMessage(locale: AppLocale, message: string): st
     "Nenhum arquivo extraido.": "operation.noFilesExtracted",
     "Nenhum arquivo extraído.": "operation.noFilesExtracted",
     "Selecione pelo menos um modelo para abrir no slicer.": "operation.selectModel",
+    "Slicer não configurado.": "operation.slicerNotConfigured",
+    "Selecione pelo menos um STL ou 3MF para abrir no slicer.": "operation.selectSlicerFiles",
     "O modelo selecionado não foi encontrado.": "operation.modelMissing"
   };
   const exactKey = exactKeys[message];
@@ -58,6 +66,11 @@ export function localizeOperationMessage(locale: AppLocale, message: string): st
     return translate(locale, countMatch[2] ? "operation.filesTrashed" : "operation.filesMoved", {
       count: Number(countMatch[1])
     });
+  }
+
+  const dragStartedMatch = message.match(/^Arraste iniciado para (\d+) arquivo\(s\)\.$/);
+  if (dragStartedMatch) {
+    return translate(locale, "operation.dragStarted", { count: Number(dragStartedMatch[1]) });
   }
 
   const extractedMatch = message.match(/^(\d+) arquivo(?:s)? extra[ií]do(?:s)?\.$/);

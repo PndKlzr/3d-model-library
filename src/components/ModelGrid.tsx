@@ -48,6 +48,7 @@ import { isArchive, SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } fro
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 import type { ResponsivePanel } from "../lib/responsivePanels";
 import { useI18n } from "../i18n/I18nProvider";
+import { localizeErrorMessage } from "../shared/appError";
 
 type ModelGridProps = {
   models: ModelFile[];
@@ -190,7 +191,7 @@ export function ModelGrid({
   onToggleFolders,
   onToggleDetails
 }: ModelGridProps) {
-  const { t } = useI18n();
+  const { locale, t } = useI18n();
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const [thumbnailWarmup, setThumbnailWarmup] = useState<ThumbnailWarmupProgress | null>(null);
@@ -662,7 +663,7 @@ export function ModelGrid({
           <strong>{t("library.scanErrors")}</strong>
           {scanErrors.slice(0, 4).map((error) => (
             <span key={`${error.path}-${error.message}`}>
-              {error.path}: {error.message}
+              {error.path}: {localizeErrorMessage(locale, new Error(error.message))}
             </span>
           ))}
         </div>

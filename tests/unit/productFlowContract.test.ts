@@ -97,7 +97,7 @@ describe("product flow contract", () => {
     expect(gridSource).toContain('t("library.monitoring")');
     expect(gridSource).toContain('t("library.manual")');
     expect(appSource).toContain("monitorStatus");
-    expect(appSource).toContain('t("message.monitorPaused"');
+    expect(appSource).toContain('translate(locale, "message.monitorPaused"');
   });
   it("organizes the right panel into preview, info, notes, and actions zones", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
@@ -134,7 +134,7 @@ describe("product flow contract", () => {
     expect(folderThumbnailSource).toContain("draggable={false}");
     expect(folderThumbnailSource).toContain('data-count={thumbnailUrls.length}');
     expect(folderThumbnailSource).toContain("folder-kind-strip");
-    expect(folderThumbnailSource).toContain("PASTA");
+    expect(folderThumbnailSource).toContain('t("common.folder")');
     expect(stylesSource).toContain(".folder-thumbnail-mosaic");
     expect(stylesSource).toContain(".folder-kind-strip");
   });
@@ -296,7 +296,8 @@ describe("product flow contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
     expect(appSource).toContain("onFileDragStatus");
-    expect(appSource).toContain("setOperationMessage(status.message)");
+    expect(appSource).toContain("localizeResult(status.message)");
+    expect(appSource).toContain("readLocalizedErrorMessage(new Error(status.message))");
     expect(appSource).toContain('status.state !== "started"');
     expect(appSource).not.toContain("if (activeFileDragSessionRef.current) {\n      return;");
   });

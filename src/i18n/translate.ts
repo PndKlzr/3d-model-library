@@ -25,7 +25,8 @@ export function translate(
     "action.fileCount",
     "operation.filesMoved",
     "operation.filesTrashed",
-    "operation.filesExtracted"
+    "operation.filesExtracted",
+    "operation.dragStarted"
   ];
   const resolvedKey = pluralKeys.includes(key)
     ? (`${key}.${Number(params.count) === 1 ? "one" : "other"}` as keyof typeof ptBR)
