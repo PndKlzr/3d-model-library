@@ -83,10 +83,10 @@ describe("product flow contract", () => {
     expect(appSource).toContain("notesFilter");
     expect(appSource).toContain("tagMatchMode");
     expect(gridSource).toContain("advanced-filter-popover");
-    expect(gridSource).toContain("Abertos nos últimos 30 dias");
-    expect(gridSource).toContain("Nunca abertos");
-    expect(gridSource).toContain("Com notas");
-    expect(gridSource).toContain("Sem notas");
+    expect(gridSource).toContain('t("library.usageRecent")');
+    expect(gridSource).toContain('t("library.usageNever")');
+    expect(gridSource).toContain('t("library.notesWith")');
+    expect(gridSource).toContain('t("library.notesWithout")');
   });
 
   it("shows restrained reconciliation and monitoring feedback", async () => {
@@ -97,15 +97,15 @@ describe("product flow contract", () => {
     expect(gridSource).toContain('t("library.monitoring")');
     expect(gridSource).toContain('t("library.manual")');
     expect(appSource).toContain("monitorStatus");
-    expect(appSource).toContain("Use o botão Atualizar");
+    expect(appSource).toContain('t("message.monitorPaused"');
   });
   it("organizes the right panel into preview, info, notes, and actions zones", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
 
     expect(detailsSource).toContain("details-tabs");
-    expect(detailsSource).toContain("Info");
-    expect(detailsSource).toContain("Notas");
-    expect(detailsSource).toContain("Ações");
+    expect(detailsSource).toContain('t("details.info")');
+    expect(detailsSource).toContain('t("library.notes")');
+    expect(detailsSource).toContain('t("details.actions")');
     expect(detailsSource).toContain('activeTab === "actions"');
   });
 
@@ -177,7 +177,7 @@ describe("product flow contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
     expect(appSource).toContain("launchSelectedModelsInSlicer");
-    expect(appSource).toContain("Abrir selecionados no");
+    expect(appSource).toContain('t("context.openSelectedIn"');
     expect(appSource).toContain("getSlicerLaunchModelPaths");
   });
 
@@ -275,7 +275,7 @@ describe("product flow contract", () => {
     const typesSource = await readFile("src/shared/types.ts", "utf8");
 
     expect(typesSource).toContain("defaultSlicerId: string | null");
-    expect(settingsSource).toContain("Slicer padrão");
+    expect(settingsSource).toContain('t("settings.slicersDescription")');
     expect(appSource).toContain("openModelInDefaultSlicer");
     expect(appSource).toContain("settings.defaultSlicerId");
     expect(gridSource).toContain("onOpenDefaultFile");
@@ -312,7 +312,7 @@ describe("product flow contract", () => {
 
     expect(detailsSource).toContain("metadataStatus");
     expect(detailsSource).toContain("metadata-recovery-notice");
-    expect(detailsSource).toContain("Tentar novamente");
+    expect(detailsSource).toContain('t("common.retry")');
     expect(detailsSource).toContain("onRetryMetadata");
   });
 });

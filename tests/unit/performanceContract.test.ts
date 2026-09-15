@@ -109,7 +109,7 @@ describe("performance contract", () => {
   it("requires an explicit user action before loading the 3D preview", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
 
-    expect(detailsSource).toContain("Carregar preview 3D");
+    expect(detailsSource).toContain('t("details.loadPreview")');
     expect(detailsSource).toContain("showPreview");
   });
 

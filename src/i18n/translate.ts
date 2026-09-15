@@ -16,7 +16,15 @@ export function translate(
   params: TranslationParams = {}
 ): string {
   const catalog = locale === "en" ? en : ptBR;
-  const resolvedKey = key === "library.modelCount" || key === "library.selectedCount"
+  const pluralKeys: TranslationKey[] = [
+    "library.modelCount",
+    "library.selectedCount",
+    "library.folderModelCount",
+    "library.childFolderCount",
+    "dialog.trashFilesQuestion",
+    "action.fileCount"
+  ];
+  const resolvedKey = pluralKeys.includes(key)
     ? (`${key}.${Number(params.count) === 1 ? "one" : "other"}` as keyof typeof ptBR)
     : key;
   const template = catalog[resolvedKey as keyof typeof ptBR];

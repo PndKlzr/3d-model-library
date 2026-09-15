@@ -58,7 +58,7 @@ export function SettingsDialog({
         onClose={onClose}
       />
 
-      <nav className="settings-tabs" role="tablist" aria-label="Categorias de configurações">
+      <nav className="settings-tabs" role="tablist" aria-label={t("settings.categories")}>
         <SettingsTabButton
           active={activeTab === "library"}
           icon={<FolderOpen size={16} />}
@@ -165,20 +165,20 @@ function LibrarySettings({
     <>
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Pasta da biblioteca"
-          description="Local onde o aplicativo procura modelos e subpastas."
+          title={t("settings.libraryFolder")}
+          description={t("settings.libraryDescription")}
         />
         <div className="path-row">
           <FolderOpen size={17} />
-          <span>{settings.libraryPath ?? "Nenhuma pasta escolhida"}</span>
-          <button type="button" onClick={onChooseLibraryFolder}>Trocar</button>
+          <span>{settings.libraryPath ?? t("settings.noLibraryFolder")}</span>
+          <button type="button" onClick={onChooseLibraryFolder}>{t("settings.change")}</button>
         </div>
       </section>
 
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Navegação e aparência"
-          description="Ajustes gerais da biblioteca visual."
+          title={t("settings.navigationTitle")}
+          description={t("settings.navigationDescription")}
         />
         <label className="toggle-row settings-toggle">
           <input
@@ -189,7 +189,7 @@ function LibrarySettings({
               void onSaveSettings((current) => ({ ...current, includeSubfolders }));
             }}
           />
-          <span>Incluir subpastas ao filtrar uma pasta</span>
+          <span>{t("settings.includeSubfolders")}</span>
         </label>
         <label className="toggle-row settings-toggle">
           <input
@@ -200,7 +200,7 @@ function LibrarySettings({
               void onSaveSettings((current) => ({ ...current, monitorLibrary }));
             }}
           />
-          <span>Monitorar alterações automaticamente</span>
+          <span>{t("settings.monitor")}</span>
         </label>
         <label className="toggle-row settings-toggle">
           <input
@@ -210,7 +210,7 @@ function LibrarySettings({
               onThemeModeChange(event.currentTarget.checked ? "dark" : "light")
             }
           />
-          <span>Modo escuro</span>
+          <span>{t("settings.darkMode")}</span>
         </label>
         <label className="settings-field-row">
           <span>{t("settings.language")}</span>
@@ -248,18 +248,19 @@ function OrganizationSettings({
   | "onAddCatalogTag"
   | "onRemoveCatalogTag"
 >) {
+  const { t } = useI18n();
   return (
     <>
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Arraste de arquivos"
-          description="Escolha qual ação acontece sem pressionar nenhuma tecla."
+          title={t("settings.dragTitle")}
+          description={t("settings.dragDescription")}
         />
-        <div className="drag-behavior-options" role="radiogroup" aria-label="Comportamento do arraste">
+        <div className="drag-behavior-options" role="radiogroup" aria-label={t("settings.dragBehavior")}>
           <DragBehaviorOption
             checked={settings.fileDragBehavior === "organize-default"}
-            title="Organizar por padrão"
-            description="Arrastar move para pastas; Ctrl + arrastar copia para fora."
+            title={t("settings.organizeDefault")}
+            description={t("settings.organizeDefaultDescription")}
             onChange={() => onSaveSettings((current) => ({
               ...current,
               fileDragBehavior: "organize-default"
@@ -267,8 +268,8 @@ function OrganizationSettings({
           />
           <DragBehaviorOption
             checked={settings.fileDragBehavior === "external-default"}
-            title="Enviar por padrão"
-            description="Arrastar copia para fora; Shift + arrastar move para pastas."
+            title={t("settings.externalDefault")}
+            description={t("settings.externalDefaultDescription")}
             onChange={() => onSaveSettings((current) => ({
               ...current,
               fileDragBehavior: "external-default"
@@ -280,16 +281,16 @@ function OrganizationSettings({
       <section className="settings-section">
         <div className="settings-section-header">
           <SettingsSectionCopy
-            title="Tags"
-            description="Categorias disponíveis para classificar modelos."
+            title={t("tags.label")}
+            description={t("settings.tagsDescription")}
           />
           <button
             type="button"
             onClick={onAddCatalogTag}
             disabled={!metadataWritable}
-            title={!metadataWritable ? metadataMessage ?? "Tags indisponíveis para edição" : undefined}
+            title={!metadataWritable ? metadataMessage ?? t("tags.unavailable") : undefined}
           >
-            Nova tag
+            {t("settings.newTag")}
           </button>
         </div>
         <div className="tag-settings-list">
@@ -301,14 +302,14 @@ function OrganizationSettings({
                   type="button"
                   onClick={() => onRemoveCatalogTag(tag)}
                   disabled={!metadataWritable}
-                  title={!metadataWritable ? metadataMessage ?? "Tags indisponíveis para edição" : undefined}
+                  title={!metadataWritable ? metadataMessage ?? t("tags.unavailable") : undefined}
                 >
-                  Excluir
+                  {t("common.delete")}
                 </button>
               </div>
             ))
           ) : (
-            <p>Nenhuma tag predefinida.</p>
+            <p>{t("settings.noTags")}</p>
           )}
         </div>
       </section>
@@ -325,12 +326,13 @@ function IntegrationSettings({
   SettingsDialogProps,
   "settings" | "onSaveSettings" | "onChooseArchiveExtractor" | "onChooseSlicerExecutable"
 >) {
+  const { t } = useI18n();
   return (
     <>
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Slicers"
-          description="Programas disponíveis para abrir STL e 3MF. O Slicer padrão recebe o duplo clique."
+          title={t("settings.slicers")}
+          description={t("settings.slicersDescription")}
         />
         <div className="slicer-list">
           {settings.slicers.map((slicer) => (
@@ -338,7 +340,7 @@ function IntegrationSettings({
               <Settings size={17} />
               <div>
                 <strong>{slicer.name}</strong>
-                <span>{slicer.executablePath || "Executável não configurado"}</span>
+                <span>{slicer.executablePath || t("settings.slicerNotConfigured")}</span>
               </div>
               <label>
                 <input
@@ -349,7 +351,7 @@ function IntegrationSettings({
                     void onSaveSettings(setSlicerEnabled(slicer.id, enabled));
                   }}
                 />
-                Ativo
+                {t("common.active")}
               </label>
               <label>
                 <input
@@ -361,10 +363,10 @@ function IntegrationSettings({
                     defaultSlicerId: slicer.id
                   }))}
                 />
-                Padrão
+                {t("common.default")}
               </label>
               <button type="button" onClick={() => onChooseSlicerExecutable(slicer.id)}>
-                Escolher .exe
+                {t("settings.chooseExe")}
               </button>
             </div>
           ))}
@@ -373,16 +375,16 @@ function IntegrationSettings({
 
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Arquivos compactados"
-          description="O 7-Zip é usado para abrir e extrair ZIP, RAR e 7Z."
+          title={t("settings.archives")}
+          description={t("settings.archivesDescription")}
         />
         <div className={`path-row ${settings.archiveExtractorPath ? "has-secondary-action" : ""}`}>
           <Archive size={17} />
           <span>
             {settings.archiveExtractorPath ||
-              "Automático: C:\\Program Files\\7-Zip\\7z.exe ou 7-Zip no PATH"}
+              t("settings.archiveAutomaticPath")}
           </span>
-          <button type="button" onClick={onChooseArchiveExtractor}>Escolher 7z.exe</button>
+          <button type="button" onClick={onChooseArchiveExtractor}>{t("settings.choose7Zip")}</button>
           {settings.archiveExtractorPath ? (
             <button
               type="button"
@@ -391,7 +393,7 @@ function IntegrationSettings({
                 archiveExtractorPath: ""
               }))}
             >
-              Automático
+              {t("common.automatic")}
             </button>
           ) : null}
         </div>

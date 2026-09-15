@@ -33,6 +33,7 @@ import {
   isDirectImage,
   isGeometryOnlyPreview
 } from "../shared/fileCapabilities";
+import { useI18n } from "../i18n/I18nProvider";
 
 type DetailsTab = "info" | "notes" | "actions";
 
@@ -80,6 +81,7 @@ export function DetailsPanel({
   onExtractArchive,
   onConvertThreeMfToStl
 }: DetailsPanelProps) {
+  const { t, formatDate } = useI18n();
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailsTab>("info");
   const [notesDraft, setNotesDraft] = useState("");
@@ -112,7 +114,7 @@ export function DetailsPanel({
       await onOpenLibraryFile(modelPath);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      setImageOpenMessage(`Não foi possível abrir a imagem. ${detail}`);
+      setImageOpenMessage(t("details.imageOpenFailed", { detail }));
     }
   }
 
@@ -182,25 +184,25 @@ export function DetailsPanel({
   }
 
   return (
-    <aside className="details-panel" aria-label="Detalhes do modelo">
+    <aside className="details-panel" aria-label={t("details.region")}>
       <div className="preview-stage">
         {model && archive ? (
           <div className="preview-placeholder">
             <Archive size={30} />
-            <strong>Arquivo compactado</strong>
-            <span>Veja todo o conteúdo do pacote e escolha onde extrair.</span>
+            <strong>{t("details.archiveTitle")}</strong>
+            <span>{t("details.archiveDescription")}</span>
           </div>
         ) : model && directImage ? (
           <div className="preview-placeholder image-preview-placeholder">
             <ImageIcon size={30} />
-            <strong>Arquivo de imagem</strong>
-            <span>Abra no aplicativo padrão do Windows para ver em tamanho completo.</span>
+            <strong>{t("details.imageTitle")}</strong>
+            <span>{t("details.imageDescription")}</span>
             <button
               className="primary-button"
               type="button"
               onClick={() => void openImage(model.absolutePath)}
             >
-              Abrir imagem
+              {t("details.openImage")}
             </button>
             {imageOpenMessage ? (
               <span className="operation-message" role="status">{imageOpenMessage}</span>
@@ -211,21 +213,21 @@ export function DetailsPanel({
         ) : model ? (
           <div className="preview-placeholder">
             <Eye size={28} />
-            <strong>Preview pausado</strong>
-            <span>Para manter a biblioteca leve, o 3D só carrega quando você pedir.</span>
+            <strong>{t("details.previewPaused")}</strong>
+            <span>{t("details.previewPausedDescription")}</span>
             <button className="primary-button" type="button" onClick={() => setShowPreview(true)}>
-              Carregar preview 3D
+              {t("details.loadPreview")}
             </button>
           </div>
         ) : (
-          <span>Visualizador 3D</span>
+          <span>{t("details.viewer")}</span>
         )}
       </div>
 
       <div className="details-content">
-        <p className="eyebrow">Selecionado</p>
+        <p className="eyebrow">{t("details.selected")}</p>
         <div className="details-title-row">
-          <h2 title={model?.name}>{model ? model.name : "Nenhum modelo selecionado"}</h2>
+          <h2 title={model?.name}>{model ? model.name : t("details.noneSelected")}</h2>
           {model ? (
             <div className="details-title-actions">
               <button
@@ -233,8 +235,8 @@ export function DetailsPanel({
                 type="button"
                 onClick={() => onToggleFavorite(model.absolutePath)}
                 disabled={!metadataWritable}
-                aria-label={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
-                title={favorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                aria-label={favorite ? t("details.removeFavorite") : t("details.addFavorite")}
+                title={favorite ? t("details.removeFavorite") : t("details.addFavorite")}
               >
                 <Star size={16} fill={favorite ? "currentColor" : "none"} />
               </button>
@@ -243,20 +245,20 @@ export function DetailsPanel({
         </div>
 
         {!model ? (
-          <p>Selecione um arquivo para ver dados, notas e ações.</p>
+          <p>{t("details.selectHelp")}</p>
         ) : (
           <>
             {metadataStatus.availability !== "ready" || metadataStatus.message ? (
               <div className="notice warning metadata-recovery-notice">
-                <span>{metadataStatus.message ?? "Os dados desta biblioteca estão somente para leitura."}</span>
+                <span>{metadataStatus.message ?? t("details.readOnly")}</span>
                 {metadataStatus.availability !== "ready" ? (
                   <button type="button" onClick={() => void onRetryMetadata()}>
-                    Tentar novamente
+                    {t("common.retry")}
                   </button>
                 ) : null}
               </div>
             ) : null}
-            <div className="details-tabs" role="tablist" aria-label="Detalhes do arquivo">
+            <div className="details-tabs" role="tablist" aria-label={t("details.tabs")}>
               <button
                 className={activeTab === "info" ? "active" : ""}
                 type="button"
@@ -264,7 +266,7 @@ export function DetailsPanel({
                 aria-selected={activeTab === "info"}
                 onClick={() => setActiveTab("info")}
               >
-                Info
+                {t("details.info")}
               </button>
               <button
                 className={activeTab === "notes" ? "active" : ""}
@@ -273,7 +275,7 @@ export function DetailsPanel({
                 aria-selected={activeTab === "notes"}
                 onClick={() => setActiveTab("notes")}
               >
-                Notas
+                {t("library.notes")}
               </button>
               <button
                 className={activeTab === "actions" ? "active" : ""}
@@ -282,7 +284,7 @@ export function DetailsPanel({
                 aria-selected={activeTab === "actions"}
                 onClick={() => setActiveTab("actions")}
               >
-                Ações
+                {t("details.actions")}
               </button>
             </div>
 
@@ -292,7 +294,7 @@ export function DetailsPanel({
                   <div>
                     <dt>
                       <FolderSearch size={15} />
-                      Localização
+                      {t("details.location")}
                     </dt>
                     <dd className="metadata-location-value" title={model.absolutePath}>
                       <span>{relativeLocation}</span>
@@ -301,8 +303,8 @@ export function DetailsPanel({
                           className="icon-only"
                           type="button"
                           onClick={() => void window.modelLibrary.copyText(model.absolutePath)}
-                          aria-label="Copiar caminho completo"
-                          title="Copiar caminho completo"
+                          aria-label={t("details.copyPath")}
+                          title={t("details.copyPath")}
                         >
                           <Copy size={15} />
                         </button>
@@ -310,8 +312,8 @@ export function DetailsPanel({
                           className="icon-only"
                           type="button"
                           onClick={() => void onShowModelInFolder(model.absolutePath)}
-                          aria-label="Mostrar no Explorer"
-                          title="Mostrar no Explorer"
+                          aria-label={t("details.showExplorer")}
+                          title={t("details.showExplorer")}
                         >
                           <FolderSearch size={15} />
                         </button>
@@ -321,30 +323,30 @@ export function DetailsPanel({
                   <div>
                     <dt>
                       <Weight size={15} />
-                      Tamanho
+                      {t("details.size")}
                     </dt>
                     <dd>{formatBytes(model.sizeBytes)}</dd>
                   </div>
                   <div>
                     <dt>
                       <Calendar size={15} />
-                      Modificado
+                      {t("details.modified")}
                     </dt>
-                    <dd>{new Date(model.modifiedAt).toLocaleString()}</dd>
+                    <dd>{formatDate(model.modifiedAt, { dateStyle: "short", timeStyle: "medium" })}</dd>
                   </div>
                 </dl>
                 {isGeometryOnlyPreview(model.extension) ? (
                   <div className="notice">
-                    OBJ exibe somente a geometria; materiais e texturas externas não são carregados.
+                    {t("details.objGeometryOnly")}
                   </div>
                 ) : null}
                 {archive ? (
                   <div className="archive-panel">
-                    <p className="eyebrow">Conteúdo do pacote</p>
-                    {isArchiveLoading ? <div className="notice">Lendo arquivo compactado...</div> : null}
+                    <p className="eyebrow">{t("details.archiveContents")}</p>
+                    {isArchiveLoading ? <div className="notice">{t("details.archiveReading")}</div> : null}
                     {archiveMessage ? <div className="notice warning">{archiveMessage}</div> : null}
                     {!isArchiveLoading && !archiveMessage && archiveEntries.length === 0 ? (
-                      <div className="notice">Este arquivo compactado está vazio.</div>
+                      <div className="notice">{t("details.archiveEmpty")}</div>
                     ) : null}
                     {archiveEntries.length > 0 ? (
                       <>
@@ -353,7 +355,7 @@ export function DetailsPanel({
                             <div className="archive-entry-row" key={entry.path}>
                               <ArchiveEntryIcon entry={entry} />
                               <span title={entry.path}>{entry.path}</span>
-                              <em>{entry.isDirectory ? "Pasta" : formatBytes(entry.sizeBytes)}</em>
+                              <em>{entry.isDirectory ? t("common.folder") : formatBytes(entry.sizeBytes)}</em>
                             </div>
                           ))}
                         </div>
@@ -363,14 +365,14 @@ export function DetailsPanel({
                             type="button"
                             onClick={() => void extractWholeArchive("here")}
                           >
-                            Extrair aqui
+                            {t("details.extractHere")}
                           </button>
                           <button
                             className="primary-button"
                             type="button"
                             onClick={() => void extractWholeArchive("named-folder")}
                           >
-                            Extrair para {getArchiveBaseName(model.name)}\
+                            {t("details.extractTo", { name: getArchiveBaseName(model.name) })}
                           </button>
                         </div>
                       </>
@@ -390,14 +392,14 @@ export function DetailsPanel({
                   disabledReason={metadataStatus.message}
                 />
                 <label>
-                  <span>Notas</span>
+                  <span>{t("library.notes")}</span>
                   <textarea
                     value={notesDraft}
                     onChange={(event) => setNotesDraft(event.currentTarget.value)}
                     onBlur={() => void saveNotes()}
                     disabled={!metadataWritable}
                     title={!metadataWritable ? metadataStatus.message ?? undefined : undefined}
-                    placeholder="Configuração de impressão, filamento, observações..."
+                    placeholder={t("details.notesPlaceholder")}
                     rows={4}
                   />
                 </label>
@@ -409,7 +411,7 @@ export function DetailsPanel({
                 <div className="quick-actions">
                   <button className="secondary-button" type="button" onClick={onRenameModelFile}>
                     <Pencil size={16} />
-                    Renomear arquivo
+                    {t("details.renameFile")}
                   </button>
                   {canConvertToStl(model.extension) ? (
                     <div className="conversion-action">
@@ -424,14 +426,14 @@ export function DetailsPanel({
                         ) : (
                           <Archive size={16} />
                         )}
-                        {conversionProgress !== null ? "Convertendo..." : "Converter para STL"}
+                        {conversionProgress !== null ? t("details.converting") : t("details.convertToStl")}
                       </button>
                       {conversionProgress !== null ? (
                         <div className="conversion-progress-status">
                           <div
                             className="conversion-progress-track"
                             role="progressbar"
-                            aria-label="Progresso da conversao para STL"
+                            aria-label={t("details.conversionProgress")}
                             aria-valuemin={0}
                             aria-valuemax={100}
                             aria-valuenow={conversionProgress}
@@ -446,19 +448,19 @@ export function DetailsPanel({
                 </div>
 
                 <div className="slicer-actions">
-                  <p className="eyebrow">Slicers</p>
+                  <p className="eyebrow">{t("details.slicers")}</p>
                   {archive ? (
                     <div className="notice">
-                      Extraia um STL ou 3MF do pacote antes de abrir no slicer.
+                      {t("details.archiveSlicerHelp")}
                     </div>
                   ) : !canUseSlicer ? (
-                    <div className="notice">Este tipo de arquivo não é enviado ao slicer.</div>
+                    <div className="notice">{t("details.unsupportedSlicer")}</div>
                   ) : enabledSlicers.length === 0 ? (
                     <div className="notice">
                       <Scissors size={16} />
-                      <span>Configure Cura ou Creality Print para abrir este modelo.</span>
+                      <span>{t("details.configureSlicer")}</span>
                       <button type="button" onClick={onOpenSettings}>
-                        Configurar
+                        {t("common.configure")}
                       </button>
                     </div>
                   ) : (
@@ -469,7 +471,7 @@ export function DetailsPanel({
                         key={slicer.id}
                         onClick={() => onLaunchSlicer(slicer.id, model.absolutePath)}
                       >
-                        Abrir no {slicer.name}
+                        {t("details.openIn", { name: slicer.name })}
                       </button>
                     ))
                   )}

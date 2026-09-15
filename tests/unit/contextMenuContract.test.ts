@@ -16,19 +16,19 @@ describe("folder context menu contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
     expect(appSource).toContain("context-menu-section-title");
-    expect(appSource).toContain("Pasta");
-    expect(appSource).toContain("Organizar");
-    expect(appSource).toContain("Mover pasta");
-    expect(appSource).toContain("Mover pasta para Lixeira");
-    expect(appSource).toContain("Tags");
-    expect(appSource).toContain("Desfazer última ação");
+    expect(appSource).toContain('t("context.folder")');
+    expect(appSource).toContain('t("context.organize")');
+    expect(appSource).toContain('t("context.moveFolder")');
+    expect(appSource).toContain('t("context.trashFolder")');
+    expect(appSource).toContain('t("context.tags")');
+    expect(appSource).toContain('t("context.undoLast")');
   });
 
   it("opens model tags through the unified tag selector instead of inline tag actions", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
     expect(appSource).toContain("tagPickerDialog");
-    expect(appSource).toContain("Tags...");
+    expect(appSource).toContain('t("context.tags")');
     expect(appSource).not.toContain("context-menu-check-item");
     expect(appSource).not.toContain("Editar tags");
   });
@@ -41,7 +41,7 @@ describe("folder context menu contract", () => {
     expect(retryHandler).toBeTruthy();
     expect(retryHandler).toContain("modelThumbnailService.retry(model)");
     expect(retryHandler).toContain("setModelContextMenu(null)");
-    expect(appSource).toContain("Tentar miniatura novamente");
+    expect(appSource).toContain('t("context.retryThumbnail")');
     expect(appSource).toContain("thumbnailRetryGenerations={thumbnailRetryGenerations}");
     expect(gridSource).toContain("key={thumbnailRetryGeneration}");
   });
@@ -86,7 +86,7 @@ describe("folder context menu contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const folderTreeSource = await readFile("src/components/FolderTree.tsx", "utf8");
 
-    expect(appSource).toContain("Ocultar dos resultados");
+    expect(appSource).toContain('t("context.hideResults")');
     expect(appSource).toContain("folderContextMenu.folderId !== ALL_FOLDERS_ID");
     expect(folderTreeSource).toContain("excludedFolderIds");
     expect(folderTreeSource).toContain("folder-excluded-indicator");
@@ -101,7 +101,7 @@ describe("folder context menu contract", () => {
     expect(revealHandler).toContain("() => setFolderContextMenu(null)");
     expect(revealHandler).toContain("ALL_FOLDERS_ID ? \"\" : folderId");
     expect(revealHandler).toContain("showLibraryFolder(session, relativeFolder)");
-    expect(appSource).toContain("Mostrar no Explorer");
+    expect(appSource).toContain('t("details.showExplorer")');
     expect(appSource).toContain("showModelInFolder(model.absolutePath)");
   });
 
@@ -119,6 +119,6 @@ describe("folder context menu contract", () => {
     expect(handler).toContain("setSelectedTagFilters(new Set())");
     expect(handler).toContain("selectFolder(model.relativeFolder || ALL_FOLDERS_ID)");
     expect(handler).not.toContain("updateVisibleExtensions");
-    expect(appSource).toContain("Ver pasta na biblioteca");
+    expect(appSource).toContain('t("context.viewFolder")');
   });
 });

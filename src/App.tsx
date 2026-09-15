@@ -3,6 +3,8 @@ import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState
 import { flushSync } from "react-dom";
 import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
 import { I18nProvider } from "./i18n/I18nProvider";
+import type { TranslationKey } from "./i18n/catalog";
+import { translate, type TranslationParams } from "./i18n/translate";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { DialogHeader } from "./components/DialogHeader";
 import { DialogShell } from "./components/DialogShell";
@@ -204,6 +206,8 @@ function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfigu
 
 function LibraryApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const t = (key: TranslationKey, params?: TranslationParams) =>
+    translate(settings?.locale ?? "pt-BR", key, params);
   const [scanResult, setScanResult] = useState<LibraryScanResult | null>(null);
   const [selectedFolder, setSelectedFolder] = useState(ALL_FOLDERS_ID);
   const [folderHistory, setFolderHistory] = useState(createFolderNavigationHistory);
@@ -271,7 +275,7 @@ function LibraryApp() {
     availability: "unavailable",
     writable: false,
     source: "empty",
-    message: "Biblioteca ainda não conectada."
+    message: t("message.libraryNotConnected")
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
@@ -333,7 +337,7 @@ function LibraryApp() {
     const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((payload) => {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, payload.session)) return;
       setMonitorStatus("error");
-      setOperationMessage(`Monitoramento pausado: ${payload.message}. Use o botão Atualizar.`);
+      setOperationMessage(t("message.monitorPaused", { detail: payload.message }));
     });
 
     return () => {
@@ -561,10 +565,10 @@ function LibraryApp() {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setMetadataStatus(nextStatus);
       setLibraryMetadata(nextMetadata);
-      setOperationMessage(nextStatus.message ?? "Dados da biblioteca reconectados.");
+      setOperationMessage(nextStatus.message ?? t("message.metadataReconnected"));
     } catch (error) {
       setOperationMessage(
-        `Não foi possível reconectar os dados da biblioteca: ${readErrorMessage(error)}`
+        t("message.metadataReconnectFailed", { detail: readErrorMessage(error) })
       );
     }
   }
@@ -671,7 +675,7 @@ function LibraryApp() {
     setModelContextMenu(null);
 
     if (modelPaths.length === 0) {
-      setLaunchMessage("Selecione pelo menos um STL ou 3MF para abrir no slicer.");
+      setLaunchMessage(t("message.selectSlicerModels"));
       return;
     }
 
@@ -680,19 +684,19 @@ function LibraryApp() {
 
   async function openModelInDefaultSlicer(model: ModelFile) {
     if (!canSendToSlicer(model.extension)) {
-      setLaunchMessage("Extraia um STL ou 3MF antes de abrir no slicer.");
+      setLaunchMessage(t("message.extractBeforeSlicer"));
       return;
     }
 
     if (!settings?.defaultSlicerId) {
-      setLaunchMessage("Escolha um slicer padrão nas configurações para abrir com duplo clique.");
+      setLaunchMessage(t("message.chooseDefaultSlicer"));
       return;
     }
 
     const defaultSlicer = settings.slicers.find((slicer) => slicer.id === settings.defaultSlicerId);
 
     if (!defaultSlicer?.enabled || !defaultSlicer.executablePath) {
-      setLaunchMessage("Configure e ative o slicer padrão antes de usar o duplo clique.");
+      setLaunchMessage(t("message.configureDefaultSlicer"));
       return;
     }
 
@@ -701,7 +705,7 @@ function LibraryApp() {
 
   async function openLibraryImageFile(modelPath: string) {
     const session = activeLibrarySessionRef.current;
-    if (!session) throw new Error("A biblioteca não está ativa.");
+    if (!session) throw new Error(t("message.libraryInactive"));
     await window.modelLibrary.openLibraryFile(session, modelPath);
   }
 
@@ -761,7 +765,7 @@ function LibraryApp() {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setMetadataStatus(nextStatus);
       setOperationMessage(
-        `Não foi possível salvar os dados da biblioteca: ${readErrorMessage(error)}`
+        t("message.metadataSaveFailed", { detail: readErrorMessage(error) })
       );
     }
   }
@@ -835,10 +839,10 @@ function LibraryApp() {
 
   async function addCatalogTag() {
     const tag = await requestTextInput({
-      title: "Nova tag",
-      label: "Nome da tag",
+      title: t("dialog.newTag"),
+      label: t("dialog.tagName"),
       placeholder: "ex: cosplay",
-      confirmLabel: "Criar tag"
+      confirmLabel: t("dialog.createTag")
     });
 
     if (!tag?.trim()) {
@@ -850,9 +854,9 @@ function LibraryApp() {
 
   async function removeCatalogTag(tag: string) {
     const confirmed = await requestConfirmation({
-      title: "Excluir tag",
+      title: t("dialog.deleteTag"),
       message: `Remover a tag "${tag}" da lista e de todos os modelos?`,
-      confirmLabel: "Excluir tag",
+      confirmLabel: t("dialog.deleteTag"),
       tone: "danger"
     });
 
@@ -1008,7 +1012,7 @@ function LibraryApp() {
       availability: "unavailable",
       writable: false,
       source: "empty",
-      message: "Biblioteca ainda não conectada."
+      message: t("message.libraryNotConnected")
     });
     setMonitorStatus("disabled");
   }
@@ -1236,7 +1240,7 @@ function LibraryApp() {
     const session = activeLibrarySessionRef.current;
     if (!session) {
       flushSync(() => setFolderContextMenu(null));
-      setOperationMessage("A biblioteca não está ativa.");
+      setOperationMessage(t("message.libraryInactive"));
       return;
     }
 
@@ -1247,7 +1251,7 @@ function LibraryApp() {
         () => window.modelLibrary.showLibraryFolder(session, relativeFolder)
       );
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
-        setOperationMessage(relativeFolder ? "Pasta aberta no Explorer." : "Biblioteca aberta no Explorer.");
+        setOperationMessage(relativeFolder ? t("message.folderOpenedExplorer") : t("message.libraryOpenedExplorer"));
       }
     } catch (error) {
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
@@ -1384,8 +1388,8 @@ function LibraryApp() {
     activeFileDragSessionRef.current = sessionId;
     setOperationMessage(
       mode === "internal"
-        ? `Organizando ${filePaths.length} arquivo(s).`
-        : `Arrastando ${filePaths.length} arquivo(s).`
+        ? t("message.organizingFiles", { count: filePaths.length })
+        : t("message.draggingFiles", { count: filePaths.length })
     );
 
     flushSync(() => {
@@ -1422,9 +1426,11 @@ function LibraryApp() {
     const parentFolderId = parentFolderOverride ?? selectedFolder;
     const parentFolder = parentFolderId === ALL_FOLDERS_ID ? "" : parentFolderId;
     const folderName = await requestTextInput({
-      title: parentFolder ? `Nova pasta em ${parentFolder}` : "Nova pasta na raiz",
-      label: "Nome da pasta",
-      confirmLabel: "Criar pasta"
+      title: parentFolder
+        ? t("dialog.newFolderAt", { name: parentFolder })
+        : t("dialog.newRootFolder"),
+      label: t("dialog.folderName"),
+      confirmLabel: t("dialog.createFolder")
     });
 
     if (!folderName?.trim()) {
@@ -1438,7 +1444,7 @@ function LibraryApp() {
         message: result.message,
         selectedPaths: [],
         preserveScroll: false,
-        action: createActionLogEntry("Pasta criada", joinFolder(parentFolder, folderName.trim()))
+        action: createActionLogEntry(t("action.folderCreated"), joinFolder(parentFolder, folderName.trim()))
       };
     });
   }
@@ -1448,16 +1454,16 @@ function LibraryApp() {
     setModelContextMenu(null);
 
     if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
-      setOperationMessage("Selecione uma pasta para renomear.");
+      setOperationMessage(t("message.selectFolderRename"));
       return;
     }
 
     const currentName = folderId.split("/").pop() ?? folderId;
     const nextName = await requestTextInput({
-      title: "Renomear pasta",
-      label: "Novo nome da pasta",
+      title: t("dialog.renameFolder"),
+      label: t("dialog.newFolderName"),
       initialValue: currentName,
-      confirmLabel: "Renomear"
+      confirmLabel: t("common.rename")
     });
 
     if (!nextName?.trim()) {
@@ -1480,7 +1486,7 @@ function LibraryApp() {
         preserveScroll: false,
         action:
           restorePairs.length > 0
-            ? createActionLogEntry("Pasta renomeada", `${folderId} -> ${destinationLabel}`, restorePairs)
+            ? createActionLogEntry(t("action.folderRenamed"), `${folderId} -> ${destinationLabel}`, restorePairs)
             : undefined
       };
     });
@@ -1491,16 +1497,16 @@ function LibraryApp() {
     setModelContextMenu(null);
 
     if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
-      setOperationMessage("Selecione uma pasta para mover.");
+      setOperationMessage(t("message.selectFolderMove"));
       return;
     }
 
     const folderName = folderId.split("/").pop() ?? folderId;
     const destinationFolder = await requestTextInput({
-      title: `Mover ${folderName}`,
-      label: "Pasta destino",
-      placeholder: "Vazio = Raiz; ex: Decoracao/Suportes",
-      confirmLabel: "Mover"
+      title: t("dialog.moveFolder", { name: folderName }),
+      label: t("dialog.destinationFolder"),
+      placeholder: t("dialog.destinationFolderPlaceholder"),
+      confirmLabel: t("dialog.move")
     });
 
     if (destinationFolder === null) {
@@ -1526,7 +1532,7 @@ function LibraryApp() {
         preserveScroll: false,
         action:
           restorePairs.length > 0
-            ? createActionLogEntry("Pasta movida", `${folderId} -> ${destinationLabel}`, restorePairs)
+            ? createActionLogEntry(t("action.folderMoved"), `${folderId} -> ${destinationLabel}`, restorePairs)
             : undefined
       };
     });
@@ -1537,15 +1543,15 @@ function LibraryApp() {
     setModelContextMenu(null);
 
     if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
-      setOperationMessage("Selecione uma pasta para enviar para a Lixeira.");
+      setOperationMessage(t("message.selectFolderTrash"));
       return;
     }
 
     const folderName = folderId.split("/").pop() ?? folderId;
     const confirmed = await requestConfirmation({
-      title: "Mover pasta para a Lixeira",
-      message: `Mover a pasta "${folderName}" para a Lixeira?`,
-      confirmLabel: "Mover para Lixeira",
+      title: t("dialog.trashFolder"),
+      message: t("dialog.trashFolderQuestion", { name: folderName }),
+      confirmLabel: t("dialog.moveToTrash"),
       tone: "danger"
     });
 
@@ -1561,7 +1567,7 @@ function LibraryApp() {
         message: result.message,
         selectedPaths: [],
         preserveScroll: false,
-        action: createActionLogEntry("Pasta na Lixeira", folderId)
+        action: createActionLogEntry(t("action.folderTrashed"), folderId)
       };
     });
   }
@@ -1574,10 +1580,10 @@ function LibraryApp() {
     }
 
     const nextName = await requestTextInput({
-      title: "Renomear arquivo",
-      label: "Novo nome do arquivo",
+      title: t("dialog.renameFile"),
+      label: t("dialog.newFileName"),
       initialValue: selectedModel.name,
-      confirmLabel: "Renomear"
+      confirmLabel: t("common.rename")
     });
 
     if (!nextName?.trim()) {
@@ -1596,7 +1602,7 @@ function LibraryApp() {
         selectedPaths: result.path ? [result.path] : [],
         action:
           restorePairs.length > 0
-            ? createActionLogEntry("Arquivo renomeado", `${selectedModel.name} -> ${nextName}`, restorePairs)
+            ? createActionLogEntry(t("action.fileRenamed"), `${selectedModel.name} -> ${nextName}`, restorePairs)
             : undefined
       };
     });
@@ -1654,8 +1660,11 @@ function LibraryApp() {
         action:
           restorePairs.length > 0
             ? createActionLogEntry(
-                "Modelos movidos",
-                `${restorePairs.length} para ${targetFolder || "Raiz"}`,
+                t("action.modelsMoved"),
+                t("action.modelsMovedDetail", {
+                  count: restorePairs.length,
+                  folder: targetFolder || t("common.root")
+                }),
                 restorePairs
               )
             : undefined
@@ -1679,9 +1688,9 @@ function LibraryApp() {
     }
 
     const confirmed = await requestConfirmation({
-      title: "Mover arquivos para a Lixeira",
-      message: `Mover ${modelsToTrash.length} arquivo${modelsToTrash.length === 1 ? "" : "s"} para a Lixeira?`,
-      confirmLabel: "Mover para Lixeira",
+      title: t("dialog.trashFiles"),
+      message: t("dialog.trashFilesQuestion", { count: modelsToTrash.length }),
+      confirmLabel: t("dialog.moveToTrash"),
       tone: "danger"
     });
 
@@ -1698,8 +1707,8 @@ function LibraryApp() {
         message: result.message,
         selectedPaths: [],
         action: createActionLogEntry(
-          "Arquivos na Lixeira",
-          `${modelsToTrash.length} arquivo${modelsToTrash.length === 1 ? "" : "s"}`
+          t("action.modelsTrashed"),
+          t("action.fileCount", { count: modelsToTrash.length })
         )
       };
     });
@@ -1921,8 +1930,8 @@ function LibraryApp() {
     return (
       <main className="first-run" data-theme={themeMode}>
         <div>
-          <p className="eyebrow">Carregando</p>
-          <h1>Preparando biblioteca</h1>
+          <p className="eyebrow">{t("app.loading")}</p>
+          <h1>{t("app.preparingLibrary")}</h1>
         </div>
       </main>
     );
@@ -2064,7 +2073,7 @@ function LibraryApp() {
           className="responsive-panel-scrim"
           type="button"
           onClick={() => setResponsivePanel(null)}
-          aria-label="Fechar painel"
+          aria-label={t("app.closePanel")}
         />
       ) : null}
       {isSettingsOpen ? (
@@ -2093,7 +2102,7 @@ function LibraryApp() {
           </div>
           {undoToast.undoable && !undoToast.undone ? (
             <button type="button" onClick={undoLastAction}>
-              Desfazer
+              {t("common.undo")}
             </button>
           ) : null}
         </div>
@@ -2115,11 +2124,11 @@ function LibraryApp() {
       {tagPickerDialog ? (
         <DialogShell
           className="tag-picker-dialog"
-          title="Tags do modelo"
+          title={t("dialog.modelTags")}
           onCancel={() => setTagPickerDialog(null)}
         >
           <DialogHeader
-            eyebrow="Tags"
+            eyebrow={t("tags.label")}
             title={tagPickerDialog.model.name}
             onClose={() => setTagPickerDialog(null)}
           />
@@ -2139,34 +2148,34 @@ function LibraryApp() {
           role="menu"
           onMouseLeave={() => setFolderContextMenu(null)}
         >
-          <div className="context-menu-section-title">Pasta</div>
+          <div className="context-menu-section-title">{t("context.folder")}</div>
           <button type="button" role="menuitem" onClick={() => selectFolder(folderContextMenu.folderId)}>
-            Abrir pasta
+            {t("context.openFolder")}
           </button>
           <button
             type="button"
             role="menuitem"
             onClick={() => void showFolderInExplorer(folderContextMenu.folderId)}
           >
-            Mostrar no Explorer
+            {t("details.showExplorer")}
           </button>
           <button type="button" role="menuitem" onClick={() => createFolder(folderContextMenu.folderId)}>
-            Nova pasta aqui
+            {t("context.newFolderHere")}
           </button>
           {folderContextMenu.folderId !== ALL_FOLDERS_ID ? (
             <>
               <button type="button" role="menuitem" onClick={() => renameFolder(folderContextMenu.folderId)}>
-                Renomear
+                {t("common.rename")}
               </button>
               <button type="button" role="menuitem" onClick={() => moveFolder(folderContextMenu.folderId)}>
-                Mover pasta...
+                {t("context.moveFolder")}
               </button>
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => excludeFolder(folderContextMenu.folderId)}
               >
-                Ocultar dos resultados
+                {t("context.hideResults")}
               </button>
               <button
                 className="danger-menu-item"
@@ -2174,37 +2183,37 @@ function LibraryApp() {
                 role="menuitem"
                 onClick={() => trashFolder(folderContextMenu.folderId)}
               >
-                Mover pasta para Lixeira
+                {t("context.trashFolder")}
               </button>
             </>
           ) : null}
           {selectedModelIds.size > 0 ? (
             <>
               <div className="context-menu-separator" />
-              <div className="context-menu-section-title">Organizar</div>
+              <div className="context-menu-section-title">{t("context.organize")}</div>
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => moveSelectedModelsToFolder(folderContextMenu.folderId)}
               >
-                Mover selecionados aqui
+                {t("context.moveSelectedHere")}
               </button>
               <button className="danger-menu-item" type="button" role="menuitem" onClick={trashSelectedModels}>
-                Mover selecionados para Lixeira
+                {t("context.trashSelected")}
               </button>
             </>
           ) : null}
           {actionLogEntries.some((entry) => entry.undoable && !entry.undone) ? (
             <>
               <div className="context-menu-separator" />
-              <div className="context-menu-section-title">Histórico</div>
+              <div className="context-menu-section-title">{t("context.history")}</div>
               <button type="button" role="menuitem" onClick={undoLastAction}>
-                Desfazer última ação
+                {t("context.undoLast")}
               </button>
             </>
           ) : null}
           <div className="context-menu-separator" />
-          <div className="context-menu-section-title">Biblioteca</div>
+          <div className="context-menu-section-title">{t("context.library")}</div>
           <button
             type="button"
             role="menuitem"
@@ -2213,7 +2222,7 @@ function LibraryApp() {
               void scanCurrentLibrary();
             }}
           >
-            Atualizar biblioteca
+            {t("common.refresh")}
           </button>
           <button
             type="button"
@@ -2223,7 +2232,7 @@ function LibraryApp() {
               setIsSettingsOpen(true);
             }}
           >
-            Configurações
+            {t("common.settings")}
           </button>
         </div>
       ) : null}
@@ -2234,7 +2243,7 @@ function LibraryApp() {
           role="menu"
           onMouseLeave={() => setModelContextMenu(null)}
         >
-          <div className="context-menu-section-title">Abrir</div>
+          <div className="context-menu-section-title">{t("context.open")}</div>
           <button
             type="button"
             role="menuitem"
@@ -2249,10 +2258,10 @@ function LibraryApp() {
             }}
           >
             {isDirectImage(modelContextMenu.model.extension)
-              ? "Abrir no Windows"
+              ? t("context.openWindows")
               : getDefaultFileOpenAction(modelContextMenu.model.extension) === "inspect-archive"
-                ? "Inspecionar conteúdo"
-                : "Carregar no painel"}
+                ? t("context.inspectArchive")
+                : t("context.loadPanel")}
           </button>
           {canShowThumbnail(modelContextMenu.model.extension) ? (
             <button
@@ -2260,7 +2269,7 @@ function LibraryApp() {
               role="menuitem"
               onClick={() => retryModelThumbnail(modelContextMenu.model)}
             >
-              Tentar miniatura novamente
+              {t("context.retryThumbnail")}
             </button>
           ) : null}
           <button
@@ -2275,11 +2284,11 @@ function LibraryApp() {
             }}
           >
             {libraryMetadata.models[modelContextMenu.model.absolutePath]?.favorite
-              ? "Remover dos favoritos"
-              : "Adicionar aos favoritos"}
+              ? t("details.removeFavorite")
+              : t("details.addFavorite")}
           </button>
           <div className="context-menu-separator" />
-          <div className="context-menu-section-title">Tags</div>
+          <div className="context-menu-section-title">{t("tags.label")}</div>
           <button
             type="button"
             role="menuitem"
@@ -2291,12 +2300,12 @@ function LibraryApp() {
               setTagPickerDialog({ model });
             }}
           >
-            Tags...
+            {t("context.tags")}
           </button>
           {enabledSlicers.length > 0 && canLaunchContextModelInSlicer ? (
             <>
               <div className="context-menu-separator" />
-              <div className="context-menu-section-title">Slicer</div>
+              <div className="context-menu-section-title">{t("context.slicer")}</div>
               {enabledSlicers.map((slicer) => {
                 const launchCount = getSlicerLaunchModelCount(modelContextMenu.model);
 
@@ -2310,8 +2319,8 @@ function LibraryApp() {
                     }
                   >
                     {launchCount > 1
-                      ? `Abrir selecionados no ${slicer.name}`
-                      : `Abrir no ${slicer.name}`}
+                      ? t("context.openSelectedIn", { name: slicer.name })
+                      : t("details.openIn", { name: slicer.name })}
                   </button>
                 );
               })}
@@ -2320,7 +2329,7 @@ function LibraryApp() {
           {isArchive(modelContextMenu.model.extension) ? (
             <>
               <div className="context-menu-separator" />
-              <div className="context-menu-section-title">Extrair</div>
+              <div className="context-menu-section-title">{t("context.extract")}</div>
               <button
                 type="button"
                 role="menuitem"
@@ -2330,7 +2339,7 @@ function LibraryApp() {
                   void extractArchiveFile(model.absolutePath, "here");
                 }}
               >
-                Extrair aqui
+                {t("details.extractHere")}
               </button>
               <button
                 type="button"
@@ -2341,18 +2350,18 @@ function LibraryApp() {
                   void extractArchiveFile(model.absolutePath, "named-folder");
                 }}
               >
-                Extrair para {getArchiveBaseName(modelContextMenu.model.name)}\
+                {t("details.extractTo", { name: getArchiveBaseName(modelContextMenu.model.name) })}
               </button>
             </>
           ) : null}
           <div className="context-menu-separator" />
-          <div className="context-menu-section-title">Arquivo</div>
+          <div className="context-menu-section-title">{t("context.file")}</div>
           <button
             type="button"
             role="menuitem"
             onClick={() => viewModelFolderInLibrary(modelContextMenu.model)}
           >
-            Ver pasta na biblioteca
+            {t("context.viewFolder")}
           </button>
           <button
             type="button"
@@ -2363,13 +2372,13 @@ function LibraryApp() {
               void window.modelLibrary.showModelInFolder(model.absolutePath);
             }}
           >
-            Mostrar no Explorer
+            {t("details.showExplorer")}
           </button>
           <button type="button" role="menuitem" onClick={renameSelectedModel}>
-            Renomear arquivo
+            {t("details.renameFile")}
           </button>
           <button className="danger-menu-item" type="button" role="menuitem" onClick={trashSelectedModels}>
-            Mover selecionados para Lixeira
+            {t("context.trashSelected")}
           </button>
         </div>
       ) : null}

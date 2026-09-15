@@ -4,6 +4,8 @@ import {
   SUPPORTED_FILE_EXTENSIONS,
   type SupportedFileExtension
 } from "../shared/fileCapabilities";
+import { useI18n } from "../i18n/I18nProvider";
+import type { TranslationKey } from "../i18n/catalog";
 
 type FileTypeFilterProps = {
   visibleExtensions: ReadonlySet<SupportedFileExtension>;
@@ -11,11 +13,11 @@ type FileTypeFilterProps = {
 };
 
 const FILE_TYPE_CATEGORIES: Array<{
-  label: string;
+  labelKey: TranslationKey;
   extensions: Array<{ extension: SupportedFileExtension; label: string }>;
 }> = [
   {
-    label: "Modelos",
+    labelKey: "fileTypes.models",
     extensions: [
       { extension: ".stl", label: "STL" },
       { extension: ".3mf", label: "3MF" },
@@ -23,7 +25,7 @@ const FILE_TYPE_CATEGORIES: Array<{
     ]
   },
   {
-    label: "Imagens",
+    labelKey: "fileTypes.images",
     extensions: [
       { extension: ".png", label: "PNG" },
       { extension: ".jpg", label: "JPG" },
@@ -32,7 +34,7 @@ const FILE_TYPE_CATEGORIES: Array<{
     ]
   },
   {
-    label: "Arquivos compactados",
+    labelKey: "fileTypes.archives",
     extensions: [
       { extension: ".zip", label: "ZIP" },
       { extension: ".rar", label: "RAR" },
@@ -42,6 +44,7 @@ const FILE_TYPE_CATEGORIES: Array<{
 ];
 
 export function FileTypeFilter({ visibleExtensions, onChange }: FileTypeFilterProps) {
+  const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [placeAbove, setPlaceAbove] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -95,13 +98,13 @@ export function FileTypeFilter({ visibleExtensions, onChange }: FileTypeFilterPr
       <button
         className={`file-type-trigger ${visibleExtensions.size < SUPPORTED_FILE_EXTENSIONS.length ? "active" : ""}`}
         type="button"
-        aria-label="Filtrar tipos de arquivo"
+        aria-label={t("fileTypes.filter")}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
       >
         <Files size={14} />
-        Tipos
+        {t("fileTypes.trigger")}
         <span>{visibleExtensions.size}/{SUPPORTED_FILE_EXTENSIONS.length}</span>
         <ChevronDown size={13} />
       </button>
@@ -109,10 +112,11 @@ export function FileTypeFilter({ visibleExtensions, onChange }: FileTypeFilterPr
         <div
           className={`file-type-popover viewport-safe-popover ${placeAbove ? "place-above" : ""}`}
           role="dialog"
-          aria-label="Tipos de arquivo"
+          aria-label={t("fileTypes.title")}
         >
-          <strong>Tipos de arquivo</strong>
+          <strong>{t("fileTypes.title")}</strong>
           {FILE_TYPE_CATEGORIES.map((category) => {
+            const categoryLabel = t(category.labelKey);
             const categoryExtensions = category.extensions.map(({ extension }) => extension);
             const checkedCount = categoryExtensions.filter((extension) =>
               visibleExtensions.has(extension)
@@ -121,15 +125,15 @@ export function FileTypeFilter({ visibleExtensions, onChange }: FileTypeFilterPr
             const isMixed = checkedCount > 0 && !isChecked;
 
             return (
-              <fieldset key={category.label}>
+              <fieldset key={category.labelKey}>
                 <label className="file-type-category">
                   <MixedCheckbox
                     checked={isChecked}
                     mixed={isMixed}
-                    ariaLabel={category.label}
+                    ariaLabel={categoryLabel}
                     onChange={() => toggleCategory(categoryExtensions)}
                   />
-                  <strong>{category.label}</strong>
+                  <strong>{categoryLabel}</strong>
                 </label>
                 <div className="file-type-options">
                   {category.extensions.map(({ extension, label }) => (
@@ -147,7 +151,7 @@ export function FileTypeFilter({ visibleExtensions, onChange }: FileTypeFilterPr
             );
           })}
           {visibleExtensions.size === 0 ? (
-            <p className="file-type-empty" role="status">Todos os tipos estão ocultos</p>
+            <p className="file-type-empty" role="status">{t("fileTypes.none")}</p>
           ) : null}
         </div>
       ) : null}

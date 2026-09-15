@@ -50,7 +50,7 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("ConfirmDialog");
     expect(appSource).toContain("requestConfirmation");
     expect(appSource).toContain("confirmationDialog");
-    expect(appSource).toContain("Mover para Lixeira");
+    expect(appSource).toContain('t("dialog.moveToTrash")');
     expect(confirmDialogSource).toContain("DialogShell");
     expect(dialogShellSource).toContain("dialog-backdrop");
     expect(dialogShellSource).toContain("onPointerDown");
@@ -66,7 +66,7 @@ describe("interaction flow contract", () => {
 
     expect(removeTagSource).toBeTruthy();
     expect(removeTagSource).toContain("requestConfirmation");
-    expect(removeTagSource).toContain("Excluir tag");
+    expect(removeTagSource).toContain('t("dialog.deleteTag")');
     expect(removeTagSource).toContain("removeCatalogTag");
   });
 
@@ -92,7 +92,7 @@ describe("interaction flow contract", () => {
     expect(detailsSource).toContain("TagSelector");
     expect(detailsSource).not.toContain("predefined-tag-list");
     expect(detailsSource).not.toContain("tagDraft");
-    expect(tagSelectorSource).toContain("Criar tag");
+    expect(tagSelectorSource).toContain('t("tags.create"');
     expect(tagSelectorSource).toContain("role=\"listbox\"");
     expect(tagSelectorSource).toContain("aria-haspopup=\"listbox\"");
     expect(tagSelectorSource).toContain("type=\"checkbox\"");
@@ -128,7 +128,7 @@ describe("interaction flow contract", () => {
 
     expect(appSource).toContain("THEME_MODE_STORAGE_KEY");
     expect(appSource).toContain("data-theme");
-    expect(settingsSource).toContain("Modo escuro");
+    expect(settingsSource).toContain('t("settings.darkMode")');
     expect(settingsSource).toContain("onThemeModeChange");
     expect(stylesSource).toContain('[data-theme="dark"]');
     expect(stylesSource).toContain('[data-theme="dark"] select option');
@@ -191,12 +191,12 @@ describe("interaction flow contract", () => {
 
     expect(detailsSource).toContain("listArchiveEntries");
     expect(detailsSource).toContain("archive-entry-list");
-    expect(detailsSource).toContain("Extrair aqui");
-    expect(detailsSource).toContain("Extrair para");
+    expect(detailsSource).toContain('t("details.extractHere")');
+    expect(detailsSource).toContain('t("details.extractTo"');
     expect(detailsSource).not.toContain("Extrair selecionados");
     expect(appSource).toContain("extractArchiveFile");
     expect(appSource).toContain("chooseArchiveExtractor");
-    expect(settingsSource).toContain("Arquivos compactados");
+    expect(settingsSource).toContain('t("settings.archives")');
     expect(settingsSource).toContain("onChooseArchiveExtractor");
   });
 
@@ -206,7 +206,7 @@ describe("interaction flow contract", () => {
     const workerClientSource = await readFile("src/lib/threeMfToStlWorker.ts", "utf8");
     const workerSource = await readFile("src/workers/threeMfToStl.worker.ts", "utf8");
 
-    expect(detailsSource).toContain("Converter para STL");
+    expect(detailsSource).toContain('t("details.convertToStl")');
     expect(detailsSource).toContain("onConvertThreeMfToStl");
     expect(detailsSource).toContain('role="progressbar"');
     expect(detailsSource).toContain("conversionProgress");
@@ -439,7 +439,7 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("metadataStatus");
     expect(appSource).toContain("getLibraryMetadataStatus");
     expect(appSource).toContain("retryLibraryMetadata");
-    expect(appSource).toContain("Não foi possível salvar os dados da biblioteca");
+    expect(appSource).toContain('t("message.metadataSaveFailed"');
     expect(appSource).toContain("metadataStatus.writable");
   });
 
@@ -461,12 +461,12 @@ describe("interaction flow contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 
-    expect(detailsSource).toContain("Localização");
+    expect(detailsSource).toContain('t("details.location")');
     expect(detailsSource).not.toContain("<span>Pasta</span>");
     expect(detailsSource).toContain("relativeLocation");
-    expect(detailsSource).toContain("Copiar caminho completo");
+    expect(detailsSource).toContain('t("details.copyPath")');
     expect(detailsSource).toContain("window.modelLibrary.copyText(model.absolutePath)");
-    expect(detailsSource).toContain("Mostrar no Explorer");
+    expect(detailsSource).toContain('t("details.showExplorer")');
     expect(mainSource).toContain('ipcMain.handle("system:copy-text"');
     expect(mainSource).toContain("clipboard.writeText(value)");
     expect(appSource).toContain("setModelRevealRequest");

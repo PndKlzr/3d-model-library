@@ -1,5 +1,6 @@
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { resolveAppLocale, translate } from "../i18n/translate";
 
 type AppErrorBoundaryProps = {
   children: ReactNode;
@@ -27,22 +28,23 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
       return this.props.children;
     }
 
+    const locale = resolveAppLocale(navigator.language);
+    const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
+
     return (
       <main className="app-error-screen" role="alert">
         <section>
           <AlertTriangle size={34} />
-          <p className="eyebrow">Erro de interface</p>
-          <h1>O app encontrou um problema</h1>
-          <p>
-            A biblioteca nao foi fechada. Recarregue a interface para reconectar os controles.
-          </p>
+          <p className="eyebrow">{t("errorBoundary.eyebrow")}</p>
+          <h1>{t("errorBoundary.title")}</h1>
+          <p>{t("errorBoundary.description")}</p>
           <button
             className="primary-button"
             type="button"
             onClick={() => window.location.reload()}
           >
             <RefreshCw size={16} />
-            Recarregar
+            {t("common.reload")}
           </button>
         </section>
       </main>
