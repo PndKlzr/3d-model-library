@@ -3,6 +3,10 @@ import {
   Calendar,
   Copy,
   Eye,
+  Box,
+  File,
+  FileText,
+  Folder,
   FolderOpen,
   FolderSearch,
   LoaderCircle,
@@ -18,6 +22,7 @@ import { TagSelector } from "./TagSelector";
 import type {
   AppSettings,
   ArchiveEntry,
+  ArchiveExtractionMode,
   LibraryMetadataStatus,
   ModelFile,
   ModelUserMetadata
@@ -49,7 +54,7 @@ type DetailsPanelProps = {
   onSetModelTags: (modelPath: string, tags: string[]) => Promise<void>;
   onSetModelNotes: (modelPath: string, notes: string) => Promise<void>;
   onRetryMetadata: () => Promise<void>;
-  onExtractArchiveEntries: (archivePath: string, entryPaths: string[]) => Promise<void>;
+  onExtractArchive: (archivePath: string, mode: ArchiveExtractionMode) => Promise<void>;
   onConvertThreeMfToStl: (
     modelPath: string,
     onProgress: (progress: number) => void
@@ -73,16 +78,13 @@ export function DetailsPanel({
   onSetModelTags,
   onSetModelNotes,
   onRetryMetadata,
-  onExtractArchiveEntries,
+  onExtractArchive,
   onConvertThreeMfToStl
 }: DetailsPanelProps) {
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState<DetailsTab>("info");
   const [notesDraft, setNotesDraft] = useState("");
   const [archiveEntries, setArchiveEntries] = useState<ArchiveEntry[]>([]);
-  const [selectedArchiveEntryPaths, setSelectedArchiveEntryPaths] = useState<Set<string>>(
-    () => new Set()
-  );
   const [archiveMessage, setArchiveMessage] = useState<string | null>(null);
   const [imageOpenMessage, setImageOpenMessage] = useState<string | null>(null);
   const [isArchiveLoading, setIsArchiveLoading] = useState(false);
@@ -100,7 +102,6 @@ export function DetailsPanel({
     setShowPreview(false);
     setActiveTab("info");
     setArchiveEntries([]);
-    setSelectedArchiveEntryPaths(new Set());
     setArchiveMessage(null);
     setImageOpenMessage(null);
     setConversionProgress(null);
@@ -147,7 +148,6 @@ export function DetailsPanel({
       .then((result) => {
         if (isMounted) {
           setArchiveEntries(result.entries);
-          setSelectedArchiveEntryPaths(new Set(result.entries.map((entry) => entry.path)));
         }
       })
       .catch((error) => {
@@ -175,37 +175,11 @@ export function DetailsPanel({
     await onSetModelNotes(model.absolutePath, notesDraft);
   }
 
-  function toggleArchiveEntry(entryPath: string, selected: boolean) {
-    setSelectedArchiveEntryPaths((currentPaths) => {
-      const nextPaths = new Set(currentPaths);
-
-      if (selected) {
-        nextPaths.add(entryPath);
-      } else {
-        nextPaths.delete(entryPath);
-      }
-
-      return nextPaths;
-    });
-  }
-
-  async function extractSelectedArchiveEntries() {
+  async function extractWholeArchive(mode: ArchiveExtractionMode) {
     if (!model) {
       return;
     }
-
-    await onExtractArchiveEntries(model.absolutePath, [...selectedArchiveEntryPaths]);
-  }
-
-  async function extractAllArchiveEntries() {
-    if (!model) {
-      return;
-    }
-
-    await onExtractArchiveEntries(
-      model.absolutePath,
-      archiveEntries.map((entry) => entry.path)
-    );
+    await onExtractArchive(model.absolutePath, mode);
   }
 
   return (
@@ -215,7 +189,7 @@ export function DetailsPanel({
           <div className="preview-placeholder">
             <Archive size={30} />
             <strong>Arquivo compactado</strong>
-            <span>Veja os modelos dentro do pacote e extraia o que precisar.</span>
+            <span>Veja todo o conteúdo do pacote e escolha onde extrair.</span>
           </div>
         ) : model && directImage ? (
           <div className="preview-placeholder image-preview-placeholder">
@@ -378,40 +352,33 @@ export function DetailsPanel({
                     {isArchiveLoading ? <div className="notice">Lendo arquivo compactado...</div> : null}
                     {archiveMessage ? <div className="notice warning">{archiveMessage}</div> : null}
                     {!isArchiveLoading && !archiveMessage && archiveEntries.length === 0 ? (
-                      <div className="notice">Nenhum STL ou 3MF encontrado neste pacote.</div>
+                      <div className="notice">Este arquivo compactado está vazio.</div>
                     ) : null}
                     {archiveEntries.length > 0 ? (
                       <>
                         <div className="archive-entry-list">
                           {archiveEntries.map((entry) => (
-                            <label className="archive-entry-row" key={entry.path}>
-                              <input
-                                type="checkbox"
-                                checked={selectedArchiveEntryPaths.has(entry.path)}
-                                onChange={(event) =>
-                                  toggleArchiveEntry(entry.path, event.currentTarget.checked)
-                                }
-                              />
+                            <div className="archive-entry-row" key={entry.path}>
+                              <ArchiveEntryIcon entry={entry} />
                               <span title={entry.path}>{entry.path}</span>
-                              <em>{formatBytes(entry.sizeBytes)}</em>
-                            </label>
+                              <em>{entry.isDirectory ? "Pasta" : formatBytes(entry.sizeBytes)}</em>
+                            </div>
                           ))}
                         </div>
                         <div className="archive-actions">
                           <button
                             className="secondary-button"
                             type="button"
-                            onClick={() => void extractSelectedArchiveEntries()}
-                            disabled={selectedArchiveEntryPaths.size === 0}
+                            onClick={() => void extractWholeArchive("here")}
                           >
-                            Extrair selecionados
+                            Extrair aqui
                           </button>
                           <button
                             className="primary-button"
                             type="button"
-                            onClick={() => void extractAllArchiveEntries()}
+                            onClick={() => void extractWholeArchive("named-folder")}
                           >
-                            Extrair tudo
+                            Extrair para {getArchiveBaseName(model.name)}\
                           </button>
                         </div>
                       </>
@@ -523,6 +490,30 @@ export function DetailsPanel({
       </div>
     </aside>
   );
+}
+
+function ArchiveEntryIcon({ entry }: { entry: ArchiveEntry }) {
+  if (entry.isDirectory) {
+    return <Folder className="archive-entry-icon" size={15} aria-hidden="true" />;
+  }
+
+  if ([".stl", ".3mf", ".obj"].includes(entry.extension)) {
+    return <Box className="archive-entry-icon" size={15} aria-hidden="true" />;
+  }
+
+  if ([".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"].includes(entry.extension)) {
+    return <ImageIcon className="archive-entry-icon" size={15} aria-hidden="true" />;
+  }
+
+  if ([".pdf", ".txt", ".md", ".doc", ".docx"].includes(entry.extension)) {
+    return <FileText className="archive-entry-icon" size={15} aria-hidden="true" />;
+  }
+
+  return <File className="archive-entry-icon" size={15} aria-hidden="true" />;
+}
+
+function getArchiveBaseName(fileName: string) {
+  return fileName.replace(/\.(zip|rar|7z)$/i, "");
 }
 
 function formatBytes(bytes: number): string {

@@ -37,6 +37,9 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain('ipcRenderer.on("model:file-drag-status"');
     expect(preloadSource).toContain("listArchiveEntries");
     expect(preloadSource).toContain("extractArchiveEntries");
+    expect(preloadSource).toContain("extractArchive");
+    expect(preloadSource).toContain('ipcRenderer.invoke("archive:extract-all"');
+    expect(mainSource).toMatch(/ipcMain\.handle\(\s*"archive:extract-all"/);
     expect(preloadSource).toContain("getModelHashes");
     expect(preloadSource).toContain("createFolder");
     expect(preloadSource).toContain("moveModels");

@@ -1,5 +1,6 @@
 import type {
   AppSettings,
+  ArchiveExtractionMode,
   ArchiveListResult,
   FileOperationResult,
   FileDragRequest,
@@ -59,6 +60,10 @@ export type ModelLibraryApi = {
     archivePath: string,
     entryPaths: string[],
     destinationRelativeFolder?: string
+  ) => Promise<FileOperationResult>;
+  extractArchive: (
+    archivePath: string,
+    mode: ArchiveExtractionMode
   ) => Promise<FileOperationResult>;
   createFolder: (
     parentRelativeFolder: string,

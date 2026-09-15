@@ -75,6 +75,7 @@ import {
 } from "./lib/viewPreferences";
 import type {
   AppSettings,
+  ArchiveExtractionMode,
   FileDragBehavior,
   FileRestorePair,
   LibraryActionLogEntry,
@@ -89,6 +90,7 @@ import {
   SUPPORTED_FILE_EXTENSIONS,
   canSendToSlicer,
   canShowThumbnail,
+  isArchive,
   isDirectImage,
   type SupportedFileExtension
 } from "./shared/fileCapabilities";
@@ -100,7 +102,7 @@ const OPERATION_MESSAGE_TIMEOUT_MS = 6000;
 const UNDO_TOAST_TIMEOUT_MS = 8000;
 const CONTEXT_MENU_WIDTH = 320;
 const FOLDER_CONTEXT_MENU_HEIGHT = 465;
-const MODEL_CONTEXT_MENU_HEIGHT = 454;
+const MODEL_CONTEXT_MENU_HEIGHT = 550;
 
 type LocalActionLogEntry = LibraryActionLogEntry & {
   restorePairs?: FileRestorePair[];
@@ -1670,13 +1672,13 @@ function LibraryApp() {
     });
   }
 
-  async function extractArchiveEntries(archivePath: string, entryPaths: string[]) {
-    if (!settings?.libraryPath || entryPaths.length === 0) {
+  async function extractArchiveFile(archivePath: string, mode: ArchiveExtractionMode) {
+    if (!settings?.libraryPath) {
       return;
     }
 
     await runLibraryOperation(async () => {
-      const result = await window.modelLibrary.extractArchiveEntries(archivePath, entryPaths);
+      const result = await window.modelLibrary.extractArchive(archivePath, mode);
 
       return {
         message: result.message,
@@ -2004,7 +2006,7 @@ function LibraryApp() {
         onSetModelTags={setModelTags}
         onSetModelNotes={setModelNotes}
         onRetryMetadata={retryLibraryMetadata}
-        onExtractArchiveEntries={extractArchiveEntries}
+        onExtractArchive={extractArchiveFile}
         onConvertThreeMfToStl={convertSelectedThreeMfToStl}
       />
       {isSettingsOpen ? (
@@ -2267,6 +2269,34 @@ function LibraryApp() {
               })}
             </>
           ) : null}
+          {isArchive(modelContextMenu.model.extension) ? (
+            <>
+              <div className="context-menu-separator" />
+              <div className="context-menu-section-title">Extrair</div>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const model = modelContextMenu.model;
+                  setModelContextMenu(null);
+                  void extractArchiveFile(model.absolutePath, "here");
+                }}
+              >
+                Extrair aqui
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const model = modelContextMenu.model;
+                  setModelContextMenu(null);
+                  void extractArchiveFile(model.absolutePath, "named-folder");
+                }}
+              >
+                Extrair para {getArchiveBaseName(modelContextMenu.model.name)}\
+              </button>
+            </>
+          ) : null}
           <div className="context-menu-separator" />
           <div className="context-menu-section-title">Arquivo</div>
           <button
@@ -2307,6 +2337,10 @@ function joinFolder(parentFolder: string, folderName: string): string {
   }
 
   return `${parentFolder}/${trimmedName}`;
+}
+
+function getArchiveBaseName(fileName: string): string {
+  return fileName.replace(/\.(zip|rar|7z)$/i, "");
 }
 
 function normalizeFolderInput(folderPath: string): string {

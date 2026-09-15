@@ -31,6 +31,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   listArchiveEntries: (archivePath) => ipcRenderer.invoke("archive:list", archivePath),
   extractArchiveEntries: (archivePath, entryPaths, destinationRelativeFolder) =>
     ipcRenderer.invoke("archive:extract", archivePath, entryPaths, destinationRelativeFolder),
+  extractArchive: (archivePath, mode) =>
+    ipcRenderer.invoke("archive:extract-all", archivePath, mode),
   createFolder: (parentRelativeFolder, folderName) =>
     ipcRenderer.invoke("library:create-folder", parentRelativeFolder, folderName),
   moveModels: (sourcePaths, destinationRelativeFolder) =>

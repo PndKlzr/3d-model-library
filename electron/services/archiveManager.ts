@@ -3,9 +3,13 @@ import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { unzipSync } from "fflate";
-import type { ArchiveEntry, ArchiveListResult, FileOperationResult } from "../../src/shared/types.js";
+import type {
+  ArchiveEntry,
+  ArchiveExtractionMode,
+  ArchiveListResult,
+  FileOperationResult
+} from "../../src/shared/types.js";
 import {
-  canSendToSlicer,
   isArchive,
   toSupportedFileExtension
 } from "../../src/shared/fileCapabilities.js";
@@ -137,6 +141,43 @@ export async function extractArchiveEntries(
   };
 }
 
+export async function extractArchive(
+  rootPath: string,
+  archivePath: string,
+  mode: ArchiveExtractionMode,
+  options: ArchiveToolOptions = {}
+): Promise<FileOperationResult> {
+  if (mode !== "here" && mode !== "named-folder") {
+    throw new Error("Modo de extracao invalido.");
+  }
+
+  const safeArchivePath = await resolveArchivePath(rootPath, archivePath);
+  const listing = await listArchiveEntries(rootPath, safeArchivePath, options);
+  const fileEntries = listing.entries.filter((entry) => !entry.isDirectory);
+  const archiveFolder = path.dirname(safeArchivePath);
+  const archiveBaseName = path.basename(safeArchivePath, path.extname(safeArchivePath));
+  const parentRelativeFolder = path.relative(path.resolve(rootPath), archiveFolder);
+  const hasRedundantRoot = mode === "named-folder" &&
+    entriesShareRoot(fileEntries, archiveBaseName);
+  const destinationRelativeFolder = mode === "here" || hasRedundantRoot
+    ? parentRelativeFolder
+    : path.join(parentRelativeFolder, archiveBaseName);
+  const result = await extractArchiveEntries(
+    rootPath,
+    safeArchivePath,
+    fileEntries.map((entry) => entry.path),
+    destinationRelativeFolder,
+    options
+  );
+
+  return {
+    ...result,
+    path: mode === "named-folder"
+      ? path.join(archiveFolder, archiveBaseName)
+      : archiveFolder
+  };
+}
+
 export function parseSevenZipListOutput(output: string): ArchiveEntry[] {
   const entries: ArchiveEntry[] = [];
   let current: Record<string, string> = {};
@@ -144,13 +185,17 @@ export function parseSevenZipListOutput(output: string): ArchiveEntry[] {
   function flushCurrentEntry() {
     const entryPath = current.Path;
 
-    if (!entryPath || current.Folder === "+") {
+    if (!entryPath || (current.Folder !== "+" && current.Folder !== "-")) {
       current = {};
       return;
     }
 
     const sizeBytes = Number.parseInt(current.Size ?? "0", 10);
-    const entry = createArchiveEntry(entryPath, Number.isFinite(sizeBytes) ? sizeBytes : 0);
+    const entry = createArchiveEntry(
+      entryPath,
+      Number.isFinite(sizeBytes) ? sizeBytes : 0,
+      current.Folder === "+"
+    );
 
     if (entry) {
       entries.push(entry);
@@ -413,20 +458,31 @@ async function resolveArchivePath(rootPath: string, archivePath: string): Promis
   return normalizedArchivePath;
 }
 
-function createArchiveEntry(entryPath: string, sizeBytes: number): ArchiveEntry | null {
+function createArchiveEntry(
+  entryPath: string,
+  sizeBytes: number,
+  isDirectory = entryPath.endsWith("/") || entryPath.endsWith("\\")
+): ArchiveEntry | null {
   const normalizedPath = normalizeArchiveEntryPath(entryPath);
-  const extension = toSupportedFileExtension(path.posix.extname(normalizedPath));
-
-  if (!extension || !canSendToSlicer(extension) || normalizedPath.endsWith("/")) {
-    return null;
-  }
+  const entryName = path.posix.basename(normalizedPath.replace(/\/$/, ""));
+  if (!normalizedPath || !entryName) return null;
 
   return {
     path: normalizedPath,
-    name: path.posix.basename(normalizedPath),
-    extension,
-    sizeBytes
+    name: entryName,
+    extension: isDirectory ? "" : path.posix.extname(normalizedPath).toLowerCase(),
+    sizeBytes,
+    ...(isDirectory ? { isDirectory: true } : {})
   };
+}
+
+function entriesShareRoot(entries: ArchiveEntry[], rootName: string): boolean {
+  if (entries.length === 0) return false;
+  const expected = rootName.toLocaleLowerCase();
+  return entries.every((entry) => {
+    const segments = normalizeArchiveEntryPath(entry.path).split("/").filter(Boolean);
+    return segments.length > 1 && segments[0].toLocaleLowerCase() === expected;
+  });
 }
 
 function resolveExtractionRoot(

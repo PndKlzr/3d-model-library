@@ -200,7 +200,7 @@ describe("product flow contract", () => {
     expect(appSource).not.toContain("function isPrintableModel");
     expect(detailsSource).toContain("canConvertToStl(model.extension)");
     expect(archiveSource).toContain("isArchive(");
-    expect(archiveSource).toContain("canSendToSlicer(");
+    expect(archiveSource).not.toContain("canSendToSlicer(");
     expect(archiveSource).not.toContain("ARCHIVE_EXTENSIONS");
     expect(archiveSource).not.toContain("PRINTABLE_EXTENSIONS");
     expect(organizerSource).toContain("toSupportedFileExtension(");

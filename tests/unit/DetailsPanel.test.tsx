@@ -28,7 +28,7 @@ describe("DetailsPanel image opening", () => {
       onSetModelTags={vi.fn()}
       onSetModelNotes={vi.fn()}
       onRetryMetadata={vi.fn()}
-      onExtractArchiveEntries={vi.fn()}
+      onExtractArchive={vi.fn()}
       onConvertThreeMfToStl={vi.fn()}
     />);
 
@@ -58,7 +58,7 @@ describe("DetailsPanel image opening", () => {
       onSetModelTags={vi.fn()}
       onSetModelNotes={vi.fn()}
       onRetryMetadata={vi.fn()}
-      onExtractArchiveEntries={vi.fn()}
+      onExtractArchive={vi.fn()}
       onConvertThreeMfToStl={vi.fn()}
     />);
 
@@ -93,7 +93,7 @@ describe("DetailsPanel image opening", () => {
       onSetModelTags={vi.fn()}
       onSetModelNotes={vi.fn()}
       onRetryMetadata={vi.fn()}
-      onExtractArchiveEntries={vi.fn()}
+      onExtractArchive={vi.fn()}
       onConvertThreeMfToStl={vi.fn()}
     />);
 
@@ -118,12 +118,56 @@ describe("DetailsPanel image opening", () => {
       onSetModelTags={vi.fn()}
       onSetModelNotes={vi.fn()}
       onRetryMetadata={vi.fn()}
-      onExtractArchiveEntries={vi.fn()}
+      onExtractArchive={vi.fn()}
       onConvertThreeMfToStl={vi.fn()}
     />);
     fireEvent.click(screen.getByRole("tab", { name: "Ações" }));
     expect(screen.queryByRole("button", { name: "Converter para STL" })).toBeNull();
     expect(screen.getByRole("button", { name: "Abrir no Cura" })).toBeTruthy();
+  });
+
+  it("shows complete archive contents and the two whole-archive extraction modes", async () => {
+    const onExtractArchive = vi.fn(async () => undefined);
+    window.modelLibrary = {
+      listArchiveEntries: vi.fn(async () => ({
+        ok: true,
+        archivePath: "C:\\Models\\pack.zip",
+        entries: [
+          { path: "docs", name: "docs", extension: "", sizeBytes: 0, isDirectory: true },
+          { path: "docs/readme.pdf", name: "readme.pdf", extension: ".pdf", sizeBytes: 12 },
+          { path: "preview.jpg", name: "preview.jpg", extension: ".jpg", sizeBytes: 20 }
+        ]
+      }))
+    } as unknown as Window["modelLibrary"];
+
+    render(<DetailsPanel
+      model={imageModel({ name: "pack.zip", extension: ".zip" })}
+      settings={settings()}
+      modelMetadata={null}
+      availableTags={[]}
+      launchMessage={null}
+      metadataStatus={{ availability: "ready", writable: true, source: "primary", message: null }}
+      metadataWritable
+      onOpenSettings={vi.fn()}
+      onLaunchSlicer={vi.fn()}
+      onRenameModelFile={vi.fn()}
+      onShowModelInFolder={vi.fn()}
+      onOpenLibraryFile={vi.fn()}
+      onToggleFavorite={vi.fn()}
+      onSetModelTags={vi.fn()}
+      onSetModelNotes={vi.fn()}
+      onRetryMetadata={vi.fn()}
+      onExtractArchive={onExtractArchive}
+      onConvertThreeMfToStl={vi.fn()}
+    />);
+
+    expect(await screen.findByText("docs/readme.pdf")).toBeTruthy();
+    expect(screen.getByText("preview.jpg")).toBeTruthy();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Extrair aqui" }));
+    fireEvent.click(screen.getByRole("button", { name: /Extrair para pack/i }));
+    expect(onExtractArchive).toHaveBeenNthCalledWith(1, "C:\\Models\\photo.jpg", "here");
+    expect(onExtractArchive).toHaveBeenNthCalledWith(2, "C:\\Models\\photo.jpg", "named-folder");
   });
 });
 

@@ -2122,10 +2122,9 @@ button:disabled {
   border-bottom: 0;
 }
 
-.archive-entry-row input {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--accent);
+.archive-entry-icon {
+  flex: 0 0 auto;
+  color: var(--accent);
 }
 
 .archive-entry-row span {

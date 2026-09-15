@@ -191,9 +191,10 @@ describe("interaction flow contract", () => {
 
     expect(detailsSource).toContain("listArchiveEntries");
     expect(detailsSource).toContain("archive-entry-list");
-    expect(detailsSource).toContain("Extrair selecionados");
-    expect(detailsSource).toContain("Extrair tudo");
-    expect(appSource).toContain("extractArchiveEntries");
+    expect(detailsSource).toContain("Extrair aqui");
+    expect(detailsSource).toContain("Extrair para");
+    expect(detailsSource).not.toContain("Extrair selecionados");
+    expect(appSource).toContain("extractArchiveFile");
     expect(appSource).toContain("chooseArchiveExtractor");
     expect(settingsSource).toContain("Arquivos compactados");
     expect(settingsSource).toContain("onChooseArchiveExtractor");

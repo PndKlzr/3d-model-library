@@ -133,9 +133,12 @@ export type FileOperationResult = {
 export type ArchiveEntry = {
   path: string;
   name: string;
-  extension: ".stl" | ".3mf";
+  extension: string;
   sizeBytes: number;
+  isDirectory?: boolean;
 };
+
+export type ArchiveExtractionMode = "here" | "named-folder";
 
 export type ArchiveListResult = {
   ok: boolean;

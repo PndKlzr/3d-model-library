@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
   AppSettings,
+  ArchiveExtractionMode,
   FileDragRequest,
   FileDragStatus,
   FileOperationResult,
@@ -34,7 +35,7 @@ import {
   createActiveLibraryMetadataStore,
   type ActiveLibraryMetadataStore
 } from "./services/activeLibraryMetadataStore.js";
-import { extractArchiveEntries, listArchiveEntries } from "./services/archiveManager.js";
+import { extractArchive, extractArchiveEntries, listArchiveEntries } from "./services/archiveManager.js";
 import {
   createLibraryFolder,
   moveLibraryFolder,
@@ -216,6 +217,12 @@ function registerIpcHandlers() {
         destinationRelativeFolder,
         getArchiveToolOptions()
       )
+  );
+
+  ipcMain.handle(
+    "archive:extract-all",
+    (_event, archivePath: string, mode: ArchiveExtractionMode) =>
+      extractArchive(requireLibraryPath(), archivePath, mode, getArchiveToolOptions())
   );
 
   ipcMain.handle(
