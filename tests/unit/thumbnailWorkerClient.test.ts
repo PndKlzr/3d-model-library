@@ -94,6 +94,58 @@ describe("thumbnailWorkerClient", () => {
     await expect(next).resolves.toContain("data:image/webp;base64,");
     expect(factory).toHaveBeenCalledTimes(2);
   });
+
+  it("cancels an old-library job without disabling the next library", async () => {
+    const oldWorker = new FakeWorker();
+    const newWorker = new FakeWorker();
+    const client = createThumbnailWorkerClient(vi.fn()
+      .mockReturnValueOnce(oldWorker)
+      .mockReturnValueOnce(newWorker));
+    const old = client.render(".stl", new ArrayBuffer(4));
+    oldWorker.emit({ type: "ready", supported: true });
+    await vi.waitFor(() => expect(oldWorker.sent).toHaveLength(1));
+
+    client.cancel();
+
+    await expect(old).resolves.toBeNull();
+    expect(oldWorker.terminated).toBe(1);
+    const next = client.render(".3mf", new ArrayBuffer(4));
+    newWorker.emit({ type: "ready", supported: true });
+    await vi.waitFor(() => expect(newWorker.sent).toHaveLength(1));
+    newWorker.emit({
+      type: "result",
+      id: (newWorker.sent[0] as { id: number }).id,
+      mime: "image/webp",
+      bytes: bytes("RIFF0000WEBP")
+    });
+    await expect(next).resolves.toContain("data:image/webp;base64,");
+  });
+
+  it("falls back when the Worker reports a lost GPU context", async () => {
+    const worker = new FakeWorker();
+    const client = createThumbnailWorkerClient(() => worker);
+    const pending = client.render(".stl", new ArrayBuffer(4));
+    worker.emit({ type: "ready", supported: true });
+    await vi.waitFor(() => expect(worker.sent).toHaveLength(1));
+    worker.emit({ type: "unavailable", id: (worker.sent[0] as { id: number }).id });
+
+    await expect(pending).resolves.toBeNull();
+    expect(worker.terminated).toBe(1);
+  });
+
+  it("falls back if the Worker never finishes startup", async () => {
+    vi.useFakeTimers();
+    const worker = new FakeWorker();
+    const client = createThumbnailWorkerClient(() => worker);
+    const pending = client.render(".stl", new ArrayBuffer(4));
+    const assertion = expect(pending).resolves.toBeNull();
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    await assertion;
+    expect(worker.terminated).toBe(1);
+    await expect(client.render(".stl", new ArrayBuffer(4))).resolves.toBeNull();
+  });
 });
 
 class FakeWorker {

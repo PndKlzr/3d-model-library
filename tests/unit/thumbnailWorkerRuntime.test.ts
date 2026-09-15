@@ -34,4 +34,36 @@ describe("thumbnailWorkerRuntime", () => {
 
     expect(result).toEqual({ type: "error", id: 8, message: "invalid OBJ" });
   });
+
+  it("treats image export failure as Worker unavailability, not a bad model", async () => {
+    const canvas = {
+      convertToBlob: async () => { throw new Error("GPU export failed"); }
+    } as unknown as OffscreenCanvas;
+    const result = await executeThumbnailWorkerRequest(
+      { id: 9, extension: ".stl", bytes: new ArrayBuffer(4) },
+      {} as THREE.WebGLRenderer,
+      canvas,
+      () => undefined
+    );
+
+    expect(result).toEqual({ type: "unavailable", id: 9 });
+  });
+
+  it("never exports a stale image after the WebGL context is lost", async () => {
+    let lost = false;
+    const renderer = {
+      getContext: () => ({ isContextLost: () => lost })
+    } as unknown as THREE.WebGLRenderer;
+    const convertToBlob = vi.fn(async () => new Blob(["RIFF0000WEBP"], { type: "image/webp" }));
+    const canvas = { convertToBlob } as unknown as OffscreenCanvas;
+    const result = await executeThumbnailWorkerRequest(
+      { id: 10, extension: ".stl", bytes: new ArrayBuffer(4) },
+      renderer,
+      canvas,
+      () => { lost = true; }
+    );
+
+    expect(result).toEqual({ type: "unavailable", id: 10 });
+    expect(convertToBlob).not.toHaveBeenCalled();
+  });
 });

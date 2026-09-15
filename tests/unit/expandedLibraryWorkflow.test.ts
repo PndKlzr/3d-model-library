@@ -332,6 +332,7 @@ function thumbnailDependencies(
     writeCachedThumbnail: async () => undefined,
     renderThumbnail: () => "data:image/webp;base64,AA==",
     renderThumbnailInWorker: async () => null,
+    cancelThumbnailWorker: () => undefined,
     compactImageThumbnail: async (dataUrl) => dataUrl,
     yieldBeforeRender: async () => undefined,
     ...overrides

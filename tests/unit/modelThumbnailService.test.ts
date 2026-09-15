@@ -471,6 +471,37 @@ describe("modelThumbnailService", () => {
     expect(service.getDiagnostics().failures).toBe(1);
   });
 
+  it("frees the render lane when a library switch cancels an old Worker", async () => {
+    const oldGate = deferred<string | null>();
+    const renderThumbnail = vi.fn(() => WEBP);
+    const renderThumbnailInWorker = vi.fn()
+      .mockImplementationOnce(() => oldGate.promise)
+      .mockResolvedValue(WEBP);
+    let cancelEnabled = false;
+    const cancelThumbnailWorker = vi.fn(() => {
+      if (cancelEnabled) oldGate.resolve(null);
+    });
+    const service = createModelThumbnailService(dependencies({
+      renderThumbnail,
+      renderThumbnailInWorker,
+      cancelThumbnailWorker
+    }));
+    service.beginLibrarySession(librarySession("library-a", 1));
+    cancelThumbnailWorker.mockClear();
+    cancelEnabled = true;
+    const old = service.request(model(), "visible");
+    await vi.waitFor(() => expect(renderThumbnailInWorker).toHaveBeenCalledTimes(1));
+
+    service.beginLibrarySession(librarySession("library-b", 2, "D:\\Models"));
+    const current = service.request(model(), "visible");
+
+    expect(cancelThumbnailWorker).toHaveBeenCalledOnce();
+    await expect(old.promise).resolves.toBeNull();
+    await expect(current.promise).resolves.toBe(WEBP);
+    expect(renderThumbnailInWorker).toHaveBeenCalledTimes(2);
+    expect(renderThumbnail).not.toHaveBeenCalled();
+  });
+
   it("bypasses both queues for archive models", async () => {
     const readCachedThumbnail = vi.fn(async () => WEBP);
     const service = createModelThumbnailService(dependencies({ readCachedThumbnail }));
@@ -666,6 +697,7 @@ function dependencies(
     compactImageThumbnail: async (dataUrl) => dataUrl,
     renderThumbnail: () => WEBP,
     renderThumbnailInWorker: async () => null,
+    cancelThumbnailWorker: () => undefined,
     yieldBeforeRender: async () => undefined,
     ...overrides
   };

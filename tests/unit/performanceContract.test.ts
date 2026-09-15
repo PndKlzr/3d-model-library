@@ -144,6 +144,7 @@ describe("performance contract", () => {
       writeCachedThumbnail,
       renderThumbnail,
       renderThumbnailInWorker: async () => null,
+      cancelThumbnailWorker: () => undefined,
       compactImageThumbnail: async (dataUrl) => dataUrl,
       yieldBeforeRender: async () => undefined
     });

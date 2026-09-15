@@ -27,6 +27,7 @@ export type ModelThumbnailServiceDependencies = {
   ) => Promise<void>;
   renderThumbnail: typeof renderThumbnail;
   renderThumbnailInWorker: typeof thumbnailWorkerClient.render;
+  cancelThumbnailWorker: typeof thumbnailWorkerClient.cancel;
   compactImageThumbnail: typeof compactImageThumbnail;
   yieldBeforeRender: () => Promise<void>;
 };
@@ -104,6 +105,7 @@ export function createModelThumbnailService(
     if (sessionKey === currentSessionKey) return;
     currentSession = structuredClone(session);
     currentSessionKey = sessionKey;
+    dependencies.cancelThumbnailWorker();
     failedSignatures.clear();
     renderScheduler.clearCompleted();
 
@@ -269,6 +271,7 @@ export function createModelThumbnailService(
           entry.model.extension,
           modelBytes
         );
+        if (!isEntryCurrent(entry)) return undefined;
         const thumbnail = workerThumbnail ?? dependencies.renderThumbnail(entry.model.extension, modelBytes);
         return isEntryCurrent(entry) ? thumbnail : undefined;
       }
@@ -410,6 +413,7 @@ export const modelThumbnailService = createModelThumbnailService({
     window.modelLibrary.writeCachedThumbnail(model, dataUrl, sessionKey),
   renderThumbnail,
   renderThumbnailInWorker: thumbnailWorkerClient.render,
+  cancelThumbnailWorker: thumbnailWorkerClient.cancel,
   compactImageThumbnail,
   yieldBeforeRender: yieldBeforeThumbnailRender
 });

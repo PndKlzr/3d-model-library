@@ -5,6 +5,7 @@ type WorkerTransport = Pick<Worker, "onmessage" | "onerror" | "postMessage" | "t
 type WorkerMessage =
   | { type: "ready"; supported: boolean }
   | { type: "result"; id: number; mime: string; bytes: ArrayBuffer }
+  | { type: "unavailable"; id: number }
   | { type: "error"; id: number; message: string };
 
 const STARTUP_TIMEOUT_MS = 5_000;
@@ -33,7 +34,11 @@ export function createThumbnailWorkerClient(
   } | null = null;
 
   function terminateWorker() {
-    worker?.terminate();
+    if (worker) {
+      worker.onmessage = null;
+      worker.onerror = null;
+      worker.terminate();
+    }
     worker = null;
     ready = false;
     startup = null;
@@ -41,6 +46,19 @@ export function createThumbnailWorkerClient(
 
   function disable() {
     unavailable = true;
+    if (startupTimer) clearTimeout(startupTimer);
+    startupTimer = null;
+    settleStartup?.(false);
+    settleStartup = null;
+    if (pending) {
+      clearTimeout(pending.timer);
+      pending.resolve(null);
+      pending = null;
+    }
+    terminateWorker();
+  }
+
+  function cancel() {
     if (startupTimer) clearTimeout(startupTimer);
     startupTimer = null;
     settleStartup?.(false);
@@ -72,6 +90,11 @@ export function createThumbnailWorkerClient(
     clearTimeout(current.timer);
     if (message.type === "error") {
       current.reject(new Error(message.message));
+      return;
+    }
+    if (message.type === "unavailable") {
+      current.resolve(null);
+      disable();
       return;
     }
     if (!IMAGE_MIMES.has(message.mime) || !(message.bytes instanceof ArrayBuffer) ||
@@ -125,7 +148,7 @@ export function createThumbnailWorkerClient(
     });
   }
 
-  return { render };
+  return { render, cancel };
 }
 
 function encodeBase64(bytes: ArrayBuffer): string {
