@@ -1,7 +1,7 @@
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { translate, type TranslationParams } from "./translate";
-import type { TranslationKey } from "./catalog";
-import type { AppLocale } from "../shared/types";
+import { translate, type TranslationParams } from "./translate.js";
+import type { TranslationKey } from "./catalog.js";
+import type { AppLocale } from "../shared/types.js";
 
 type I18nValue = {
   locale: AppLocale;

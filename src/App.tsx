@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
+import { I18nProvider } from "./i18n/I18nProvider";
 import { DetailsPanel } from "./components/DetailsPanel";
 import { DialogHeader } from "./components/DialogHeader";
 import { DialogShell } from "./components/DialogShell";
@@ -1936,6 +1937,7 @@ function LibraryApp() {
     : false;
 
   return (
+    <I18nProvider locale={settings.locale}>
     <main
       className="app-shell"
       data-theme={themeMode}
@@ -2368,6 +2370,7 @@ function LibraryApp() {
         </div>
       ) : null}
     </main>
+    </I18nProvider>
   );
 }
 

@@ -261,9 +261,9 @@ describe("product flow contract", () => {
     expect(settingsSource).toContain('role="tablist"');
     expect(settingsSource).toContain('role="tab"');
     expect(settingsSource).toContain('role="tabpanel"');
-    expect(settingsSource).toContain("Biblioteca");
-    expect(settingsSource).toContain("Organização");
-    expect(settingsSource).toContain("Integrações");
+    expect(settingsSource).toContain('t("settings.tabLibrary")');
+    expect(settingsSource).toContain('t("settings.tabOrganization")');
+    expect(settingsSource).toContain('t("settings.tabIntegrations")');
     expect(stylesSource).toContain(".settings-tabs");
     expect(stylesSource).toContain(".settings-content");
   });

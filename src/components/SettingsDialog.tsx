@@ -10,6 +10,7 @@ import {
   type AppSettingsMutation
 } from "../lib/settingsMutations";
 import { PerformanceDiagnostics } from "./PerformanceDiagnostics";
+import { useI18n } from "../i18n/I18nProvider";
 
 type SettingsDialogProps = {
   settings: AppSettings;
@@ -47,12 +48,13 @@ export function SettingsDialog({
   onThemeModeChange
 }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("library");
+  const { t } = useI18n();
 
   return (
-    <DialogShell className="settings-dialog" title="Configurações" onCancel={onClose}>
+    <DialogShell className="settings-dialog" title={t("common.settings")} onCancel={onClose}>
       <DialogHeader
-        eyebrow="Configurações"
-        title="Preferências do aplicativo"
+        eyebrow={t("common.settings")}
+        title={t("settings.title")}
         onClose={onClose}
       />
 
@@ -60,25 +62,25 @@ export function SettingsDialog({
         <SettingsTabButton
           active={activeTab === "library"}
           icon={<FolderOpen size={16} />}
-          label="Biblioteca"
+          label={t("settings.tabLibrary")}
           onClick={() => setActiveTab("library")}
         />
         <SettingsTabButton
           active={activeTab === "organization"}
           icon={<Tags size={16} />}
-          label="Organização"
+          label={t("settings.tabOrganization")}
           onClick={() => setActiveTab("organization")}
         />
         <SettingsTabButton
           active={activeTab === "integrations"}
           icon={<Plug size={16} />}
-          label="Integrações"
+          label={t("settings.tabIntegrations")}
           onClick={() => setActiveTab("integrations")}
         />
         <SettingsTabButton
           active={activeTab === "diagnostics"}
           icon={<Activity size={16} />}
-          label="Desempenho"
+          label={t("settings.tabPerformance")}
           onClick={() => setActiveTab("diagnostics")}
         />
       </nav>
@@ -158,6 +160,7 @@ function LibrarySettings({
   SettingsDialogProps,
   "settings" | "themeMode" | "onSaveSettings" | "onChooseLibraryFolder" | "onThemeModeChange"
 >) {
+  const { t } = useI18n();
   return (
     <>
       <section className="settings-section">
@@ -208,6 +211,19 @@ function LibrarySettings({
             }
           />
           <span>Modo escuro</span>
+        </label>
+        <label className="settings-field-row">
+          <span>{t("settings.language")}</span>
+          <select
+            value={settings.locale}
+            onChange={(event) => {
+              const locale = event.currentTarget.value as AppSettings["locale"];
+              void onSaveSettings((current) => ({ ...current, locale }));
+            }}
+          >
+            <option value="pt-BR">{t("settings.languagePortuguese")}</option>
+            <option value="en">{t("settings.languageEnglish")}</option>
+          </select>
         </label>
       </section>
     </>

@@ -3028,6 +3028,32 @@ button:disabled {
   padding: 0;
 }
 
+.settings-field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.settings-field-row select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-strong);
+  color: var(--ink);
+  padding: 0 10px;
+}
+
+@media (max-width: 520px) {
+  .settings-field-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .drag-behavior-options {
   display: grid;
   border: 1px solid var(--line);

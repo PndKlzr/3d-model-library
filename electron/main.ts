@@ -960,7 +960,7 @@ app.whenReady().then(async () => {
     return;
   }
 
-  settingsStore = await createElectronSettingsStore();
+  settingsStore = await createElectronSettingsStore(app.getLocale());
   libraryIndexStore = createLibraryIndexStore();
   const legacyMetadataStore = await createLegacyElectronLibraryMetadataStore();
   const metadataMirrorStore = await createElectronLibraryMetadataMirrorStore();

@@ -1,4 +1,5 @@
 import type { AppSettings, SlicerConfig } from "../../src/shared/types.js";
+import { resolveAppLocale } from "../../src/i18n/translate.js";
 
 export type SettingsBackend = {
   get: () => AppSettings | undefined;
@@ -10,8 +11,9 @@ export type SettingsStore = {
   saveSettings: (settings: AppSettings) => AppSettings;
 };
 
-export function createDefaultSettings(): AppSettings {
+export function createDefaultSettings(systemLocale?: string): AppSettings {
   return {
+    locale: resolveAppLocale(systemLocale),
     libraryPath: null,
     includeSubfolders: true,
     monitorLibrary: true,
@@ -30,16 +32,22 @@ export function createDefaultSettings(): AppSettings {
   };
 }
 
-export function createSettingsStore(backend?: SettingsBackend): SettingsStore {
-  let memorySettings = backend ? undefined : createDefaultSettings();
+export function createSettingsStore(
+  backend?: SettingsBackend,
+  systemLocale?: string
+): SettingsStore {
+  let memorySettings = backend ? undefined : createDefaultSettings(systemLocale);
 
   return {
     getSettings() {
-      return cloneSettings(backend?.get() ?? memorySettings ?? createDefaultSettings());
+      return cloneSettings(
+        backend?.get() ?? memorySettings ?? createDefaultSettings(systemLocale),
+        systemLocale
+      );
     },
 
     saveSettings(settings) {
-      const nextSettings = normalizeSettings(settings);
+      const nextSettings = normalizeSettings(settings, systemLocale);
 
       if (backend) {
         backend.set(nextSettings);
@@ -52,7 +60,7 @@ export function createSettingsStore(backend?: SettingsBackend): SettingsStore {
   };
 }
 
-export async function createElectronSettingsStore(): Promise<SettingsStore> {
+export async function createElectronSettingsStore(systemLocale?: string): Promise<SettingsStore> {
   const { default: Store } = await import("electron-store") as {
     default: new (options: {
     name: string;
@@ -65,20 +73,21 @@ export async function createElectronSettingsStore(): Promise<SettingsStore> {
   const store = new Store({
     name: "settings",
     defaults: {
-      settings: createDefaultSettings()
+      settings: createDefaultSettings(systemLocale)
     }
   });
 
   return createSettingsStore({
     get: () => store.get("settings"),
     set: (settings) => store.set("settings", settings)
-  });
+  }, systemLocale);
 }
 
-function normalizeSettings(settings: AppSettings): AppSettings {
+function normalizeSettings(settings: AppSettings, systemLocale?: string): AppSettings {
   const slicers = settings.slicers.map((slicer: SlicerConfig) => ({ ...slicer }));
 
   return {
+    locale: settings.locale ? resolveAppLocale(settings.locale) : resolveAppLocale(systemLocale),
     libraryPath: settings.libraryPath,
     includeSubfolders: settings.includeSubfolders,
     monitorLibrary: settings.monitorLibrary !== false,
@@ -90,8 +99,8 @@ function normalizeSettings(settings: AppSettings): AppSettings {
   };
 }
 
-function cloneSettings(settings: AppSettings): AppSettings {
-  return normalizeSettings(settings);
+function cloneSettings(settings: AppSettings, systemLocale?: string): AppSettings {
+  return normalizeSettings(settings, systemLocale);
 }
 
 function normalizeDefaultSlicerId(

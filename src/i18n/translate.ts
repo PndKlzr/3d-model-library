@@ -1,5 +1,5 @@
-import { en, ptBR, type TranslationKey } from "./catalog";
-import type { AppLocale } from "../shared/types";
+import { en, ptBR, type TranslationKey } from "./catalog.js";
+import type { AppLocale } from "../shared/types.js";
 
 export type TranslationParams = Record<string, string | number>;
 
@@ -20,5 +20,5 @@ export function translate(
     ? (`library.modelCount.${Number(params.count) === 1 ? "one" : "other"}` as keyof typeof ptBR)
     : key;
   const template = catalog[resolvedKey as keyof typeof ptBR];
-  return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(params[name] ?? ""));
+  return template.replace(/\{(\w+)\}/g, (_match: string, name: string) => String(params[name] ?? ""));
 }

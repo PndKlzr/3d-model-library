@@ -82,7 +82,7 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.thumbnail-queue-status\.failed i\s*\{[\s\S]*?background:\s*var\(--warn\);/);
     expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.diagnostics-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/);
     expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations" | "diagnostics"');
-    expect(settingsSource).toContain("Desempenho");
+    expect(settingsSource).toContain('t("settings.tabPerformance")');
     expect(appSource).toContain("modelThumbnailService.subscribe(setThumbnailDiagnostics)");
     expect(appSource).toContain("observeThumbnailLongTasks(modelThumbnailService)");
     expect(appSource).toContain("longTaskObserver.start()");
