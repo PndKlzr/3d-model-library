@@ -76,7 +76,7 @@ export const ptBR = {
   "diagnostics.queuedRender": "Na fila de render",
   "diagnostics.running": "Em andamento",
   "diagnostics.cacheHits": "Acertos no cache",
-  "diagnostics.cacheMisses": "Falhas no cache",
+  "diagnostics.cacheMisses": "Não encontradas no cache",
   "diagnostics.embedded": "Previews incorporadas",
   "diagnostics.generated": "Miniaturas geradas",
   "diagnostics.failures": "Falhas",

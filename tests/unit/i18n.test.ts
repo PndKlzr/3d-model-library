@@ -20,6 +20,7 @@ describe("i18n", () => {
 
   it("translates settings and performance diagnostics", () => {
     expect(translate("en", "settings.libraryFolder")).toBe("Library folder");
+    expect(translate("pt-BR", "diagnostics.cacheMisses")).toBe("Não encontradas no cache");
     expect(translate("en", "diagnostics.renderQueueWait")).toBe(
       "Render queue wait average / maximum"
     );

@@ -9,6 +9,7 @@ import { yieldBeforeThumbnailRender } from "./thumbnailFrameGate";
 import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
 import type { LibrarySessionRef, ModelFile } from "../shared/types";
 import { isArchive, isDirectImage } from "../shared/fileCapabilities";
+import { compactImageThumbnail } from "./imageThumbnail";
 
 export type { ThumbnailPriority } from "./thumbnailScheduler";
 
@@ -24,6 +25,7 @@ export type ModelThumbnailServiceDependencies = {
     sessionKey: string
   ) => Promise<void>;
   renderThumbnail: typeof renderThumbnail;
+  compactImageThumbnail: typeof compactImageThumbnail;
   yieldBeforeRender: () => Promise<void>;
 };
 
@@ -177,12 +179,15 @@ export function createModelThumbnailService(
 
         if (isDirectImage(entry.model.extension)) {
           const direct = await dependencies.readImageDataUrl(entry.session, entry.model.absolutePath);
-          return { kind: "direct", thumbnail: direct } as const;
+          return { kind: "direct", thumbnail: await dependencies.compactImageThumbnail(direct) } as const;
         }
 
         if (entry.model.extension === ".3mf") {
           const embedded = await dependencies.readEmbeddedThumbnail(entry.model.absolutePath);
-          if (embedded) return { kind: "embedded", thumbnail: embedded } as const;
+          if (embedded) return {
+            kind: "embedded",
+            thumbnail: await dependencies.compactImageThumbnail(embedded)
+          } as const;
         }
 
         return { kind: "render" } as const;
@@ -398,6 +403,7 @@ export const modelThumbnailService = createModelThumbnailService({
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     window.modelLibrary.writeCachedThumbnail(model, dataUrl, sessionKey),
   renderThumbnail,
+  compactImageThumbnail,
   yieldBeforeRender: yieldBeforeThumbnailRender
 });
 

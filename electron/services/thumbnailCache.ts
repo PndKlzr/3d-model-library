@@ -8,6 +8,7 @@ export { THUMBNAIL_RENDER_VERSION };
 const DEFAULT_MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_CACHE_BYTES = 512 * 1024 * 1024;
 const DEFAULT_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+const TEMPORARY_FILE_MAX_AGE_MS = 60 * 60 * 1000;
 
 const IMAGE_FORMATS = {
   "image/png": "png",
@@ -133,7 +134,14 @@ export function createThumbnailCache({
         try {
           const fileStat = await stat(filePath);
 
-          if (entry.name.endsWith(".tmp") || now - fileStat.mtimeMs > maxAgeMs) {
+          if (entry.name.endsWith(".tmp")) {
+            if (now - fileStat.mtimeMs > TEMPORARY_FILE_MAX_AGE_MS) {
+              await unlink(filePath).catch(() => undefined);
+            }
+            continue;
+          }
+
+          if (now - fileStat.mtimeMs > maxAgeMs) {
             await unlink(filePath).catch(() => undefined);
             continue;
           }

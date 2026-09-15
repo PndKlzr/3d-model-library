@@ -119,6 +119,21 @@ describe("thumbnailCache", () => {
     await cache.prune();
     await expect(stat(cachePath)).rejects.toThrow();
   });
+
+  it("does not delete temporary files belonging to an active write", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const activeTemporary = path.join(cacheDirectory, "active.tmp");
+    const abandonedTemporary = path.join(cacheDirectory, "abandoned.tmp");
+    await writeFile(activeTemporary, "writing");
+    await writeFile(abandonedTemporary, "abandoned");
+    await utimes(abandonedTemporary, new Date(Date.now() - 2 * 60 * 60 * 1000),
+      new Date(Date.now() - 2 * 60 * 60 * 1000));
+
+    await cache.prune();
+
+    await expect(stat(activeTemporary)).resolves.toMatchObject({ size: 7 });
+    await expect(stat(abandonedTemporary)).rejects.toThrow();
+  });
 });
 
 function model(overrides: Partial<ThumbnailSignature> = {}): ThumbnailSignature {

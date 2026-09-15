@@ -143,6 +143,7 @@ describe("performance contract", () => {
       readModelFile,
       writeCachedThumbnail,
       renderThumbnail,
+      compactImageThumbnail: async (dataUrl) => dataUrl,
       yieldBeforeRender: async () => undefined
     });
     service.beginLibrarySession({

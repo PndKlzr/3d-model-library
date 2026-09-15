@@ -357,6 +357,25 @@ describe("modelThumbnailService", () => {
     expect(writeCachedThumbnail).toHaveBeenCalledWith(target, PNG, "library-a:1:C:\\Models");
   });
 
+  it("stores compact previews for direct and embedded images", async () => {
+    const compact = vi.fn(async () => WEBP);
+    const writeCachedThumbnail = vi.fn(async () => undefined);
+    const service = createModelThumbnailService(dependencies({
+      readImageDataUrl: async () => PNG,
+      readEmbeddedThumbnail: async () => PNG,
+      compactImageThumbnail: compact,
+      writeCachedThumbnail
+    }));
+    const image = model({ extension: ".jpg", absolutePath: "C:\\Models\\photo.jpg" });
+    const threeMf = model({ extension: ".3mf", absolutePath: "C:\\Models\\part.3mf" });
+
+    await expect(service.request(image, "visible").promise).resolves.toBe(WEBP);
+    await expect(service.request(threeMf, "visible").promise).resolves.toBe(WEBP);
+    expect(compact).toHaveBeenCalledTimes(2);
+    expect(writeCachedThumbnail).toHaveBeenCalledWith(image, WEBP, expect.any(String));
+    expect(writeCachedThumbnail).toHaveBeenCalledWith(threeMf, WEBP, expect.any(String));
+  });
+
   it("isolates a corrupt direct image and continues later image requests", async () => {
     const readImageDataUrl = vi.fn(async (_session, absolutePath: string) => {
       if (absolutePath.endsWith("bad.jpg")) throw new Error("corrupt image");
@@ -605,6 +624,7 @@ function dependencies(
     readObjPreviewFile: async () => new ArrayBuffer(8),
     readModelFile: async () => new ArrayBuffer(8),
     writeCachedThumbnail: async () => undefined,
+    compactImageThumbnail: async (dataUrl) => dataUrl,
     renderThumbnail: () => WEBP,
     yieldBeforeRender: async () => undefined,
     ...overrides
