@@ -1,5 +1,6 @@
-import { Activity, Archive, FolderOpen, Plug, Settings, Tags, X } from "lucide-react";
+import { Activity, Archive, FolderOpen, Plug, Settings, Tags } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { DialogHeader } from "./DialogHeader";
 import { DialogShell } from "./DialogShell";
 import type { ThemeMode } from "../lib/viewPreferences";
 import type { AppSettings, SlicerConfig } from "../shared/types";
@@ -49,21 +50,11 @@ export function SettingsDialog({
 
   return (
     <DialogShell className="settings-dialog" title="Configurações" onCancel={onClose}>
-      <header className="dialog-header settings-dialog-header">
-        <div>
-          <p className="eyebrow">Configurações</p>
-          <h2>Preferências do aplicativo</h2>
-        </div>
-        <button
-          className="icon-only"
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar"
-          title="Fechar"
-        >
-          <X size={18} />
-        </button>
-      </header>
+      <DialogHeader
+        eyebrow="Configurações"
+        title="Preferências do aplicativo"
+        onClose={onClose}
+      />
 
       <nav className="settings-tabs" role="tablist" aria-label="Categorias de configurações">
         <SettingsTabButton

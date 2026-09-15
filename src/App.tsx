@@ -3,6 +3,7 @@ import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState
 import { flushSync } from "react-dom";
 import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
 import { DetailsPanel } from "./components/DetailsPanel";
+import { DialogHeader } from "./components/DialogHeader";
 import { DialogShell } from "./components/DialogShell";
 import { FirstRun } from "./components/FirstRun";
 import { FolderTree } from "./components/FolderTree";
@@ -2080,21 +2081,11 @@ function LibraryApp() {
           title="Tags do modelo"
           onCancel={() => setTagPickerDialog(null)}
         >
-          <header className="dialog-header">
-            <div>
-              <p className="eyebrow">Tags</p>
-              <h2>{tagPickerDialog.model.name}</h2>
-            </div>
-            <button
-              className="icon-only"
-              type="button"
-              onClick={() => setTagPickerDialog(null)}
-              aria-label="Fechar"
-              title="Fechar"
-            >
-              Fechar
-            </button>
-          </header>
+          <DialogHeader
+            eyebrow="Tags"
+            title={tagPickerDialog.model.name}
+            onClose={() => setTagPickerDialog(null)}
+          />
           <TagSelector
             selectedTags={libraryMetadata.models[tagPickerDialog.model.absolutePath]?.tags ?? []}
             availableTags={availableTags}

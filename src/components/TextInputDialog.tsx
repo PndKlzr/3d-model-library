@@ -1,5 +1,5 @@
-import { X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { DialogHeader } from "./DialogHeader";
 import { DialogShell } from "./DialogShell";
 
 export type TextInputDialogOptions = {
@@ -32,21 +32,7 @@ export function TextInputDialog({
 
   return (
     <DialogShell className="text-input-dialog" title={title} onCancel={onCancel}>
-      <header className="dialog-header">
-        <div>
-          <p className="eyebrow">Entrada</p>
-          <h2>{title}</h2>
-        </div>
-        <button
-          className="icon-only"
-          type="button"
-          onClick={onCancel}
-          aria-label="Fechar"
-          title="Fechar"
-        >
-          <X size={18} />
-        </button>
-      </header>
+      <DialogHeader eyebrow="Entrada" title={title} onClose={onCancel} />
       <form
         className="text-input-form"
         onSubmit={(event) => {

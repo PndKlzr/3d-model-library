@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { DialogHeader } from "./DialogHeader";
 import { DialogShell } from "./DialogShell";
 
 export type ConfirmDialogOptions = {
@@ -23,21 +23,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   return (
     <DialogShell className="confirm-dialog" title={title} onCancel={onCancel}>
-      <header className="dialog-header">
-        <div>
-          <p className="eyebrow">Confirmar</p>
-          <h2>{title}</h2>
-        </div>
-        <button
-          className="icon-only"
-          type="button"
-          onClick={onCancel}
-          aria-label="Fechar"
-          title="Fechar"
-        >
-          <X size={18} />
-        </button>
-      </header>
+      <DialogHeader eyebrow="Confirmar" title={title} onClose={onCancel} />
       <p>{message}</p>
       <div className="dialog-actions">
         <button className="secondary-button" type="button" onClick={onCancel} autoFocus>
