@@ -18,6 +18,13 @@ describe("i18n", () => {
     expect(translate("en", "library.modelCount", { count: 2 })).toBe("2 models");
   });
 
+  it("translates settings and performance diagnostics", () => {
+    expect(translate("en", "settings.libraryFolder")).toBe("Library folder");
+    expect(translate("en", "diagnostics.renderQueueWait")).toBe(
+      "Render queue wait average / maximum"
+    );
+  });
+
   it("keeps both catalogs structurally identical", () => {
     expect(Object.keys(en).sort()).toEqual(Object.keys(ptBR).sort());
   });

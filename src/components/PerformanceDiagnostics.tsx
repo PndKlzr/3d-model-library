@@ -4,6 +4,7 @@ import {
   formatThumbnailDiagnosticReport,
   type ThumbnailDiagnosticsSnapshot
 } from "../lib/thumbnailDiagnostics";
+import { useI18n } from "../i18n/I18nProvider";
 
 type PerformanceDiagnosticsProps = {
   snapshot: ThumbnailDiagnosticsSnapshot;
@@ -11,6 +12,7 @@ type PerformanceDiagnosticsProps = {
 
 export function PerformanceDiagnostics({ snapshot }: PerformanceDiagnosticsProps) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const { t } = useI18n();
 
   useEffect(() => {
     if (copyState === "idle") return;
@@ -32,63 +34,65 @@ export function PerformanceDiagnostics({ snapshot }: PerformanceDiagnosticsProps
     <section className="settings-section performance-diagnostics">
       <div className="settings-section-header">
         <div className="settings-section-copy">
-          <h3>Diagnostico de miniaturas</h3>
-          <p>Resumo local da fila e do tempo de processamento desta sessao.</p>
+          <h3>{t("diagnostics.title")}</h3>
+          <p>{t("diagnostics.description")}</p>
         </div>
         <button type="button" onClick={() => void copyDiagnostics()}>
           {copyState === "copied" ? <Check size={16} /> : <Copy size={16} />}
-          {copyState === "copied" ? "Copiado" : "Copiar diagnostico"}
+          {copyState === "copied" ? t("diagnostics.copied") : t("diagnostics.copy")}
         </button>
       </div>
 
       <dl className="diagnostics-grid">
-        <DiagnosticValue label="Na fila" value={snapshot.queued.total} />
-        <DiagnosticValue label="Na fila de E/S" value={snapshot.queuedByStage.io} />
-        <DiagnosticValue label="Na fila de render" value={snapshot.queuedByStage.render} />
-        <DiagnosticValue label="Em andamento" value={snapshot.running.total} />
-        <DiagnosticValue label="Acertos no cache" value={snapshot.cacheHits} />
-        <DiagnosticValue label="Falhas no cache" value={snapshot.cacheMisses} />
-        <DiagnosticValue label="Previews incorporadas" value={snapshot.embeddedHits} />
-        <DiagnosticValue label="Miniaturas geradas" value={snapshot.renders} />
-        <DiagnosticValue label="Falhas" value={snapshot.failures} />
+        <DiagnosticValue label={t("diagnostics.queued")} value={snapshot.queued.total} />
+        <DiagnosticValue label={t("diagnostics.queuedIo")} value={snapshot.queuedByStage.io} />
+        <DiagnosticValue label={t("diagnostics.queuedRender")} value={snapshot.queuedByStage.render} />
+        <DiagnosticValue label={t("diagnostics.running")} value={snapshot.running.total} />
+        <DiagnosticValue label={t("diagnostics.cacheHits")} value={snapshot.cacheHits} />
+        <DiagnosticValue label={t("diagnostics.cacheMisses")} value={snapshot.cacheMisses} />
+        <DiagnosticValue label={t("diagnostics.embedded")} value={snapshot.embeddedHits} />
+        <DiagnosticValue label={t("diagnostics.generated")} value={snapshot.renders} />
+        <DiagnosticValue label={t("diagnostics.failures")} value={snapshot.failures} />
         <DiagnosticValue
-          label="Falhas por formato"
-          value={formatFailuresByExtension(snapshot.failuresByExtension)}
+          label={t("diagnostics.failuresByFormat")}
+          value={formatFailuresByExtension(snapshot.failuresByExtension, t("diagnostics.none"))}
         />
-        <DiagnosticValue label="Historico descartado" value={snapshot.discardedHistorical} />
+        <DiagnosticValue label={t("diagnostics.discarded")} value={snapshot.discardedHistorical} />
         <DiagnosticValue
-          label="Resultados retidos"
-          value={`${snapshot.retainedResults.current} / pico ${snapshot.retainedResults.peak}`}
+          label={t("diagnostics.retained")}
+          value={t("diagnostics.retainedValue", snapshot.retainedResults)}
         />
-        <DiagnosticValue label="E/S media / maxima" value={formatDuration(snapshot.durationMs.io)} />
+        <DiagnosticValue label={t("diagnostics.ioDuration")} value={formatDuration(snapshot.durationMs.io)} />
         <DiagnosticValue
-          label="Espera de E/S media / maxima"
+          label={t("diagnostics.ioQueueWait")}
           value={formatDuration(snapshot.queueWaitMs.io)}
         />
         <DiagnosticValue
-          label="Render media / maxima"
+          label={t("diagnostics.renderDuration")}
           value={formatDuration(snapshot.durationMs.render)}
         />
         <DiagnosticValue
-          label="Espera de render media / maxima"
+          label={t("diagnostics.renderQueueWait")}
           value={formatDuration(snapshot.queueWaitMs.render)}
         />
         <DiagnosticValue
-          label="Total medio / maximo"
+          label={t("diagnostics.totalDuration")}
           value={formatDuration(snapshot.durationMs.total)}
         />
         <DiagnosticValue
-          label="Tarefas longas"
-          value={`${snapshot.longTasks.count} / max ${formatMilliseconds(snapshot.longTasks.maximumMs)}`}
+          label={t("diagnostics.longTasks")}
+          value={t("diagnostics.longTasksValue", {
+            count: snapshot.longTasks.count,
+            maximum: formatMilliseconds(snapshot.longTasks.maximumMs)
+          })}
         />
       </dl>
 
       <p className="diagnostics-privacy">
-        O relatorio inclui somente versoes do aplicativo e valores agregados. Nomes, caminhos e
-        conteudo dos modelos nao sao incluidos.
+        {t("diagnostics.privacy")}
       </p>
       <span className="diagnostics-copy-status" role="status" aria-live="polite">
-        {copyState === "failed" ? "Nao foi possivel copiar o diagnostico." : ""}
+        {copyState === "failed" ? t("diagnostics.copyFailed") : ""}
       </span>
     </section>
   );
@@ -111,11 +115,11 @@ function formatMilliseconds(value: number) {
   return `${Math.round(value)} ms`;
 }
 
-function formatFailuresByExtension(failures: Record<string, number>) {
+function formatFailuresByExtension(failures: Record<string, number>, emptyLabel: string) {
   const entries = Object.entries(failures)
     .filter(([, count]) => count > 0)
     .sort((left, right) => right[1] - left[1]);
-  if (entries.length === 0) return "Nenhuma";
+  if (entries.length === 0) return emptyLabel;
   return entries
     .map(([extension, count]) => `${extension.replace(/^\./, "").toUpperCase()}: ${count}`)
     .join(" | ");

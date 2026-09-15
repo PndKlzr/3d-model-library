@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PerformanceDiagnostics } from "../../src/components/PerformanceDiagnostics";
+import { I18nProvider } from "../../src/i18n/I18nProvider";
 import { ThumbnailQueueStatus } from "../../src/components/ThumbnailQueueStatus";
 import type { ThumbnailDiagnosticsSnapshot } from "../../src/lib/thumbnailDiagnostics";
 
@@ -103,6 +104,18 @@ describe("ThumbnailQueueStatus", () => {
 });
 
 describe("PerformanceDiagnostics", () => {
+  it("renders diagnostics in English when the application locale is English", () => {
+    const { getByText, getByRole } = render(
+      <I18nProvider locale="en">
+        <PerformanceDiagnostics snapshot={idleSnapshot()} />
+      </I18nProvider>
+    );
+
+    expect(getByText("Thumbnail diagnostics")).toBeVisible();
+    expect(getByText("Render queue wait average / maximum")).toBeVisible();
+    expect(getByRole("button", { name: "Copy diagnostics" })).toBeVisible();
+  });
+
   it("shows queue wait separately and identifies failing formats", () => {
     const { getByText } = render(<PerformanceDiagnostics snapshot={idleSnapshot({
       failures: 3,
@@ -113,7 +126,7 @@ describe("PerformanceDiagnostics", () => {
       }
     })} />);
 
-    expect(getByText("Espera de render media / maxima")).toBeVisible();
+    expect(getByText("Espera de render média / máxima")).toBeVisible();
     expect(getByText("95 ms / 140 ms")).toBeVisible();
     expect(getByText("3MF: 2 | OBJ: 1")).toBeVisible();
   });
@@ -133,7 +146,7 @@ describe("PerformanceDiagnostics", () => {
     } as unknown as Window["modelLibrary"];
 
     const { getByRole } = render(<PerformanceDiagnostics snapshot={idleSnapshot()} />);
-    fireEvent.click(getByRole("button", { name: "Copiar diagnostico" }));
+    fireEvent.click(getByRole("button", { name: "Copiar diagnóstico" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
     const report = JSON.parse(writeText.mock.calls[0][0]);
