@@ -252,11 +252,13 @@ export function createActiveLibraryMetadataStore({
 }
 
 function filterLegacyMetadata(metadata: LibraryMetadata, rootPath: string): LibraryMetadata {
+  const models = Object.fromEntries(
+    Object.entries(metadata.models).filter(([modelPath]) => isPathInside(rootPath, modelPath))
+  );
   return {
-    models: Object.fromEntries(
-      Object.entries(metadata.models).filter(([modelPath]) => isPathInside(rootPath, modelPath))
-    ),
-    tagCatalog: [...metadata.tagCatalog],
+    models,
+    // The legacy catalog has no root identity; only tags on scoped models can be attributed safely.
+    tagCatalog: [...new Set(Object.values(models).flatMap((model) => model.tags))],
     slicerHistory: metadata.slicerHistory.filter((entry) =>
       isPathInside(rootPath, entry.modelPath)
     )

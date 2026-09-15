@@ -102,6 +102,28 @@ describe("activeLibraryMetadataStore", () => {
     expect(harness.repository.saveCount).toBe(1);
   });
 
+  it("does not copy legacy catalog tags into unrelated libraries", async () => {
+    const rootA = path.resolve("C:/library-a");
+    const rootB = path.resolve("C:/library-b");
+    const harness = createHarness({
+      legacy: {
+        models: {
+          [path.join(rootA, "a.stl")]: { favorite: false, tags: ["alpha"], notes: "" },
+          [path.join(rootB, "b.stl")]: { favorite: false, tags: ["beta"], notes: "" }
+        },
+        tagCatalog: ["alpha", "beta", "orphan"],
+        slicerHistory: []
+      }
+    });
+
+    await harness.store.open(rootA);
+    expect(harness.store.getMetadata().tagCatalog).toEqual(["alpha"]);
+    await harness.store.open(rootB);
+    expect(harness.store.getMetadata().tagCatalog).toEqual(["beta"]);
+    await harness.store.open("C:/library-c");
+    expect(harness.store.getMetadata().tagCatalog).toEqual([]);
+  });
+
   it("serializes concurrent mutations without losing either change", async () => {
     const harness = createHarness({ saveDelayMs: 10 });
     await harness.store.open("C:/library");
