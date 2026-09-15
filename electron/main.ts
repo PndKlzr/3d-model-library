@@ -656,6 +656,11 @@ function sanitizeBenchmarkReport(value: unknown, environment: BenchmarkEnvironme
   const running = requireRecord(thumbnail.running, "running diagnostics");
   const longTasks = requireRecord(thumbnail.longTasks, "long task diagnostics");
   const retainedResults = requireRecord(thumbnail.retainedResults, "retained diagnostics");
+  const failuresByExtension = requireRecord(
+    thumbnail.failuresByExtension,
+    "failure extension diagnostics"
+  );
+  const queueWaitMs = requireRecord(thumbnail.queueWaitMs, "queue wait diagnostics");
   const durationMs = requireRecord(thumbnail.durationMs, "duration diagnostics");
 
   return {
@@ -699,6 +704,7 @@ function sanitizeBenchmarkReport(value: unknown, environment: BenchmarkEnvironme
       embeddedHits: aggregateNumber(thumbnail.embeddedHits, "embeddedHits", true),
       renders: aggregateNumber(thumbnail.renders, "renders", true),
       failures: aggregateNumber(thumbnail.failures, "failures", true),
+      failuresByExtension: sanitizeFailureExtensions(failuresByExtension),
       discardedHistorical: aggregateNumber(
         thumbnail.discardedHistorical,
         "discardedHistorical",
@@ -711,6 +717,10 @@ function sanitizeBenchmarkReport(value: unknown, environment: BenchmarkEnvironme
       retainedResults: {
         current: aggregateNumber(retainedResults.current, "retainedResults.current", true),
         peak: aggregateNumber(retainedResults.peak, "retainedResults.peak", true)
+      },
+      queueWaitMs: {
+        io: sanitizeDuration(queueWaitMs.io, "queueWait.io"),
+        render: sanitizeDuration(queueWaitMs.render, "queueWait.render")
       },
       durationMs: {
         io: sanitizeDuration(durationMs.io, "io"),
@@ -759,6 +769,16 @@ function sanitizeDuration(value: unknown, label: string) {
     average: aggregateNumber(duration.average, `${label}.average`),
     maximum: aggregateNumber(duration.maximum, `${label}.maximum`)
   };
+}
+
+function sanitizeFailureExtensions(record: Record<string, unknown>) {
+  const allowedExtensions = [".stl", ".3mf", ".obj", ".png", ".jpg", ".jpeg", ".webp"];
+  return Object.fromEntries(allowedExtensions
+    .filter((extension) => record[extension] !== undefined)
+    .map((extension) => [
+      extension,
+      aggregateNumber(record[extension], `failuresByExtension.${extension}`, true)
+    ]));
 }
 
 function assertPathInsideLibrary(absolutePath: string) {

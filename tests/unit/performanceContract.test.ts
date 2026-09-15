@@ -76,6 +76,12 @@ describe("performance contract", () => {
     expect(rendererSource).not.toContain("renderer.dispose();\n  }");
   });
 
+  it("does not recompute normals already supplied by the STL loader", async () => {
+    const rendererSource = await readFile("src/lib/thumbnailRenderer.ts", "utf8");
+
+    expect(rendererSource).not.toContain("geometry.computeVertexNormals()");
+  });
+
   it("bounds file metadata work during recursive scans", async () => {
     const scannerSource = await readFile("electron/services/libraryScanner.ts", "utf8");
 

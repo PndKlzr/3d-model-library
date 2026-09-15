@@ -232,6 +232,26 @@ describe("thumbnail benchmark runner", () => {
     expect(report.timingsMs).not.toHaveProperty("fullReconciliation");
   });
 
+  it("keeps aggregate queue waits and failure formats in benchmark reports", async () => {
+    const report = await runThumbnailBenchmark({
+      scenario: "cold",
+      models: [model()],
+      request: () => resolvedRequest(),
+      now: () => 0,
+      diagnostics: () => diagnosticsSnapshot({
+        failures: 2,
+        failuresByExtension: { ".3mf": 2 },
+        queueWaitMs: {
+          io: { count: 1, average: 4, maximum: 4 },
+          render: { count: 1, average: 18, maximum: 18 }
+        }
+      })
+    });
+
+    expect(report.thumbnail.failuresByExtension).toEqual({ ".3mf": 2 });
+    expect(report.thumbnail.queueWaitMs.render.maximum).toBe(18);
+  });
+
   it("includes OBJ models in the measured thumbnail pass", async () => {
     const obj = model({
       id: "obj-model",
@@ -562,9 +582,14 @@ function diagnosticsSnapshot(
     embeddedHits: 0,
     renders: 0,
     failures: 0,
+    failuresByExtension: {},
     discardedHistorical: 0,
     longTasks: { count: 0, maximumMs: 0 },
     retainedResults: { current: 0, peak: 0 },
+    queueWaitMs: {
+      io: { count: 0, average: 0, maximum: 0 },
+      render: { count: 0, average: 0, maximum: 0 }
+    },
     durationMs: {
       io: { count: 0, average: 0, maximum: 0 },
       render: { count: 0, average: 0, maximum: 0 },

@@ -51,6 +51,10 @@ export function PerformanceDiagnostics({ snapshot }: PerformanceDiagnosticsProps
         <DiagnosticValue label="Previews incorporadas" value={snapshot.embeddedHits} />
         <DiagnosticValue label="Miniaturas geradas" value={snapshot.renders} />
         <DiagnosticValue label="Falhas" value={snapshot.failures} />
+        <DiagnosticValue
+          label="Falhas por formato"
+          value={formatFailuresByExtension(snapshot.failuresByExtension)}
+        />
         <DiagnosticValue label="Historico descartado" value={snapshot.discardedHistorical} />
         <DiagnosticValue
           label="Resultados retidos"
@@ -58,8 +62,16 @@ export function PerformanceDiagnostics({ snapshot }: PerformanceDiagnosticsProps
         />
         <DiagnosticValue label="E/S media / maxima" value={formatDuration(snapshot.durationMs.io)} />
         <DiagnosticValue
+          label="Espera de E/S media / maxima"
+          value={formatDuration(snapshot.queueWaitMs.io)}
+        />
+        <DiagnosticValue
           label="Render media / maxima"
           value={formatDuration(snapshot.durationMs.render)}
+        />
+        <DiagnosticValue
+          label="Espera de render media / maxima"
+          value={formatDuration(snapshot.queueWaitMs.render)}
         />
         <DiagnosticValue
           label="Total medio / maximo"
@@ -97,4 +109,14 @@ function formatDuration(duration: { average: number; maximum: number }) {
 
 function formatMilliseconds(value: number) {
   return `${Math.round(value)} ms`;
+}
+
+function formatFailuresByExtension(failures: Record<string, number>) {
+  const entries = Object.entries(failures)
+    .filter(([, count]) => count > 0)
+    .sort((left, right) => right[1] - left[1]);
+  if (entries.length === 0) return "Nenhuma";
+  return entries
+    .map(([extension, count]) => `${extension.replace(/^\./, "").toUpperCase()}: ${count}`)
+    .join(" | ");
 }

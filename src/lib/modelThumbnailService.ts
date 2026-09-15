@@ -225,7 +225,7 @@ export function createModelThumbnailService(
     source: (result: T) => "cache" | "embedded" | undefined,
     countFailure = true
   ): Promise<T | undefined> {
-    const operation = diagnostics.start("io", getEffectivePriority(entry));
+    const operation = diagnostics.start("io", getEffectivePriority(entry), entry.model.extension);
     const stageRequest = ioScheduler.enqueue(schedulerKey, getEffectivePriority(entry), async () => {
       operation.running();
       return run();
@@ -243,7 +243,7 @@ export function createModelThumbnailService(
   }
 
   async function runRenderStage(entry: PipelineEntry) {
-    const operation = diagnostics.start("render", getEffectivePriority(entry));
+    const operation = diagnostics.start("render", getEffectivePriority(entry), entry.model.extension);
     const stageRequest = renderScheduler.enqueue(
       `render:${entry.key}`,
       getEffectivePriority(entry),

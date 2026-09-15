@@ -13,9 +13,11 @@ export type ThumbnailDiagnosticsSnapshot = {
   embeddedHits: number;
   renders: number;
   failures: number;
+  failuresByExtension: Record<string, number>;
   discardedHistorical: number;
   longTasks: { count: number; maximumMs: number };
   retainedResults: { current: number; peak: number };
+  queueWaitMs: Record<ThumbnailStage, DurationSummary>;
   durationMs: Record<ThumbnailStage | "total", DurationSummary>;
 };
 
@@ -23,6 +25,10 @@ type ThumbnailSnapshotListener = (snapshot: ThumbnailDiagnosticsSnapshot) => voi
 type DurationTotals = Record<ThumbnailStage | "total", number>;
 
 const durationTotalsBySnapshot = new WeakMap<ThumbnailDiagnosticsSnapshot, DurationTotals>();
+const queueWaitTotalsBySnapshot = new WeakMap<
+  ThumbnailDiagnosticsSnapshot,
+  Record<ThumbnailStage, number>
+>();
 const generationBySnapshot = new WeakMap<ThumbnailDiagnosticsSnapshot, number>();
 
 const defaultPerformanceObserverFactory = (callback: PerformanceObserverCallback) =>
@@ -35,8 +41,8 @@ export function createThumbnailDiagnostics(now: () => number = () => performance
     startRequest() {
       return createTrackedThumbnailRequest(snapshot, listeners, now);
     },
-    start(stage: ThumbnailStage, priority: ThumbnailPriority) {
-      return createTrackedThumbnailOperation(snapshot, listeners, now, stage, priority);
+    start(stage: ThumbnailStage, priority: ThumbnailPriority, extension?: string) {
+      return createTrackedThumbnailOperation(snapshot, listeners, now, stage, priority, extension);
     },
     recordCacheMiss() {
       snapshot.cacheMisses += 1;
@@ -110,9 +116,14 @@ function createEmptyThumbnailDiagnosticsSnapshot(): ThumbnailDiagnosticsSnapshot
     embeddedHits: 0,
     renders: 0,
     failures: 0,
+    failuresByExtension: {},
     discardedHistorical: 0,
     longTasks: { count: 0, maximumMs: 0 },
     retainedResults: { current: 0, peak: 0 },
+    queueWaitMs: {
+      io: { count: 0, average: 0, maximum: 0 },
+      render: { count: 0, average: 0, maximum: 0 }
+    },
     durationMs: {
       io: { count: 0, average: 0, maximum: 0 },
       render: { count: 0, average: 0, maximum: 0 },
@@ -120,6 +131,7 @@ function createEmptyThumbnailDiagnosticsSnapshot(): ThumbnailDiagnosticsSnapshot
     }
   };
   durationTotalsBySnapshot.set(snapshot, { io: 0, render: 0, total: 0 });
+  queueWaitTotalsBySnapshot.set(snapshot, { io: 0, render: 0 });
   generationBySnapshot.set(snapshot, 0);
   return snapshot;
 }
@@ -129,9 +141,11 @@ function createTrackedThumbnailOperation(
   listeners: Set<ThumbnailSnapshotListener>,
   now: () => number,
   stage: ThumbnailStage,
-  priority: ThumbnailPriority
+  priority: ThumbnailPriority,
+  extension?: string
 ) {
-  const startedAt = now();
+  const queuedAt = now();
+  let runningAt: number | null = null;
   const generation = generationBySnapshot.get(snapshot);
   let state: "queued" | "running" | "settled" = "queued";
   increment(snapshot.queued, priority);
@@ -148,6 +162,7 @@ function createTrackedThumbnailOperation(
       decrement(snapshot.queued, "total");
       decrement(snapshot.queuedByStage, stage);
       decrement(snapshot.queuedByStage, "total");
+      recordQueueWait(snapshot, stage, normalizeDuration(now() - queuedAt));
     } else {
       decrement(snapshot.running, stage);
       decrement(snapshot.running, "total");
@@ -156,10 +171,17 @@ function createTrackedThumbnailOperation(
 
     if (failed) {
       snapshot.failures += 1;
+      if (extension) {
+        const normalizedExtension = extension.toLowerCase();
+        snapshot.failuresByExtension[normalizedExtension] =
+          (snapshot.failuresByExtension[normalizedExtension] ?? 0) + 1;
+      }
     } else if (result) {
       recordResult(snapshot, result);
     }
-    recordStageDuration(snapshot, stage, normalizeDuration(now() - startedAt));
+    if (runningAt !== null) {
+      recordStageDuration(snapshot, stage, normalizeDuration(now() - runningAt));
+    }
     publishThumbnailSnapshot(snapshot, listeners);
   }
 
@@ -173,6 +195,8 @@ function createTrackedThumbnailOperation(
       decrement(snapshot.queuedByStage, "total");
       increment(snapshot.running, stage);
       increment(snapshot.running, "total");
+      runningAt = now();
+      recordQueueWait(snapshot, stage, normalizeDuration(runningAt - queuedAt));
       state = "running";
       publishThumbnailSnapshot(snapshot, listeners);
     },
@@ -225,6 +249,20 @@ function recordStageDuration(
   updateDurationSummary(snapshot.durationMs[stage], totals, stage, durationMs);
 }
 
+function recordQueueWait(
+  snapshot: ThumbnailDiagnosticsSnapshot,
+  stage: ThumbnailStage,
+  durationMs: number
+) {
+  const totals = queueWaitTotalsBySnapshot.get(snapshot);
+  if (!totals) return;
+  totals[stage] += durationMs;
+  const summary = snapshot.queueWaitMs[stage];
+  summary.count += 1;
+  summary.average = totals[stage] / summary.count;
+  summary.maximum = Math.max(summary.maximum, durationMs);
+}
+
 function updateDurationSummary(
   summary: DurationSummary,
   totals: DurationTotals,
@@ -252,6 +290,7 @@ function resetThumbnailDiagnosticsSnapshot(
   const empty = createEmptyThumbnailDiagnosticsSnapshot();
   Object.assign(snapshot, empty);
   durationTotalsBySnapshot.set(snapshot, { io: 0, render: 0, total: 0 });
+  queueWaitTotalsBySnapshot.set(snapshot, { io: 0, render: 0 });
   generationBySnapshot.set(snapshot, nextGeneration);
   publishThumbnailSnapshot(snapshot, listeners);
 }
@@ -283,6 +322,7 @@ function sanitizeThumbnailSnapshot(
     embeddedHits: snapshot.embeddedHits,
     renders: snapshot.renders,
     failures: snapshot.failures,
+    failuresByExtension: { ...snapshot.failuresByExtension },
     discardedHistorical: snapshot.discardedHistorical,
     longTasks: {
       count: snapshot.longTasks.count,
@@ -291,6 +331,10 @@ function sanitizeThumbnailSnapshot(
     retainedResults: {
       current: snapshot.retainedResults.current,
       peak: snapshot.retainedResults.peak
+    },
+    queueWaitMs: {
+      io: { ...snapshot.queueWaitMs.io },
+      render: { ...snapshot.queueWaitMs.render }
     },
     durationMs: {
       io: { ...snapshot.durationMs.io },

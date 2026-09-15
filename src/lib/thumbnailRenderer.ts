@@ -67,7 +67,6 @@ function resetSharedRenderer() {
 function createThumbnailObject(extension: ModelFile["extension"], modelBytes: ArrayBuffer) {
   if (extension === ".stl") {
     const geometry = new STLLoader().parse(modelBytes);
-    geometry.computeVertexNormals();
     return orientModelForBed(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
       color: "#78aaa6",
       roughness: 0.62,

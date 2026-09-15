@@ -22,6 +22,36 @@ describe("thumbnailDiagnostics", () => {
     expect(snapshots.length).toBeGreaterThan(1);
   });
 
+  it("separates queue wait from stage execution time", () => {
+    let now = 0;
+    const diagnostics = createThumbnailDiagnostics(() => now);
+    const operation = diagnostics.start("render", "historical");
+
+    now = 120;
+    operation.running();
+    now = 145;
+    operation.succeeded("render");
+
+    expect(diagnostics.getSnapshot()).toMatchObject({
+      queueWaitMs: {
+        render: { count: 1, average: 120, maximum: 120 }
+      },
+      durationMs: {
+        render: { count: 1, average: 25, maximum: 25 }
+      }
+    });
+  });
+
+  it("groups failures by file extension without retaining file identity", () => {
+    const diagnostics = createThumbnailDiagnostics(() => 0);
+    const failed = diagnostics.start("render", "visible", ".3mf");
+    failed.running();
+    failed.failed();
+
+    expect(diagnostics.getSnapshot().failuresByExtension).toEqual({ ".3mf": 1 });
+    expect(JSON.stringify(diagnostics.getSnapshot())).not.toContain("absolutePath");
+  });
+
   it("counts result sources, failures, and duration averages", () => {
     let now = 0;
     const diagnostics = createThumbnailDiagnostics(() => now);
@@ -206,9 +236,14 @@ function emptySnapshot() {
     embeddedHits: 0,
     renders: 0,
     failures: 0,
+    failuresByExtension: {},
     discardedHistorical: 0,
     longTasks: { count: 0, maximumMs: 0 },
     retainedResults: { current: 0, peak: 0 },
+    queueWaitMs: {
+      io: { count: 0, average: 0, maximum: 0 },
+      render: { count: 0, average: 0, maximum: 0 }
+    },
     durationMs: {
       io: { count: 0, average: 0, maximum: 0 },
       render: { count: 0, average: 0, maximum: 0 },

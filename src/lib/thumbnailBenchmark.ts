@@ -314,9 +314,14 @@ function sanitizeDiagnostics(snapshot: ThumbnailDiagnosticsSnapshot): ThumbnailD
     embeddedHits: snapshot.embeddedHits,
     renders: snapshot.renders,
     failures: snapshot.failures,
+    failuresByExtension: { ...snapshot.failuresByExtension },
     discardedHistorical: snapshot.discardedHistorical,
     longTasks: { ...snapshot.longTasks },
     retainedResults: { ...snapshot.retainedResults },
+    queueWaitMs: {
+      io: { ...snapshot.queueWaitMs.io },
+      render: { ...snapshot.queueWaitMs.render }
+    },
     durationMs: {
       io: { ...snapshot.durationMs.io },
       render: { ...snapshot.durationMs.render },

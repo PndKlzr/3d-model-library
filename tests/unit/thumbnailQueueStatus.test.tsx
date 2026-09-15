@@ -103,6 +103,21 @@ describe("ThumbnailQueueStatus", () => {
 });
 
 describe("PerformanceDiagnostics", () => {
+  it("shows queue wait separately and identifies failing formats", () => {
+    const { getByText } = render(<PerformanceDiagnostics snapshot={idleSnapshot({
+      failures: 3,
+      failuresByExtension: { ".3mf": 2, ".obj": 1 },
+      queueWaitMs: {
+        io: { count: 2, average: 12, maximum: 18 },
+        render: { count: 2, average: 95, maximum: 140 }
+      }
+    })} />);
+
+    expect(getByText("Espera de render media / maxima")).toBeVisible();
+    expect(getByText("95 ms / 140 ms")).toBeVisible();
+    expect(getByText("3MF: 2 | OBJ: 1")).toBeVisible();
+  });
+
   it("copies only runtime versions and aggregate diagnostics", async () => {
     const writeText = vi.fn(async (_text: string) => undefined);
     Object.defineProperty(navigator, "clipboard", {
@@ -158,9 +173,14 @@ function idleSnapshot(
     embeddedHits: 0,
     renders: 0,
     failures: 0,
+    failuresByExtension: {},
     discardedHistorical: 0,
     longTasks: { count: 0, maximumMs: 0 },
     retainedResults: { current: 0, peak: 0 },
+    queueWaitMs: {
+      io: { count: 0, average: 0, maximum: 0 },
+      render: { count: 0, average: 0, maximum: 0 }
+    },
     durationMs: {
       io: { count: 0, average: 0, maximum: 0 },
       render: { count: 0, average: 0, maximum: 0 },
