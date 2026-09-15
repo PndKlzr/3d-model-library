@@ -104,4 +104,21 @@ describe("folder context menu contract", () => {
     expect(appSource).toContain("Mostrar no Explorer");
     expect(appSource).toContain("showModelInFolder(model.absolutePath)");
   });
+
+  it("opens a model's containing folder inside the library without changing type preferences", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const handler = appSource.match(
+      /function viewModelFolderInLibrary[\s\S]*?\n  }\n/
+    )?.[0];
+
+    expect(handler).toBeTruthy();
+    expect(handler).toContain("setSearchQuery(\"\")");
+    expect(handler).toContain("setOnlySelected(false)");
+    expect(handler).toContain("setOnlyFavorites(false)");
+    expect(handler).toContain("setOnlyDuplicates(false)");
+    expect(handler).toContain("setSelectedTagFilters(new Set())");
+    expect(handler).toContain("selectFolder(model.relativeFolder || ALL_FOLDERS_ID)");
+    expect(handler).not.toContain("updateVisibleExtensions");
+    expect(appSource).toContain("Ver pasta na biblioteca");
+  });
 });

@@ -572,32 +572,90 @@ button:disabled {
 
 .toolbar-statuses {
   display: flex;
-  height: 18px;
+  min-height: 30px;
   min-width: 0;
   align-items: center;
   gap: 10px;
 }
 
 .thumbnail-queue-status {
+  position: relative;
   display: inline-flex;
-  width: 174px;
-  min-width: 174px;
-  height: 18px;
+  width: 224px;
+  min-width: 224px;
+  height: 30px;
+  padding: 0 9px 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   align-items: center;
   gap: 6px;
   overflow: hidden;
+  background: var(--panel-strong);
   color: var(--ink-muted);
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
 }
 
+.thumbnail-queue-status.idle {
+  visibility: hidden;
+}
+
 .thumbnail-queue-status i {
-  width: 7px;
-  height: 7px;
+  width: 10px;
+  height: 10px;
   flex: 0 0 auto;
+  box-sizing: border-box;
   border-radius: 50%;
   background: var(--accent);
+}
+
+.thumbnail-queue-status.preparing i,
+.thumbnail-queue-status.loading i,
+.thumbnail-queue-status.rendering i {
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  background: transparent;
+  animation: thumbnail-status-spin 800ms linear infinite;
+}
+
+.thumbnail-status-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.thumbnail-progress {
+  position: absolute;
+  right: 9px;
+  bottom: 4px;
+  left: 9px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.thumbnail-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 180ms ease;
+}
+
+@keyframes thumbnail-status-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thumbnail-queue-status i {
+    animation: none;
+  }
+
+  .thumbnail-progress > span {
+    transition: none;
+  }
 }
 
 .thumbnail-queue-status.complete i {
@@ -2759,8 +2817,15 @@ button:disabled {
   }
 
   .thumbnail-queue-status {
-    width: 7px;
-    min-width: 7px;
+    width: 30px;
+    min-width: 30px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .thumbnail-status-label,
+  .thumbnail-progress {
+    display: none;
   }
 
   .diagnostics-grid {

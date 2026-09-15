@@ -35,7 +35,11 @@ vi.mock("../../src/lib/thumbnailDiagnostics", () => ({
 vi.mock("../../src/components/ModelCardThumbnail", () => ({ ModelCardThumbnail: () => null }));
 vi.mock("../../src/components/FolderCardThumbnail", () => ({ FolderCardThumbnail: () => null }));
 vi.mock("../../src/components/ThumbnailQueueStatus", () => ({ ThumbnailQueueStatus: () => null }));
-vi.mock("../../src/components/FolderTree", () => ({ FolderTree: () => null }));
+vi.mock("../../src/components/FolderTree", () => ({
+  FolderTree: ({ onSelectFolder }: { onSelectFolder: (folderId: string) => void }) => (
+    <button type="button" onClick={() => onSelectFolder("parts")}>Open parts</button>
+  )
+}));
 vi.mock("../../src/components/DetailsPanel", () => ({ DetailsPanel: () => null }));
 vi.mock("../../src/components/SettingsDialog", () => ({
   SettingsDialog: ({ onChooseLibraryFolder }: { onChooseLibraryFolder: () => void }) =>
@@ -109,6 +113,24 @@ describe("App library workflow", () => {
     await screen.findByRole("button", { name: "synthetic-tag-b" });
     expect(screen.queryByRole("button", { name: "synthetic-tag-a" })).toBeNull();
     expect(thumbnail.beginLibrarySession).toHaveBeenCalledWith(B);
+  });
+
+  it("restores search and filters when navigating back to a previous folder", async () => {
+    installApi();
+    render(<App />);
+    await screen.findByRole("button", { name: "Somente favoritos" });
+    const search = screen.getByPlaceholderText("Buscar por nome, pasta, tag ou nota");
+
+    fireEvent.change(search, { target: { value: "fixture" } });
+    fireEvent.click(screen.getByRole("button", { name: "Somente favoritos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open parts" }));
+    fireEvent.change(search, { target: { value: "different" } });
+    fireEvent.click(screen.getByRole("button", { name: "Somente favoritos" }));
+    fireEvent.click(screen.getByRole("button", { name: "Voltar pasta" }));
+
+    expect(search).toHaveValue("fixture");
+    expect(screen.getByRole("button", { name: "Somente favoritos" }))
+      .toHaveAttribute("aria-pressed", "true");
   });
 });
 

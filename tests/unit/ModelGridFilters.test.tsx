@@ -99,6 +99,20 @@ describe("ModelGrid filters", () => {
     expect(stickyHeader).toContainElement(view.container.querySelector(".exclusion-filter-row"));
     expect(stickyHeader).not.toContainElement(view.container.querySelector(".empty-state"));
   });
+
+  it("restores and reports the library scroll position", () => {
+    const onScrollTopChange = vi.fn();
+    const view = renderGrid({
+      scrollRestoreRequest: { key: 1, top: 360 },
+      onScrollTopChange
+    });
+    const panel = view.getByRole("region", { name: "Modelos encontrados" });
+
+    expect(panel.scrollTop).toBe(360);
+    panel.scrollTop = 480;
+    fireEvent.scroll(panel);
+    expect(onScrollTopChange).toHaveBeenLastCalledWith(480);
+  });
 });
 
 function renderGrid(overrides: Partial<ComponentProps<typeof ModelGrid>> = {}) {

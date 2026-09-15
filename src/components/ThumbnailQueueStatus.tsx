@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
+import type { ThumbnailWarmupProgress } from "../lib/thumbnailWarmup";
 
 type QueueStatus =
-  | { kind: "loading" | "rendering"; count: number }
-  | { kind: "complete" | "failed" };
+  | { kind: "preparing" | "loading" | "rendering"; count: number; total?: number }
+  | { kind: "complete" | "failed"; count?: number };
 
 type ThumbnailQueueStatusProps = {
   snapshot: ThumbnailDiagnosticsSnapshot;
   delayMs?: number;
   completionMs?: number;
+  warmup?: ThumbnailWarmupProgress | null;
 };
 
 export function ThumbnailQueueStatus({
   snapshot,
   delayMs = 250,
-  completionMs = 1800
+  completionMs = 1800,
+  warmup = null
 }: ThumbnailQueueStatusProps) {
   const [status, setStatus] = useState<QueueStatus | null>(null);
   const statusRef = useRef<QueueStatus | null>(null);
@@ -74,10 +77,54 @@ export function ThumbnailQueueStatus({
     clearTimer(completionTimerRef);
   }, []);
 
+  useEffect(() => {
+    if (warmup?.phase !== "complete") return;
+    updateStatus(warmup.failures > 0
+      ? { kind: "failed", count: warmup.failures }
+      : { kind: "complete" });
+    clearTimer(completionTimerRef);
+    completionTimerRef.current = window.setTimeout(() => {
+      completionTimerRef.current = null;
+      updateStatus(null);
+    }, completionMs);
+  }, [completionMs, warmup?.failures, warmup?.phase]);
+
+  const warmupStatus: QueueStatus | null = warmup && warmup.remaining > 0
+    ? {
+        kind: getActiveCount(snapshot) > 0
+          ? snapshot.queuedByStage.render > 0 || snapshot.running.render > 0
+            ? "rendering"
+            : "loading"
+          : "preparing",
+        count: warmup.remaining,
+        total: warmup.total
+      }
+    : null;
+  const displayedStatus = warmupStatus ?? status;
+
   return (
-    <div className={`thumbnail-queue-status ${status?.kind ?? "idle"}`} aria-live="polite">
-      {status ? <i aria-hidden="true" /> : null}
-      {status ? <span>{getStatusLabel(status)}</span> : null}
+    <div className={`thumbnail-queue-status ${displayedStatus?.kind ?? "idle"}`} aria-live="polite">
+      {displayedStatus ? <i aria-hidden="true" /> : null}
+      {displayedStatus ? (
+        <span className="thumbnail-status-label">{getStatusLabel(displayedStatus)}</span>
+      ) : null}
+      {displayedStatus?.total ? (
+        <span
+          className="thumbnail-progress"
+          role="progressbar"
+          aria-label="Progresso das miniaturas"
+          aria-valuemin={0}
+          aria-valuemax={displayedStatus.total}
+          aria-valuenow={displayedStatus.total - displayedStatus.count}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: `${((displayedStatus.total - displayedStatus.count) / displayedStatus.total) * 100}%`
+            }}
+          />
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -100,9 +147,14 @@ function isWorkStatus(status: QueueStatus | null) {
 }
 
 function getStatusLabel(status: QueueStatus) {
-  if (status.kind === "loading") return `Carregando miniaturas - ${status.count}`;
-  if (status.kind === "rendering") return `Gerando miniaturas - ${status.count}`;
-  if (status.kind === "failed") return "Algumas miniaturas falharam";
+  if (status.kind === "preparing") return `Preparando miniaturas - ${status.count} restantes`;
+  if (status.kind === "loading") return `Carregando miniaturas - ${status.count} restantes`;
+  if (status.kind === "rendering") return `Gerando miniaturas - ${status.count} restantes`;
+  if (status.kind === "failed") {
+    return status.count
+      ? `${status.count} miniaturas não puderam ser geradas`
+      : "Algumas miniaturas falharam";
+  }
   return "Miniaturas concluidas";
 }
 

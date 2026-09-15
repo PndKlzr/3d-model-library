@@ -25,10 +25,12 @@ import {
   type UsageFilter
 } from "./lib/folderFilters";
 import {
+  createFolderNavigationEntry,
   createFolderNavigationHistory,
   goBackInFolderHistory,
   goForwardInFolderHistory,
-  pushFolderHistory
+  pushFolderHistory,
+  type FolderNavigationEntry
 } from "./lib/folderNavigationHistory";
 import { getDragModelIds, getDragOutFilePaths } from "./lib/dragFiles";
 import { getDefaultFileOpenAction } from "./lib/fileOpenAction";
@@ -98,7 +100,7 @@ const OPERATION_MESSAGE_TIMEOUT_MS = 6000;
 const UNDO_TOAST_TIMEOUT_MS = 8000;
 const CONTEXT_MENU_WIDTH = 320;
 const FOLDER_CONTEXT_MENU_HEIGHT = 465;
-const MODEL_CONTEXT_MENU_HEIGHT = 420;
+const MODEL_CONTEXT_MENU_HEIGHT = 454;
 
 type LocalActionLogEntry = LibraryActionLogEntry & {
   restorePairs?: FileRestorePair[];
@@ -204,6 +206,12 @@ function LibraryApp() {
   const [draggedModelIds, setDraggedModelIds] = useState<string[]>([]);
   const draggedModelIdsRef = useRef<string[]>([]);
   const activeFileDragSessionRef = useRef<string | null>(null);
+  const gridScrollTopRef = useRef(0);
+  const gridScrollRestoreSequenceRef = useRef(0);
+  const [gridScrollRestoreRequest, setGridScrollRestoreRequest] = useState<{
+    key: number;
+    top: number;
+  } | null>(null);
   const [folderContextMenu, setFolderContextMenu] = useState<{
     folderId: string;
     x: number;
@@ -502,9 +510,18 @@ function LibraryApp() {
     confirmationDialog,
     isSettingsOpen,
     modelContextMenu,
+    notesFilter,
+    onlyDuplicates,
+    onlyFavorites,
+    onlySelected,
+    searchQuery,
     selectedFolder,
+    selectedTagFilters,
+    sortMode,
     tagPickerDialog,
-    textInputDialog
+    tagMatchMode,
+    textInputDialog,
+    usageFilter
   ]);
 
   async function refreshMetadataState() {
@@ -901,6 +918,7 @@ function LibraryApp() {
       lastSelectedModelId,
       selectedFolder,
       folderHistory,
+      scrollTop: gridScrollTopRef.current,
       draggedModelIds: [...draggedModelIds],
       activeFileDragSessionId: activeFileDragSessionRef.current,
       searchQuery,
@@ -951,6 +969,7 @@ function LibraryApp() {
     setLastSelectedModelId(reset.lastSelectedModelId);
     setSelectedFolder(reset.selectedFolder);
     setFolderHistory(reset.folderHistory);
+    requestGridScroll(0);
     draggedModelIdsRef.current = reset.draggedModelIds;
     activeFileDragSessionRef.current = reset.activeFileDragSessionId;
     setDraggedModelIds(reset.draggedModelIds);
@@ -982,6 +1001,7 @@ function LibraryApp() {
       lastSelectedModelId: string | null;
       selectedFolder: string;
       folderHistory: ReturnType<typeof createFolderNavigationHistory>;
+      scrollTop: number;
       draggedModelIds: string[];
       activeFileDragSessionId: string | null;
       searchQuery: string;
@@ -1014,6 +1034,7 @@ function LibraryApp() {
       setFolderHistory(
         isPriorRoot ? previous.folderHistory : createFolderNavigationHistory()
       );
+      requestGridScroll(isPriorRoot ? previous.scrollTop : 0);
       draggedModelIdsRef.current = [];
       activeFileDragSessionRef.current = null;
       setDraggedModelIds([]);
@@ -1105,10 +1126,16 @@ function LibraryApp() {
   }
 
   function selectFolder(folderId: string) {
+    if (folderId === selectedFolder) {
+      navigateToFolder(folderId);
+      return;
+    }
+    const currentEntry = captureCurrentNavigationEntry();
     setFolderHistory((currentHistory) =>
-      pushFolderHistory(currentHistory, selectedFolder, folderId)
+      pushFolderHistory(currentHistory, currentEntry, folderId)
     );
     navigateToFolder(folderId);
+    requestGridScroll(0);
   }
 
   function navigateToFolder(folderId: string) {
@@ -1120,25 +1147,60 @@ function LibraryApp() {
   }
 
   function goBackFolder() {
-    const result = goBackInFolderHistory(folderHistory, selectedFolder);
+    const result = goBackInFolderHistory(folderHistory, captureCurrentNavigationEntry());
 
     if (!result) {
       return;
     }
 
     setFolderHistory(result.history);
-    navigateToFolder(result.folderId);
+    restoreNavigationEntry(result.entry);
   }
 
   function goForwardFolder() {
-    const result = goForwardInFolderHistory(folderHistory, selectedFolder);
+    const result = goForwardInFolderHistory(folderHistory, captureCurrentNavigationEntry());
 
     if (!result) {
       return;
     }
 
     setFolderHistory(result.history);
-    navigateToFolder(result.folderId);
+    restoreNavigationEntry(result.entry);
+  }
+
+  function captureCurrentNavigationEntry(): FolderNavigationEntry {
+    return createFolderNavigationEntry(selectedFolder, {
+      searchQuery,
+      sortMode,
+      onlySelected,
+      onlyFavorites,
+      onlyDuplicates,
+      usageFilter,
+      notesFilter,
+      tagMatchMode,
+      selectedTags: [...selectedTagFilters],
+      scrollTop: gridScrollTopRef.current
+    });
+  }
+
+  function restoreNavigationEntry(entry: FolderNavigationEntry) {
+    navigateToFolder(entry.folderId);
+    setSearchQuery(entry.searchQuery);
+    setSortMode(entry.sortMode);
+    setOnlySelected(entry.onlySelected);
+    setOnlyFavorites(entry.onlyFavorites);
+    setOnlyDuplicates(entry.onlyDuplicates);
+    setUsageFilter(entry.usageFilter);
+    setNotesFilter(entry.notesFilter);
+    setTagMatchMode(entry.tagMatchMode);
+    setSelectedTagFilters(new Set(entry.selectedTags));
+    requestGridScroll(entry.scrollTop);
+  }
+
+  function requestGridScroll(top: number) {
+    gridScrollTopRef.current = top;
+    gridScrollRestoreSequenceRef.current += 1;
+    setGridScrollRestoreRequest({ key: gridScrollRestoreSequenceRef.current, top });
   }
 
   function openFolderContextMenu(folderId: string, x: number, y: number) {
@@ -1231,6 +1293,18 @@ function LibraryApp() {
       setSelectedModelIds(new Set([model.id]));
       setLastSelectedModelId(model.id);
     }
+  }
+
+  function viewModelFolderInLibrary(model: ModelFile) {
+    setSearchQuery("");
+    setOnlySelected(false);
+    setOnlyFavorites(false);
+    setOnlyDuplicates(false);
+    setUsageFilter("all");
+    setNotesFilter("all");
+    setTagMatchMode("all");
+    setSelectedTagFilters(new Set());
+    selectFolder(model.relativeFolder || ALL_FOLDERS_ID);
   }
 
   function retryModelThumbnail(model: ModelFile) {
@@ -1328,6 +1402,7 @@ function LibraryApp() {
       return {
         message: result.message,
         selectedPaths: [],
+        preserveScroll: false,
         action: createActionLogEntry("Pasta criada", joinFolder(parentFolder, folderName.trim()))
       };
     });
@@ -1367,6 +1442,7 @@ function LibraryApp() {
       return {
         message: result.message,
         selectedPaths: [],
+        preserveScroll: false,
         action:
           restorePairs.length > 0
             ? createActionLogEntry("Pasta renomeada", `${folderId} -> ${destinationLabel}`, restorePairs)
@@ -1412,6 +1488,7 @@ function LibraryApp() {
       return {
         message: result.message,
         selectedPaths: [],
+        preserveScroll: false,
         action:
           restorePairs.length > 0
             ? createActionLogEntry("Pasta movida", `${folderId} -> ${destinationLabel}`, restorePairs)
@@ -1448,6 +1525,7 @@ function LibraryApp() {
       return {
         message: result.message,
         selectedPaths: [],
+        preserveScroll: false,
         action: createActionLogEntry("Pasta na Lixeira", folderId)
       };
     });
@@ -1645,6 +1723,7 @@ function LibraryApp() {
 
     const expectedSession = activeLibrarySessionRef.current;
     if (!expectedSession) return;
+    const preservedScrollTop = gridScrollTopRef.current;
 
     try {
       const result = await window.modelLibrary.restoreLibraryPaths(undoableAction.restorePairs);
@@ -1656,6 +1735,7 @@ function LibraryApp() {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setLibraryMetadata(nextMetadata);
       await scanLibrarySession(expectedSession, result.paths ?? []);
+      requestGridScroll(preservedScrollTop);
     } catch (error) {
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
         setOperationMessage(readErrorMessage(error));
@@ -1668,6 +1748,7 @@ function LibraryApp() {
       message: string;
       selectedPaths: string[];
       action?: LocalActionLogEntry;
+      preserveScroll?: boolean;
     }>
   ) {
     if (!settings?.libraryPath) {
@@ -1676,6 +1757,7 @@ function LibraryApp() {
 
     const expectedSession = activeLibrarySessionRef.current;
     if (!expectedSession) return;
+    const preservedScrollTop = gridScrollTopRef.current;
 
     try {
       const result = await operation();
@@ -1689,6 +1771,7 @@ function LibraryApp() {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setLibraryMetadata(nextMetadata);
       await scanLibrarySession(expectedSession, result.selectedPaths);
+      if (result.preserveScroll !== false) requestGridScroll(preservedScrollTop);
     } catch (error) {
       if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
         setOperationMessage(readErrorMessage(error));
@@ -1840,6 +1923,7 @@ function LibraryApp() {
       />
       <ModelGrid
         models={filteredModels}
+        thumbnailModels={models}
         folderCards={folderCards}
         scanErrors={scanResult?.errors ?? []}
         selectedModelId={selectedModel?.id ?? null}
@@ -1871,6 +1955,8 @@ function LibraryApp() {
         fileDragBehavior={settings.fileDragBehavior}
         canNavigateBack={folderHistory.back.length > 0}
         canNavigateForward={folderHistory.forward.length > 0}
+        scrollRestoreRequest={gridScrollRestoreRequest}
+        onScrollTopChange={(top) => { gridScrollTopRef.current = top; }}
         onSearchChange={setSearchQuery}
         onVisibleExtensionsChange={updateVisibleExtensions}
         onRemoveFolderExclusion={removeFolderExclusion}
@@ -2183,6 +2269,13 @@ function LibraryApp() {
           ) : null}
           <div className="context-menu-separator" />
           <div className="context-menu-section-title">Arquivo</div>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => viewModelFolderInLibrary(modelContextMenu.model)}
+          >
+            Ver pasta na biblioteca
+          </button>
           <button
             type="button"
             role="menuitem"

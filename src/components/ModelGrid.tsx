@@ -29,6 +29,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { FolderCardThumbnail } from "./FolderCardThumbnail";
 import { ThumbnailQueueStatus } from "./ThumbnailQueueStatus";
+import { startThumbnailWarmup, type ThumbnailWarmupProgress } from "../lib/thumbnailWarmup";
+import { modelThumbnailService } from "../lib/modelThumbnailService";
 import { FileTypeFilter } from "./FileTypeFilter";
 import {
   ALL_FOLDERS_ID,
@@ -41,11 +43,12 @@ import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
 import { buildVirtualRows } from "../lib/virtualGrid";
 import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
-import { SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } from "../shared/fileCapabilities";
+import { isArchive, SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } from "../shared/fileCapabilities";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 
 type ModelGridProps = {
   models: ModelFile[];
+  thumbnailModels?: ModelFile[];
   folderCards: GridFolderCard[];
   scanErrors: Array<{ path: string; message: string }>;
   selectedModelId: string | null;
@@ -77,6 +80,8 @@ type ModelGridProps = {
   fileDragBehavior: FileDragBehavior;
   canNavigateBack: boolean;
   canNavigateForward: boolean;
+  scrollRestoreRequest?: { key: number; top: number } | null;
+  onScrollTopChange?: (top: number) => void;
   onSearchChange: (query: string) => void;
   onVisibleExtensionsChange: (visibleExtensions: ReadonlySet<SupportedFileExtension>) => void;
   onRemoveFolderExclusion: (folderId: string) => void;
@@ -112,6 +117,7 @@ type CollectionItem =
 
 export function ModelGrid({
   models,
+  thumbnailModels = models,
   folderCards,
   scanErrors,
   selectedModelId,
@@ -143,6 +149,8 @@ export function ModelGrid({
   fileDragBehavior,
   canNavigateBack,
   canNavigateForward,
+  scrollRestoreRequest = null,
+  onScrollTopChange = () => undefined,
   onSearchChange,
   onVisibleExtensionsChange,
   onRemoveFolderExclusion,
@@ -173,7 +181,28 @@ export function ModelGrid({
 }: ModelGridProps) {
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  const [thumbnailWarmup, setThumbnailWarmup] = useState<ThumbnailWarmupProgress | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (scrollRestoreRequest && panelRef.current) {
+      panelRef.current.scrollTop = scrollRestoreRequest.top;
+    }
+  }, [scrollRestoreRequest]);
+  useEffect(() => {
+    const supportedThumbnailModels = thumbnailModels.filter((model) => !isArchive(model.extension));
+    if (supportedThumbnailModels.length === 0) {
+      setThumbnailWarmup(null);
+      return;
+    }
+    const warmup = startThumbnailWarmup(
+      supportedThumbnailModels,
+      modelThumbnailService.request,
+      setThumbnailWarmup
+    );
+    return () => {
+      warmup.stop();
+    };
+  }, [thumbnailModels]);
   const advancedFiltersRef = useRef<HTMLDivElement | null>(null);
   const collectionItems = useMemo<CollectionItem[]>(
     () => [
@@ -307,7 +336,12 @@ export function ModelGrid({
   }
 
   return (
-    <section className="library-panel" aria-label="Modelos encontrados" ref={panelRef}>
+    <section
+      className="library-panel"
+      aria-label="Modelos encontrados"
+      ref={panelRef}
+      onScroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
+    >
       <div className="external-drag-mode-cue" aria-hidden="true">
         <Copy size={17} />
         <span>
@@ -414,7 +448,7 @@ export function ModelGrid({
             <Settings size={17} />
           </button>
           <div className="toolbar-statuses">
-            <ThumbnailQueueStatus snapshot={thumbnailDiagnostics} />
+            <ThumbnailQueueStatus snapshot={thumbnailDiagnostics} warmup={thumbnailWarmup} />
             <span
               className={`library-status ${isScanning ? "scanning" : monitorStatus}`}
               title={
