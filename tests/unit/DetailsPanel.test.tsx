@@ -1,11 +1,35 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DetailsPanel } from "../../src/components/DetailsPanel";
 import type { AppSettings, ModelFile } from "../../src/shared/types";
 
-vi.mock("../../src/components/ModelViewer", () => ({ ModelViewer: () => null }));
+vi.mock("../../src/components/ModelViewer", () => ({
+  ModelViewer: ({ model }: { model: ModelFile }) => (
+    <div data-testid="model-viewer">{model.name}</div>
+  )
+}));
 
 describe("DetailsPanel image opening", () => {
+  it("loads and reloads a selected model preview from an explicit panel request", () => {
+    const target = imageModel({ id: "part", name: "part.stl", extension: ".stl" });
+    const props = detailsProps(target);
+    const view = render(<DetailsPanel {...props} previewRequest={null} />);
+    expect(screen.queryByTestId("model-viewer")).toBeNull();
+
+    view.rerender(<DetailsPanel
+      {...props}
+      previewRequest={{ id: 1, modelPath: target.absolutePath }}
+    />);
+    expect(screen.getByTestId("model-viewer").textContent).toBe("part.stl");
+
+    view.rerender(<DetailsPanel
+      {...props}
+      previewRequest={{ id: 2, modelPath: target.absolutePath }}
+    />);
+    expect(screen.getByTestId("model-viewer").textContent).toBe("part.stl");
+  });
+
   it("catches an image-open rejection and shows an actionable message", async () => {
     const onOpenLibraryFile = vi.fn(async () => {
       throw new Error("Aplicativo padrão indisponível");
@@ -197,5 +221,28 @@ function settings(): AppSettings {
     archiveExtractorPath: "",
     defaultSlicerId: null,
     slicers: []
+  };
+}
+
+function detailsProps(model: ModelFile): ComponentProps<typeof DetailsPanel> {
+  return {
+    model,
+    settings: settings(),
+    modelMetadata: null,
+    availableTags: [],
+    launchMessage: null,
+    metadataStatus: { availability: "ready", writable: true, source: "primary", message: null },
+    metadataWritable: true,
+    onOpenSettings: vi.fn(),
+    onLaunchSlicer: vi.fn(),
+    onRenameModelFile: vi.fn(),
+    onShowModelInFolder: vi.fn(),
+    onOpenLibraryFile: vi.fn(),
+    onToggleFavorite: vi.fn(),
+    onSetModelTags: vi.fn(),
+    onSetModelNotes: vi.fn(),
+    onRetryMetadata: vi.fn(),
+    onExtractArchive: vi.fn(),
+    onConvertThreeMfToStl: vi.fn()
   };
 }

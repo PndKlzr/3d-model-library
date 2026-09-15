@@ -15,7 +15,7 @@ import {
   Star,
   Weight
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ModelViewer } from "./ModelViewer";
 import { TagSelector } from "./TagSelector";
 import type {
@@ -37,6 +37,7 @@ import { useI18n } from "../i18n/I18nProvider";
 import { localizeErrorMessage } from "../shared/appError";
 
 type DetailsTab = "info" | "notes" | "actions";
+export type ModelPreviewRequest = { id: number; modelPath: string };
 
 type DetailsPanelProps = {
   model: ModelFile | null;
@@ -46,6 +47,7 @@ type DetailsPanelProps = {
   launchMessage: string | null;
   metadataStatus: LibraryMetadataStatus;
   metadataWritable: boolean;
+  previewRequest?: ModelPreviewRequest | null;
   onOpenSettings: () => void;
   onLaunchSlicer: (slicerId: string, modelPath: string) => Promise<void>;
   onRenameModelFile: () => void;
@@ -70,6 +72,7 @@ export function DetailsPanel({
   launchMessage,
   metadataStatus,
   metadataWritable,
+  previewRequest = null,
   onOpenSettings,
   onLaunchSlicer,
   onRenameModelFile,
@@ -84,6 +87,8 @@ export function DetailsPanel({
 }: DetailsPanelProps) {
   const { locale, t, formatDate } = useI18n();
   const [showPreview, setShowPreview] = useState(false);
+  const [previewRenderKey, setPreviewRenderKey] = useState(0);
+  const handledPreviewRequestRef = useRef<number | null>(null);
   const [activeTab, setActiveTab] = useState<DetailsTab>("info");
   const [notesDraft, setNotesDraft] = useState("");
   const [archiveEntries, setArchiveEntries] = useState<ArchiveEntry[]>([]);
@@ -105,12 +110,28 @@ export function DetailsPanel({
 
   useEffect(() => {
     setShowPreview(false);
+    setPreviewRenderKey(0);
     setActiveTab("info");
     setArchiveEntries([]);
     setArchiveMessage(null);
     setImageOpenMessage(null);
     setConversionProgress(null);
   }, [model?.id]);
+
+  useEffect(() => {
+    if (
+      !model ||
+      !previewRequest ||
+      previewRequest.modelPath !== model.absolutePath ||
+      handledPreviewRequestRef.current === previewRequest.id
+    ) {
+      return;
+    }
+
+    handledPreviewRequestRef.current = previewRequest.id;
+    setPreviewRenderKey(previewRequest.id);
+    setShowPreview(true);
+  }, [model, previewRequest]);
 
   async function openImage(modelPath: string) {
     setImageOpenMessage(null);
@@ -213,7 +234,7 @@ export function DetailsPanel({
             ) : null}
           </div>
         ) : model && showPreview ? (
-          <ModelViewer model={model} />
+          <ModelViewer key={`${model.id}:${previewRenderKey}`} model={model} />
         ) : model ? (
           <div className="preview-placeholder">
             <Eye size={28} />

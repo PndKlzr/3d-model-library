@@ -9,7 +9,7 @@ import {
   localizeErrorMessage,
   localizeOperationMessage
 } from "./shared/appError";
-import { DetailsPanel } from "./components/DetailsPanel";
+import { DetailsPanel, type ModelPreviewRequest } from "./components/DetailsPanel";
 import { DialogHeader } from "./components/DialogHeader";
 import { DialogShell } from "./components/DialogShell";
 import { FirstRun } from "./components/FirstRun";
@@ -228,6 +228,8 @@ function LibraryApp() {
   const [folderHistory, setFolderHistory] = useState(createFolderNavigationHistory);
   const [selectedModel, setSelectedModel] = useState<ModelFile | null>(null);
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(() => new Set());
+  const [modelPreviewRequest, setModelPreviewRequest] = useState<ModelPreviewRequest | null>(null);
+  const modelPreviewRequestIdRef = useRef(0);
   const [lastSelectedModelId, setLastSelectedModelId] = useState<string | null>(null);
   const [lastFocusedItem, setLastFocusedItem] = useState<FocusedLibraryItem>("folder");
   const [draggedModelIds, setDraggedModelIds] = useState<string[]>([]);
@@ -1424,6 +1426,20 @@ function LibraryApp() {
     }
   }
 
+  function loadModelPreviewInPanel(model: ModelFile) {
+    setLastFocusedItem("model");
+    setModelContextMenu(null);
+    setSelectedModel(model);
+    setSelectedModelIds(new Set([model.id]));
+    setLastSelectedModelId(model.id);
+    setResponsivePanel("details");
+    modelPreviewRequestIdRef.current += 1;
+    setModelPreviewRequest({
+      id: modelPreviewRequestIdRef.current,
+      modelPath: model.absolutePath
+    });
+  }
+
   function viewModelFolderInLibrary(model: ModelFile) {
     setModelContextMenu(null);
     setSearchQuery("");
@@ -2161,6 +2177,7 @@ function LibraryApp() {
       />
       <DetailsPanel
         model={selectedModel}
+        previewRequest={modelPreviewRequest}
         settings={settings}
         modelMetadata={
           selectedModel ? libraryMetadata.models[selectedModel.absolutePath] ?? null : null
@@ -2376,7 +2393,7 @@ function LibraryApp() {
               if (isDirectImage(model.extension)) {
                 void openFileByDefault(model);
               } else {
-                openModel(model, { ctrlKey: false, shiftKey: false });
+                loadModelPreviewInPanel(model);
               }
             }}
           >

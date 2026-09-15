@@ -33,6 +33,21 @@ describe("interaction flow contract", () => {
       .toBeLessThan(openFlow!.indexOf("await openModelInDefaultSlicer(model)"));
   });
 
+  it("loads a context-menu preview explicitly and opens the responsive details panel", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const previewFlow = appSource.match(
+      /function loadModelPreviewInPanel[\s\S]*?\n  }/
+    )?.[0];
+
+    expect(previewFlow).toBeTruthy();
+    expect(previewFlow).toContain('setResponsivePanel("details")');
+    expect(previewFlow).toContain("setModelPreviewRequest");
+    expect(appSource).toContain("loadModelPreviewInPanel(model)");
+    expect(appSource).toContain("previewRequest={modelPreviewRequest}");
+    const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+    expect(detailsSource).toContain('key={`${model.id}:${previewRenderKey}`}');
+  });
+
   it("uses an in-app text dialog instead of browser prompts for file operations", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
