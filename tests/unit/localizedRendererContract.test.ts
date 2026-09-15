@@ -20,6 +20,7 @@ const rendererFiles = [
   "src/components/PerformanceDiagnostics.tsx",
   "src/components/ResponsivePanelControls.tsx",
   "src/components/SettingsDialog.tsx",
+  "src/components/SlicerIntegrationList.tsx",
   "src/components/TagSelector.tsx",
   "src/components/TextInputDialog.tsx",
   "src/components/ThumbnailQueueStatus.tsx"

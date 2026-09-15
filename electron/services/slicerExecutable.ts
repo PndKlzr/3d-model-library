@@ -1,5 +1,6 @@
 import { lstat, realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import type { SlicerConfig } from "../../src/shared/types.js";
 
 type SlicerExecutableAdapters = {
   lstat: typeof lstat;
@@ -34,4 +35,18 @@ export async function resolveSlicerExecutable(
   }
 
   return canonicalPath;
+}
+
+export async function inspectConfiguredSlicers(
+  slicers: readonly Pick<SlicerConfig, "id" | "executablePath">[]
+): Promise<string[]> {
+  const results = await Promise.all(slicers.filter((slicer) => slicer.executablePath).map(async (slicer) => {
+    try {
+      await resolveSlicerExecutable(slicer.executablePath);
+      return null;
+    } catch {
+      return slicer.id;
+    }
+  }));
+  return results.filter((id): id is string => id !== null);
 }

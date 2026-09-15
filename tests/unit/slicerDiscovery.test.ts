@@ -104,6 +104,25 @@ HKEY_CURRENT_USER\Software\Broken
     expect(await discoverWindowsSlicers({ platform: "linux", execute })).toEqual([]);
     expect(execute).not.toHaveBeenCalled();
   });
+
+  it("places stronger evidence first when one slicer has multiple installations", async () => {
+    const result = await discoverWindowsSlicers({
+      platform: "win32",
+      execute: async () => "",
+      stat: async () => ({ isFile: () => true }),
+      realpath: async (filePath) => filePath,
+      knownCandidates: [
+        candidate("cura", "C:\\Apps\\old.exe", "known-directory"),
+        candidate("cura", "C:\\Apps\\current.exe", "app-path")
+      ],
+      startMenuCandidates: []
+    });
+
+    expect(result.map((item) => item.executablePath)).toEqual([
+      "C:\\Apps\\current.exe",
+      "C:\\Apps\\old.exe"
+    ]);
+  });
 });
 
 function candidate(

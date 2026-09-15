@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createSettingsMutationQueue } from "../../src/lib/settingsMutationQueue";
 import {
   addCustomSlicer,
+  applyDetectedSlicers,
   removeCustomSlicer,
   renameCustomSlicer,
   setDefaultSlicer,
@@ -147,6 +148,27 @@ describe("settingsMutationQueue", () => {
       defaultSlicerId: null,
       slicers: []
     });
+  });
+
+  it("merges detection without overwriting manual paths or the chosen default", () => {
+    const current = {
+      ...settings(),
+      defaultSlicerId: "cura",
+      slicers: [
+        { id: "cura", name: "Cura", kind: "built-in" as const, builtInKey: "cura" as const,
+          executablePath: "C:\\Manual\\Cura.exe", enabled: true, pathSource: "manual" as const },
+        { id: "orca-slicer", name: "OrcaSlicer", kind: "built-in" as const,
+          builtInKey: "orca-slicer" as const, executablePath: "", enabled: false, pathSource: null }
+      ]
+    };
+    const next = applyDetectedSlicers([
+      { builtInKey: "cura", executablePath: "C:\\Detected\\Cura.exe", evidence: "app-path" },
+      { builtInKey: "orca-slicer", executablePath: "C:\\Detected\\Orca.exe", evidence: "uninstall" }
+    ])(current);
+
+    expect(next.defaultSlicerId).toBe("cura");
+    expect(next.slicers[0]).toMatchObject({ executablePath: "C:\\Manual\\Cura.exe", pathSource: "manual" });
+    expect(next.slicers[1]).toMatchObject({ executablePath: "C:\\Detected\\Orca.exe", pathSource: "detected", enabled: true });
   });
 });
 

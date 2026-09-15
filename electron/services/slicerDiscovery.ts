@@ -137,7 +137,8 @@ export async function discoverWindowsSlicers(
     }
   }
 
-  return mergeSlicerCandidates(validated);
+  return mergeSlicerCandidates(validated).sort((left, right) =>
+    EVIDENCE_PRIORITY[right.evidence] - EVIDENCE_PRIORITY[left.evidence]);
 }
 
 function findDefinition(

@@ -33,6 +33,7 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("saveConvertedStl");
     expect(preloadSource).toContain("chooseArchiveExtractor");
     expect(preloadSource).toContain("detectSlicers");
+    expect(preloadSource).toContain("inspectConfiguredSlicers");
     expect(preloadSource).toContain('ipcRenderer.invoke("slicer:detect")');
     expect(mainSource).toContain('ipcMain.handle("slicer:detect"');
     expect(preloadSource).toContain("startFileDrag");

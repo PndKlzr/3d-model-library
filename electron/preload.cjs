@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   chooseLibraryFolder: () => ipcRenderer.invoke("settings:choose-library-folder"),
   chooseArchiveExtractor: () => ipcRenderer.invoke("settings:choose-archive-extractor"),
   detectSlicers: () => ipcRenderer.invoke("slicer:detect"),
+  inspectConfiguredSlicers: () => ipcRenderer.invoke("slicer:inspect-configured"),
   activateLibrary: (rootPath, monitoring) =>
     ipcRenderer.invoke("library:activate", rootPath, monitoring),
   getCurrentLibrary: () => ipcRenderer.invoke("library:current"),

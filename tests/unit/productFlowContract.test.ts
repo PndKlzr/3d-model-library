@@ -53,7 +53,7 @@ describe("product flow contract", () => {
     expect(appSource).toContain("async function saveSettings(mutation: AppSettingsMutation)");
     expect(appSource).not.toContain("createSettingsPatch");
     expect(settingsSource).toContain("onSaveSettings: (mutation: AppSettingsMutation)");
-    expect(settingsSource).toContain("setSlicerEnabled(slicer.id");
+    expect(settingsSource).toContain("setSlicerEnabled(id, enabled)");
     expect(settingsSource).not.toContain("slicers: settings.slicers.map");
   });
 
@@ -280,6 +280,19 @@ describe("product flow contract", () => {
     expect(appSource).toContain("settings.defaultSlicerId");
     expect(gridSource).toContain("onOpenDefaultFile");
     expect(gridSource).toContain("onDoubleClick");
+  });
+
+  it("connects slicer detection and custom management to the integrations tab", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+
+    expect(appSource).toContain("window.modelLibrary.detectSlicers()");
+    expect(appSource).toContain("applyDetectedSlicers(");
+    expect(appSource).toContain("addCustomSlicer(");
+    expect(appSource).toContain("renameCustomSlicer(");
+    expect(appSource).toContain("removeCustomSlicer(");
+    expect(settingsSource).toContain("<SlicerIntegrationList");
+    expect(settingsSource).toContain("setDefaultSlicer(");
   });
 
   it("wraps the app in an error boundary instead of allowing a blank screen", async () => {

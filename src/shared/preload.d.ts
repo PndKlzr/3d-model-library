@@ -46,6 +46,7 @@ export type ModelLibraryApi = {
   chooseLibraryFolder: () => Promise<string | null>;
   chooseArchiveExtractor: () => Promise<string | null>;
   detectSlicers: () => Promise<SlicerCandidate[]>;
+  inspectConfiguredSlicers: () => Promise<string[]>;
   activateLibrary: (
     rootPath: string | null,
     monitoring: boolean

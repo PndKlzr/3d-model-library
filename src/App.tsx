@@ -75,6 +75,10 @@ import {
   type SettingsMutationQueue
 } from "./lib/settingsMutationQueue";
 import {
+  addCustomSlicer,
+  applyDetectedSlicers,
+  removeCustomSlicer,
+  renameCustomSlicer,
   setSlicerExecutable,
   type AppSettingsMutation
 } from "./lib/settingsMutations";
@@ -210,6 +214,7 @@ function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfigu
 
 function LibraryApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [unavailableSlicerIds, setUnavailableSlicerIds] = useState<string[]>([]);
   const locale = settings?.locale ?? "pt-BR";
   const t = (key: TranslationKey, params?: TranslationParams) =>
     translate(locale, key, params);
@@ -290,6 +295,8 @@ function LibraryApp() {
   const [isScanning, setIsScanning] = useState(false);
   const [monitorStatus, setMonitorStatus] = useState<"active" | "disabled" | "error">("disabled");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDetectingSlicers, setIsDetectingSlicers] = useState(false);
+  const initialSlicerDetectionRef = useRef(false);
   const [responsivePanel, setResponsivePanel] = useState<ResponsivePanel>(null);
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
@@ -331,6 +338,25 @@ function LibraryApp() {
   }, []);
 
   useEffect(() => modelThumbnailService.subscribe(setThumbnailDiagnostics), []);
+
+  useEffect(() => {
+    if (!settings || initialSlicerDetectionRef.current) return;
+    initialSlicerDetectionRef.current = true;
+    void detectInstalledSlicers();
+  }, [settings]);
+
+  useEffect(() => {
+    if (!settings) return;
+    let cancelled = false;
+    void window.modelLibrary.inspectConfiguredSlicers()
+      .then((ids) => {
+        if (!cancelled) setUnavailableSlicerIds(ids);
+      })
+      .catch(() => {
+        if (!cancelled) setUnavailableSlicerIds([]);
+      });
+    return () => { cancelled = true; };
+  }, [settings?.slicers]);
 
   useEffect(() => {
     const longTaskObserver = observeThumbnailLongTasks(modelThumbnailService);
@@ -581,7 +607,7 @@ function LibraryApp() {
       setMetadataStatus(nextStatus);
       setLibraryMetadata(nextMetadata);
       setOperationMessage(
-        nextStatus.availability === "available"
+        nextStatus.availability === "ready"
           ? t("message.metadataReconnected")
           : nextStatus.message
             ? readLocalizedErrorMessage(new Error(nextStatus.message))
@@ -654,6 +680,54 @@ function LibraryApp() {
     }
 
     await saveSettings(setSlicerExecutable(slicerId, executablePath));
+  }
+
+  async function detectInstalledSlicers() {
+    if (isDetectingSlicers) return;
+    setIsDetectingSlicers(true);
+    try {
+      const candidates = await window.modelLibrary.detectSlicers();
+      if (candidates.length > 0) await saveSettings(applyDetectedSlicers(candidates));
+    } catch (error) {
+      setOperationMessage(t("slicer.detectFailed", { detail: readLocalizedErrorMessage(error) }));
+    } finally {
+      setIsDetectingSlicers(false);
+    }
+  }
+
+  async function addSlicerProgram() {
+    const name = await requestTextInput({
+      title: t("slicer.addTitle"), label: t("slicer.customName"),
+      confirmLabel: t("common.continue")
+    });
+    if (!name?.trim()) return;
+    try {
+      const executablePath = await window.modelLibrary.chooseSlicerExecutable();
+      if (executablePath) await saveSettings(addCustomSlicer(name, executablePath));
+    } catch (error) {
+      setOperationMessage(readLocalizedErrorMessage(error));
+    }
+  }
+
+  async function renameSlicerProgram(slicerId: string) {
+    const slicer = settings?.slicers.find((item) => item.id === slicerId);
+    if (!slicer || slicer.kind !== "custom") return;
+    const name = await requestTextInput({
+      title: t("slicer.renameTitle"), label: t("slicer.customName"),
+      initialValue: slicer.name, confirmLabel: t("common.rename")
+    });
+    if (name?.trim()) await saveSettings(renameCustomSlicer(slicerId, name));
+  }
+
+  async function removeSlicerProgram(slicerId: string) {
+    const slicer = settings?.slicers.find((item) => item.id === slicerId);
+    if (!slicer || slicer.kind !== "custom") return;
+    const confirmed = await requestConfirmation({
+      title: t("slicer.removeTitle"),
+      message: t("slicer.removeQuestion", { name: slicer.name }),
+      confirmLabel: t("slicer.remove"), tone: "danger"
+    });
+    if (confirmed) await saveSettings(removeCustomSlicer(slicerId));
   }
 
   async function chooseArchiveExtractor() {
@@ -2111,6 +2185,12 @@ function LibraryApp() {
           onChooseLibraryFolder={chooseFolder}
           onChooseArchiveExtractor={chooseArchiveExtractor}
           onChooseSlicerExecutable={chooseSlicerExecutable}
+          detectingSlicers={isDetectingSlicers}
+          unavailableSlicerIds={unavailableSlicerIds}
+          onDetectSlicers={detectInstalledSlicers}
+          onAddSlicer={addSlicerProgram}
+          onRenameSlicer={renameSlicerProgram}
+          onRemoveSlicer={removeSlicerProgram}
           onAddCatalogTag={addCatalogTag}
           onRemoveCatalogTag={removeCatalogTag}
           themeMode={themeMode}

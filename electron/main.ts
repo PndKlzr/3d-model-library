@@ -69,7 +69,7 @@ import {
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
 import { discoverWindowsSlicers } from "./services/slicerDiscovery.js";
-import { resolveSlicerExecutable } from "./services/slicerExecutable.js";
+import { inspectConfiguredSlicers, resolveSlicerExecutable } from "./services/slicerExecutable.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
 import { createThumbnailCache, type ThumbnailCache } from "./services/thumbnailCache.js";
 import {
@@ -500,6 +500,8 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("slicer:detect", () => discoverWindowsSlicers());
+  ipcMain.handle("slicer:inspect-configured", () =>
+    inspectConfiguredSlicers(settingsStore.getSettings().slicers));
 
   ipcMain.handle("settings:choose-archive-extractor", async () => {
     const result = await dialog.showOpenDialog({

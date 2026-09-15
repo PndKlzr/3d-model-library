@@ -1,4 +1,4 @@
-import type { AppSettings } from "../shared/types";
+import type { AppSettings, SlicerCandidate } from "../shared/types";
 
 export type AppSettingsMutation = (current: AppSettings) => AppSettings;
 
@@ -79,4 +79,18 @@ export function removeCustomSlicer(slicerId: string): AppSettingsMutation {
       slicers: current.slicers.filter((slicer) => slicer.id !== slicerId)
     };
   };
+}
+
+export function applyDetectedSlicers(candidates: readonly SlicerCandidate[]): AppSettingsMutation {
+  return (current) => ({
+    ...current,
+    slicers: current.slicers.map((slicer) => {
+      if (slicer.kind !== "built-in" || slicer.pathSource === "manual") return slicer;
+      const candidate = candidates.find((item) => item.builtInKey === slicer.builtInKey);
+      return candidate
+        ? { ...slicer, executablePath: candidate.executablePath, enabled: true,
+            pathSource: "detected" as const }
+        : slicer;
+    })
+  });
 }

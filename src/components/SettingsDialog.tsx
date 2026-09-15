@@ -1,4 +1,4 @@
-import { Activity, Archive, FolderOpen, Plug, Settings, Tags } from "lucide-react";
+import { Activity, Archive, FolderOpen, Plug, Tags } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { DialogHeader } from "./DialogHeader";
 import { DialogShell } from "./DialogShell";
@@ -6,11 +6,13 @@ import type { ThemeMode } from "../lib/viewPreferences";
 import type { AppSettings, SlicerConfig } from "../shared/types";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 import {
+  setDefaultSlicer,
   setSlicerEnabled,
   type AppSettingsMutation
 } from "../lib/settingsMutations";
 import { PerformanceDiagnostics } from "./PerformanceDiagnostics";
 import { useI18n } from "../i18n/I18nProvider";
+import { SlicerIntegrationList } from "./SlicerIntegrationList";
 
 type SettingsDialogProps = {
   settings: AppSettings;
@@ -23,6 +25,12 @@ type SettingsDialogProps = {
   onChooseLibraryFolder: () => Promise<void>;
   onChooseArchiveExtractor: () => Promise<void>;
   onChooseSlicerExecutable: (slicerId: SlicerConfig["id"]) => Promise<void>;
+  detectingSlicers: boolean;
+  unavailableSlicerIds: string[];
+  onDetectSlicers: () => Promise<void>;
+  onAddSlicer: () => Promise<void>;
+  onRenameSlicer: (slicerId: string) => Promise<void>;
+  onRemoveSlicer: (slicerId: string) => Promise<void>;
   onAddCatalogTag: () => Promise<void>;
   onRemoveCatalogTag: (tag: string) => Promise<void>;
   themeMode: ThemeMode;
@@ -42,16 +50,33 @@ export function SettingsDialog({
   onChooseLibraryFolder,
   onChooseArchiveExtractor,
   onChooseSlicerExecutable,
+  detectingSlicers,
+  unavailableSlicerIds,
+  onDetectSlicers,
+  onAddSlicer,
+  onRenameSlicer,
+  onRemoveSlicer,
   onAddCatalogTag,
   onRemoveCatalogTag,
   themeMode,
   onThemeModeChange
 }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("library");
+  const [openSlicerMenuId, setOpenSlicerMenuId] = useState<string | null>(null);
   const { t } = useI18n();
 
+  const cancelSettings = () => {
+    if (openSlicerMenuId) setOpenSlicerMenuId(null);
+    else onClose();
+  };
+
+  const selectTab = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    setOpenSlicerMenuId(null);
+  };
+
   return (
-    <DialogShell className="settings-dialog" title={t("common.settings")} onCancel={onClose}>
+    <DialogShell className="settings-dialog" title={t("common.settings")} onCancel={cancelSettings}>
       <DialogHeader
         eyebrow={t("common.settings")}
         title={t("settings.title")}
@@ -63,25 +88,25 @@ export function SettingsDialog({
           active={activeTab === "library"}
           icon={<FolderOpen size={16} />}
           label={t("settings.tabLibrary")}
-          onClick={() => setActiveTab("library")}
+          onClick={() => selectTab("library")}
         />
         <SettingsTabButton
           active={activeTab === "organization"}
           icon={<Tags size={16} />}
           label={t("settings.tabOrganization")}
-          onClick={() => setActiveTab("organization")}
+          onClick={() => selectTab("organization")}
         />
         <SettingsTabButton
           active={activeTab === "integrations"}
           icon={<Plug size={16} />}
           label={t("settings.tabIntegrations")}
-          onClick={() => setActiveTab("integrations")}
+          onClick={() => selectTab("integrations")}
         />
         <SettingsTabButton
           active={activeTab === "diagnostics"}
           icon={<Activity size={16} />}
           label={t("settings.tabPerformance")}
-          onClick={() => setActiveTab("diagnostics")}
+          onClick={() => selectTab("diagnostics")}
         />
       </nav>
 
@@ -114,6 +139,14 @@ export function SettingsDialog({
             onSaveSettings={onSaveSettings}
             onChooseArchiveExtractor={onChooseArchiveExtractor}
             onChooseSlicerExecutable={onChooseSlicerExecutable}
+            detectingSlicers={detectingSlicers}
+            unavailableSlicerIds={unavailableSlicerIds}
+            openSlicerMenuId={openSlicerMenuId}
+            onOpenSlicerMenuChange={setOpenSlicerMenuId}
+            onDetectSlicers={onDetectSlicers}
+            onAddSlicer={onAddSlicer}
+            onRenameSlicer={onRenameSlicer}
+            onRemoveSlicer={onRemoveSlicer}
           />
         ) : null}
 
@@ -321,11 +354,24 @@ function IntegrationSettings({
   settings,
   onSaveSettings,
   onChooseArchiveExtractor,
-  onChooseSlicerExecutable
+  onChooseSlicerExecutable,
+  detectingSlicers,
+  unavailableSlicerIds,
+  openSlicerMenuId,
+  onOpenSlicerMenuChange,
+  onDetectSlicers,
+  onAddSlicer,
+  onRenameSlicer,
+  onRemoveSlicer
 }: Pick<
   SettingsDialogProps,
   "settings" | "onSaveSettings" | "onChooseArchiveExtractor" | "onChooseSlicerExecutable"
->) {
+  | "detectingSlicers" | "unavailableSlicerIds"
+  | "onDetectSlicers" | "onAddSlicer" | "onRenameSlicer" | "onRemoveSlicer"
+> & {
+  openSlicerMenuId: string | null;
+  onOpenSlicerMenuChange: (id: string | null) => void;
+}) {
   const { t } = useI18n();
   return (
     <>
@@ -334,43 +380,21 @@ function IntegrationSettings({
           title={t("settings.slicers")}
           description={t("settings.slicersDescription")}
         />
-        <div className="slicer-list">
-          {settings.slicers.map((slicer) => (
-            <div className="slicer-row" key={slicer.id}>
-              <Settings size={17} />
-              <div>
-                <strong>{slicer.name}</strong>
-                <span>{slicer.executablePath || t("settings.slicerNotConfigured")}</span>
-              </div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={slicer.enabled}
-                  onChange={(event) => {
-                    const enabled = event.currentTarget.checked;
-                    void onSaveSettings(setSlicerEnabled(slicer.id, enabled));
-                  }}
-                />
-                {t("common.active")}
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="default-slicer"
-                  checked={settings.defaultSlicerId === slicer.id}
-                  onChange={() => onSaveSettings((current) => ({
-                    ...current,
-                    defaultSlicerId: slicer.id
-                  }))}
-                />
-                {t("common.default")}
-              </label>
-              <button type="button" onClick={() => onChooseSlicerExecutable(slicer.id)}>
-                {t("settings.chooseExe")}
-              </button>
-            </div>
-          ))}
-        </div>
+        <SlicerIntegrationList
+          slicers={settings.slicers}
+          defaultSlicerId={settings.defaultSlicerId}
+          detecting={detectingSlicers}
+          unavailableSlicerIds={unavailableSlicerIds}
+          openMenuId={openSlicerMenuId}
+          onOpenMenuChange={onOpenSlicerMenuChange}
+          onDetect={() => void onDetectSlicers()}
+          onAdd={() => void onAddSlicer()}
+          onEnable={(id, enabled) => void onSaveSettings(setSlicerEnabled(id, enabled))}
+          onDefault={(id) => void onSaveSettings(setDefaultSlicer(id))}
+          onChooseExecutable={(id) => void onChooseSlicerExecutable(id)}
+          onRename={(id) => void onRenameSlicer(id)}
+          onRemove={(id) => void onRemoveSlicer(id)}
+        />
       </section>
 
       <section className="settings-section">

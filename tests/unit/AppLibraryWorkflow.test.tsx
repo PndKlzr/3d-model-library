@@ -153,6 +153,8 @@ function installApi(options: { activationB?: Promise<LibraryActivationResult> } 
   const api = {
     getThumbnailBenchmark: vi.fn(async () => null),
     getSettings: vi.fn(async () => settings),
+    detectSlicers: vi.fn(async () => []),
+    inspectConfiguredSlicers: vi.fn(async () => []),
     saveSettings: vi.fn(async (next: AppSettings) => next),
     chooseLibraryFolder: vi.fn(async () => B.rootPath),
     activateLibrary,

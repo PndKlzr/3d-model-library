@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveSlicerExecutable } from "../../electron/services/slicerExecutable";
+import { inspectConfiguredSlicers, resolveSlicerExecutable } from "../../electron/services/slicerExecutable";
 
 let tempRoot: string;
 
@@ -46,5 +46,19 @@ describe("resolveSlicerExecutable", () => {
     await writeFile(executable, "test executable");
 
     await expect(resolveSlicerExecutable(executable)).resolves.toBe(await realpath(executable));
+  });
+});
+
+describe("inspectConfiguredSlicers", () => {
+  it("returns only ids whose configured executable has disappeared", async () => {
+    const existingPath = path.join(tempRoot, "Cura.exe");
+    await writeFile(existingPath, "exe");
+    const missingPath = path.join(tempRoot, "Orca.exe");
+
+    expect(await inspectConfiguredSlicers([
+      { id: "cura", executablePath: existingPath },
+      { id: "orca-slicer", executablePath: missingPath },
+      { id: "prusa-slicer", executablePath: "" }
+    ])).toEqual(["orca-slicer"]);
   });
 });
