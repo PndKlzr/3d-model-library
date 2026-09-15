@@ -109,6 +109,8 @@ export function createModelThumbnailService(
       entry.resolve(null);
     }
     pipelineEntries.clear();
+    peakRetainedResults = 0;
+    diagnostics.reset();
     publishDiagnostics();
   }
 

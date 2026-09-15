@@ -35,6 +35,21 @@ describe("library image access", () => {
       .resolves.toBe(`data:${mime};base64,${bytes.toString("base64")}`);
   });
 
+  it("passes the verified WebP extension to the platform decoder", async () => {
+    const root = await tempLibrary();
+    const filePath = path.join(root, "photo.webp");
+    await writeFile(filePath, Buffer.from(webpHeader()));
+    const current = currentSession(root);
+    const decodeImage = vi.fn(() => true);
+
+    await readLibraryImageDataUrl(current.value, filePath, {
+      ...access(current),
+      decodeImage
+    });
+
+    expect(decodeImage).toHaveBeenCalledWith(expect.anything(), ".webp");
+  });
+
   it.each([
     ["photo.jpg", jpegHeader()],
     ["photo.jpeg", jpegHeader()]

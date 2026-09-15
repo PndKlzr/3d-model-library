@@ -19,7 +19,7 @@ type ImageFileSystem = {
 
 export type LibraryImageAccess = {
   getCurrentSession: () => LibrarySessionRef | null;
-  decodeImage: (bytes: Uint8Array) => boolean;
+  decodeImage: (bytes: Uint8Array, extension: SupportedFileExtension) => boolean;
   openPath: (value: string) => Promise<string>;
   fileSystem?: ImageFileSystem;
 };
@@ -67,7 +67,7 @@ export async function readLibraryImageDataUrl(
       throw new Error("O formato real da imagem não corresponde à extensão do arquivo.");
     }
 
-    if (!access.decodeImage(bytes)) {
+    if (!access.decodeImage(bytes, image.extension)) {
       throw new Error("A imagem está corrompida ou não pôde ser decodificada.");
     }
   } finally {

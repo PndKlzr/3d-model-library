@@ -13,6 +13,25 @@ const WEBP = "data:image/webp;base64,UklGRgAAAABXRUJQ";
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 
 describe("modelThumbnailService", () => {
+  it("starts fresh diagnostics when the active library changes", async () => {
+    const service = createModelThumbnailService(dependencies());
+    service.beginLibrarySession(librarySession("library-a", 1));
+    await service.request(model(), "visible").promise;
+    service.recordLongTask(125);
+
+    service.beginLibrarySession(librarySession("library-b", 2, "D:\\Models"));
+
+    expect(service.getDiagnostics()).toMatchObject({
+      cacheHits: 0,
+      cacheMisses: 0,
+      renders: 0,
+      failures: 0,
+      failuresByExtension: {},
+      longTasks: { count: 0, maximumMs: 0 },
+      durationMs: { total: { count: 0 } }
+    });
+  });
+
   it("resolves queued requests from the previous library to null", async () => {
     const service = createModelThumbnailService(dependencies());
     service.beginLibrarySession(librarySession("library-a", 1));

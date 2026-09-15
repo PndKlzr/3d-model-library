@@ -822,7 +822,7 @@ function requireLibraryPath(): string {
 function createLibraryImageAccess() {
   return {
     getCurrentSession: () => activeLibrarySession?.current() ?? null,
-    decodeImage: (bytes: Uint8Array) =>
+    decodeImage: (bytes: Uint8Array, extension: string) => extension === ".webp" ||
       !nativeImage.createFromBuffer(Buffer.from(bytes)).isEmpty(),
     openPath: (targetPath: string) => shell.openPath(targetPath)
   };
