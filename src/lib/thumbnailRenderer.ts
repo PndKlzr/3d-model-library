@@ -12,6 +12,20 @@ let sharedRenderer: THREE.WebGLRenderer | null = null;
 
 export function renderThumbnail(extension: ModelFile["extension"], modelBytes: ArrayBuffer) {
   const renderer = getSharedRenderer();
+  try {
+    renderThumbnailScene(renderer, extension, modelBytes);
+    return renderer.domElement.toDataURL("image/webp", 0.78);
+  } catch (error) {
+    resetSharedRenderer();
+    throw error;
+  }
+}
+
+export function renderThumbnailScene(
+  renderer: THREE.WebGLRenderer,
+  extension: ModelFile["extension"],
+  modelBytes: ArrayBuffer
+) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, THUMBNAIL_WIDTH / THUMBNAIL_HEIGHT, 0.1, 10000);
 
@@ -35,10 +49,6 @@ export function renderThumbnail(extension: ModelFile["extension"], modelBytes: A
     scene.add(grid);
 
     renderer.render(scene, camera);
-    return renderer.domElement.toDataURL("image/webp", 0.78);
-  } catch (error) {
-    resetSharedRenderer();
-    throw error;
   } finally {
     disposeObjectResources(scene);
     scene.clear();

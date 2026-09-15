@@ -432,6 +432,45 @@ describe("modelThumbnailService", () => {
       .resolves.toBe(WEBP);
   });
 
+  it("uses a Worker result without rendering geometry on the UI thread", async () => {
+    const workerResult = "data:image/webp;base64,V09SS0VS";
+    const renderThumbnail = vi.fn(() => WEBP);
+    const renderThumbnailInWorker = vi.fn(async () => workerResult);
+    const service = createModelThumbnailService(dependencies({
+      renderThumbnail,
+      renderThumbnailInWorker
+    }));
+
+    await expect(service.request(model(), "visible").promise).resolves.toBe(workerResult);
+    expect(renderThumbnailInWorker).toHaveBeenCalledWith(".stl", expect.any(ArrayBuffer));
+    expect(renderThumbnail).not.toHaveBeenCalled();
+  });
+
+  it("uses the current renderer only when the Worker is unavailable", async () => {
+    const renderThumbnail = vi.fn(() => WEBP);
+    const renderThumbnailInWorker = vi.fn(async () => null);
+    const service = createModelThumbnailService(dependencies({
+      renderThumbnail,
+      renderThumbnailInWorker
+    }));
+
+    await expect(service.request(model(), "visible").promise).resolves.toBe(WEBP);
+    expect(renderThumbnailInWorker).toHaveBeenCalledOnce();
+    expect(renderThumbnail).toHaveBeenCalledOnce();
+  });
+
+  it("does not repeat an invalid Worker model on the UI thread", async () => {
+    const renderThumbnail = vi.fn(() => WEBP);
+    const service = createModelThumbnailService(dependencies({
+      renderThumbnail,
+      renderThumbnailInWorker: async () => { throw new Error("bad model"); }
+    }));
+
+    await expect(service.request(model(), "visible").promise).resolves.toBeNull();
+    expect(renderThumbnail).not.toHaveBeenCalled();
+    expect(service.getDiagnostics().failures).toBe(1);
+  });
+
   it("bypasses both queues for archive models", async () => {
     const readCachedThumbnail = vi.fn(async () => WEBP);
     const service = createModelThumbnailService(dependencies({ readCachedThumbnail }));
@@ -626,6 +665,7 @@ function dependencies(
     writeCachedThumbnail: async () => undefined,
     compactImageThumbnail: async (dataUrl) => dataUrl,
     renderThumbnail: () => WEBP,
+    renderThumbnailInWorker: async () => null,
     yieldBeforeRender: async () => undefined,
     ...overrides
   };

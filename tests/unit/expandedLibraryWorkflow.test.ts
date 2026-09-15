@@ -331,6 +331,7 @@ function thumbnailDependencies(
     readModelFile: async () => new ArrayBuffer(0),
     writeCachedThumbnail: async () => undefined,
     renderThumbnail: () => "data:image/webp;base64,AA==",
+    renderThumbnailInWorker: async () => null,
     compactImageThumbnail: async (dataUrl) => dataUrl,
     yieldBeforeRender: async () => undefined,
     ...overrides

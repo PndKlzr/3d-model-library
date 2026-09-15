@@ -10,6 +10,7 @@ import { THUMBNAIL_RENDER_VERSION } from "../shared/thumbnailVersion";
 import type { LibrarySessionRef, ModelFile } from "../shared/types";
 import { isArchive, isDirectImage } from "../shared/fileCapabilities";
 import { compactImageThumbnail } from "./imageThumbnail";
+import { thumbnailWorkerClient } from "./thumbnailWorkerClient";
 
 export type { ThumbnailPriority } from "./thumbnailScheduler";
 
@@ -25,6 +26,7 @@ export type ModelThumbnailServiceDependencies = {
     sessionKey: string
   ) => Promise<void>;
   renderThumbnail: typeof renderThumbnail;
+  renderThumbnailInWorker: typeof thumbnailWorkerClient.render;
   compactImageThumbnail: typeof compactImageThumbnail;
   yieldBeforeRender: () => Promise<void>;
 };
@@ -263,7 +265,11 @@ export function createModelThumbnailService(
           ? await dependencies.readObjPreviewFile(entry.session, entry.model.absolutePath)
           : await dependencies.readModelFile(entry.model.absolutePath);
         if (!isEntryCurrent(entry)) return undefined;
-        const thumbnail = dependencies.renderThumbnail(entry.model.extension, modelBytes);
+        const workerThumbnail = await dependencies.renderThumbnailInWorker(
+          entry.model.extension,
+          modelBytes
+        );
+        const thumbnail = workerThumbnail ?? dependencies.renderThumbnail(entry.model.extension, modelBytes);
         return isEntryCurrent(entry) ? thumbnail : undefined;
       }
     );
@@ -403,6 +409,7 @@ export const modelThumbnailService = createModelThumbnailService({
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     window.modelLibrary.writeCachedThumbnail(model, dataUrl, sessionKey),
   renderThumbnail,
+  renderThumbnailInWorker: thumbnailWorkerClient.render,
   compactImageThumbnail,
   yieldBeforeRender: yieldBeforeThumbnailRender
 });
