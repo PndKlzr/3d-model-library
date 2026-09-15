@@ -11,6 +11,20 @@ export type SlicerConfig = {
   pathSource: "detected" | "manual" | null;
 };
 
+export type SlicerEvidence =
+  | "app-path"
+  | "uninstall"
+  | "association"
+  | "start-menu"
+  | "known-directory";
+
+export type SlicerCandidate = {
+  builtInKey: BuiltInSlicerKey;
+  executablePath: string;
+  version?: string;
+  evidence: SlicerEvidence;
+};
+
 export type FileDragBehavior = "organize-default" | "external-default";
 export type AppLocale = "pt-BR" | "en";
 

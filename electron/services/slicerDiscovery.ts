@@ -7,20 +7,12 @@ import {
   type BuiltInSlicerDefinition,
   type BuiltInSlicerKey
 } from "../../src/shared/slicerCatalog.js";
+import type {
+  SlicerCandidate,
+  SlicerEvidence
+} from "../../src/shared/types.js";
 
-export type SlicerEvidence =
-  | "app-path"
-  | "uninstall"
-  | "association"
-  | "start-menu"
-  | "known-directory";
-
-export type SlicerCandidate = {
-  builtInKey: BuiltInSlicerKey;
-  executablePath: string;
-  version?: string;
-  evidence: SlicerEvidence;
-};
+export type { SlicerCandidate, SlicerEvidence } from "../../src/shared/types.js";
 
 type FileStat = { isFile: () => boolean };
 

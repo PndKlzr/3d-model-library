@@ -17,7 +17,8 @@ import type {
   ModelHashResult,
   ModelFile,
   ThumbnailSignature,
-  SlicerLaunchResult
+  SlicerLaunchResult,
+  SlicerCandidate
 } from "./types";
 import type {
   ThumbnailBenchmarkReport,
@@ -44,6 +45,7 @@ export type ModelLibraryApi = {
   saveSettings: (settings: AppSettings) => Promise<AppSettings>;
   chooseLibraryFolder: () => Promise<string | null>;
   chooseArchiveExtractor: () => Promise<string | null>;
+  detectSlicers: () => Promise<SlicerCandidate[]>;
   activateLibrary: (
     rootPath: string | null,
     monitoring: boolean

@@ -22,7 +22,8 @@ import type {
   FileOperationResult,
   FileRestorePair,
   LibrarySessionRef,
-  ModelHashInput
+  ModelHashInput,
+  SlicerConfig
 } from "../src/shared/types.js";
 import {
   canSendToSlicer,
@@ -67,6 +68,8 @@ import {
 } from "./services/fileDrag.js";
 import { createElectronSettingsStore, type SettingsStore } from "./services/settingsStore.js";
 import { launchSlicer } from "./services/slicerLauncher.js";
+import { discoverWindowsSlicers } from "./services/slicerDiscovery.js";
+import { resolveSlicerExecutable } from "./services/slicerExecutable.js";
 import { createElectronModelHashStore, type ModelHashStore } from "./services/modelHashStore.js";
 import { createThumbnailCache, type ThumbnailCache } from "./services/thumbnailCache.js";
 import {
@@ -167,19 +170,20 @@ function registerIpcHandlers() {
 
   ipcMain.handle("settings:save", async (_event, settings: AppSettings) => {
     const previousSettings = settingsStore.getSettings();
+    const validatedSettings = await validateChangedSlicerExecutables(previousSettings, settings);
     const currentSession = activeLibrarySession!.current();
-    const libraryChanged = !sameOptionalPath(previousSettings.libraryPath, settings.libraryPath);
+    const libraryChanged = !sameOptionalPath(previousSettings.libraryPath, validatedSettings.libraryPath);
 
-    if (libraryChanged && !sameOptionalPath(currentSession?.rootPath ?? null, settings.libraryPath)) {
-      await activeLibrarySession!.activate(settings.libraryPath, settings.monitorLibrary);
+    if (libraryChanged && !sameOptionalPath(currentSession?.rootPath ?? null, validatedSettings.libraryPath)) {
+      await activeLibrarySession!.activate(validatedSettings.libraryPath, validatedSettings.monitorLibrary);
     } else if (
       currentSession &&
-      previousSettings.monitorLibrary !== settings.monitorLibrary
+      previousSettings.monitorLibrary !== validatedSettings.monitorLibrary
     ) {
-      await activeLibrarySession!.setMonitoring(currentSession, settings.monitorLibrary);
+      await activeLibrarySession!.setMonitoring(currentSession, validatedSettings.monitorLibrary);
     }
 
-    return settingsStore.saveSettings(settings);
+    return settingsStore.saveSettings(validatedSettings);
   });
 
   ipcMain.handle("settings:choose-library-folder", async () => {
@@ -492,8 +496,10 @@ function registerIpcHandlers() {
       properties: ["openFile"]
     });
 
-    return result.canceled ? null : result.filePaths[0];
+    return result.canceled ? null : resolveSlicerExecutable(result.filePaths[0]);
   });
+
+  ipcMain.handle("slicer:detect", () => discoverWindowsSlicers());
 
   ipcMain.handle("settings:choose-archive-extractor", async () => {
     const result = await dialog.showOpenDialog({
@@ -552,6 +558,31 @@ function registerIpcHandlers() {
     const buffer = await readFile(absolutePath);
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   });
+}
+
+async function validateChangedSlicerExecutables(
+  previousSettings: AppSettings,
+  nextSettings: AppSettings
+): Promise<AppSettings> {
+  const previousById = new Map(previousSettings.slicers.map((slicer) => [slicer.id, slicer]));
+  const slicers = await Promise.all(nextSettings.slicers.map(async (slicer): Promise<SlicerConfig> => {
+    if (!slicer.executablePath) {
+      return { ...slicer, pathSource: null };
+    }
+
+    const previous = previousById.get(slicer.id);
+    if (previous && sameOptionalPath(previous.executablePath, slicer.executablePath)) {
+      return slicer;
+    }
+
+    return {
+      ...slicer,
+      executablePath: await resolveSlicerExecutable(slicer.executablePath),
+      pathSource: slicer.pathSource ?? "manual"
+    };
+  }));
+
+  return { ...nextSettings, slicers };
 }
 
 function registerBenchmarkIpcHandlers(

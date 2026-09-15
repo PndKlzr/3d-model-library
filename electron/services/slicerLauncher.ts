@@ -2,13 +2,16 @@ import { access } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import type { SlicerConfig, SlicerLaunchResult } from "../../src/shared/types.js";
+import { resolveSlicerExecutable } from "./slicerExecutable.js";
 
 type SpawnProcess = typeof spawn;
+type ResolveExecutable = (candidatePath: string) => Promise<string>;
 
 export async function launchSlicer(
   slicer: SlicerConfig,
   modelPaths: string | string[],
-  spawnProcess: SpawnProcess = spawn
+  spawnProcess: SpawnProcess = spawn,
+  resolveExecutable: ResolveExecutable = resolveSlicerExecutable
 ): Promise<SlicerLaunchResult> {
   if (!slicer.enabled) {
     return {
@@ -24,9 +27,10 @@ export async function launchSlicer(
     };
   }
 
-  const executableExists = await pathExists(slicer.executablePath);
-
-  if (!executableExists) {
+  let executablePath: string;
+  try {
+    executablePath = await resolveExecutable(slicer.executablePath);
+  } catch {
     return {
       ok: false,
       message: `O executável do ${slicer.name} não foi encontrado.`
@@ -51,7 +55,7 @@ export async function launchSlicer(
     };
   }
 
-  const child = spawnProcess(slicer.executablePath, launchPaths, {
+  const child = spawnProcess(executablePath, launchPaths, {
     detached: true,
     stdio: "ignore"
   });

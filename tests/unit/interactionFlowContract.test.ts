@@ -420,9 +420,12 @@ describe("interaction flow contract", () => {
     )?.[0];
 
     expect(saveHandler).toBeTruthy();
-    expect(saveHandler?.indexOf("activeLibrarySession.activate(")).toBeLessThan(
-      saveHandler?.indexOf("settingsStore.saveSettings(settings)") ?? -1
-    );
+    const validationIndex = saveHandler?.indexOf("validateChangedSlicerExecutables(") ?? -1;
+    const activationIndex = saveHandler?.indexOf("activeLibrarySession!.activate(") ?? -1;
+    const saveIndex = saveHandler?.indexOf("settingsStore.saveSettings(validatedSettings)") ?? -1;
+    expect(validationIndex).toBeGreaterThanOrEqual(0);
+    expect(activationIndex).toBeGreaterThan(validationIndex);
+    expect(saveIndex).toBeGreaterThan(activationIndex);
   });
 
   it("awaits portable metadata updates after move, rename, restore, and slicer launch", async () => {
