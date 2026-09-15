@@ -93,9 +93,9 @@ describe("product flow contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 
-    expect(gridSource).toContain("Atualizando biblioteca...");
-    expect(gridSource).toContain("Monitoramento ativo");
-    expect(gridSource).toContain("Atualização manual");
+    expect(gridSource).toContain('t("library.updatingProgress")');
+    expect(gridSource).toContain('t("library.monitoring")');
+    expect(gridSource).toContain('t("library.manual")');
     expect(appSource).toContain("monitorStatus");
     expect(appSource).toContain("Use o botão Atualizar");
   });

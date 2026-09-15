@@ -113,8 +113,8 @@ describe("interaction flow contract", () => {
 
     expect(gridSource).toContain("drag-behavior-toggle");
     expect(gridSource).toContain("onFileDragBehaviorChange");
-    expect(gridSource).toContain("Organizar na biblioteca");
-    expect(gridSource).toContain("Enviar para outro programa");
+    expect(gridSource).toContain('t("library.organize")');
+    expect(gridSource).toContain('t("library.external")');
     expect(appSource).toContain("updateFileDragBehavior");
     expect(appSource).toContain("onFileDragBehaviorChange={updateFileDragBehavior}");
     expect(stylesSource).toMatch(/\.library-sticky-header\s*\{[\s\S]*?position:\s*sticky;/);
@@ -139,7 +139,7 @@ describe("interaction flow contract", () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
     const stylesSource = await readFile("src/styles.css", "utf8");
 
-    expect(gridSource).toContain("Limpar busca");
+    expect(gridSource).toContain('t("library.clearSearch")');
     expect(gridSource).toContain("onSearchChange(\"\")");
     expect(gridSource).toContain("search-clear-button");
     expect(stylesSource).toContain(".search-clear-button");

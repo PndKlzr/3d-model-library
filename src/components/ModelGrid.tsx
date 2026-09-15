@@ -47,6 +47,7 @@ import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/t
 import { isArchive, SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } from "../shared/fileCapabilities";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 import type { ResponsivePanel } from "../lib/responsivePanels";
+import { useI18n } from "../i18n/I18nProvider";
 
 type ModelGridProps = {
   models: ModelFile[];
@@ -189,6 +190,7 @@ export function ModelGrid({
   onToggleFolders,
   onToggleDetails
 }: ModelGridProps) {
+  const { t } = useI18n();
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
   const [thumbnailWarmup, setThumbnailWarmup] = useState<ThumbnailWarmupProgress | null>(null);
@@ -348,7 +350,7 @@ export function ModelGrid({
   return (
     <section
       className="library-panel"
-      aria-label="Modelos encontrados"
+      aria-label={t("library.region")}
       ref={panelRef}
       onScroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
     >
@@ -369,16 +371,16 @@ export function ModelGrid({
       <div className="library-sticky-header">
       <header className="toolbar">
         <div className="library-heading">
-          <p className="eyebrow">STL / 3MF</p>
-          <h2>Sua biblioteca visual</h2>
-          <div className="breadcrumb-row" aria-label="Caminho da pasta">
+          <p className="eyebrow">{t("library.eyebrow")}</p>
+          <h2>{t("library.title")}</h2>
+          <div className="breadcrumb-row" aria-label={t("library.folderPath")}>
             <button
               className="icon-only small-icon"
               type="button"
               onClick={onNavigateBack}
               disabled={!canNavigateBack}
-              aria-label="Voltar pasta"
-              title="Voltar"
+              aria-label={t("library.backFolder")}
+              title={t("navigation.back")}
             >
               <ChevronLeft size={15} />
             </button>
@@ -387,8 +389,8 @@ export function ModelGrid({
               type="button"
               onClick={onNavigateForward}
               disabled={!canNavigateForward}
-              aria-label="Avançar pasta"
-              title="Avançar"
+              aria-label={t("library.forwardFolder")}
+              title={t("navigation.forward")}
             >
               <ChevronRight size={15} />
             </button>
@@ -409,37 +411,37 @@ export function ModelGrid({
             onToggleFolders={onToggleFolders}
             onToggleDetails={onToggleDetails}
           />
-          <div className="drag-behavior-toggle" role="group" aria-label="Modo de arraste">
+          <div className="drag-behavior-toggle" role="group" aria-label={t("library.dragMode")}>
             <button
               className={fileDragBehavior === "organize-default" ? "active" : ""}
               type="button"
               onClick={() => onFileDragBehaviorChange("organize-default")}
               aria-pressed={fileDragBehavior === "organize-default"}
-              aria-label="Organizar na biblioteca"
-              title="Arraste para pastas. Ctrl + arraste envia para outro programa."
+              aria-label={t("library.organize")}
+              title={t("library.organizeHelp")}
             >
               <FolderInput size={15} />
-              Pasta
+              {t("navigation.folders")}
             </button>
             <button
               className={fileDragBehavior === "external-default" ? "active" : ""}
               type="button"
               onClick={() => onFileDragBehaviorChange("external-default")}
               aria-pressed={fileDragBehavior === "external-default"}
-              aria-label="Enviar para outro programa"
-              title="Arraste para Cura, Creality ou Explorer. Shift + arraste organiza."
+              aria-label={t("library.external")}
+              title={t("library.externalHelp")}
             >
               <Copy size={15} />
-              Externo
+              {t("library.externalShort")}
             </button>
           </div>
-          <div className="view-mode-toggle" role="group" aria-label="Modo de visualizacao">
+          <div className="view-mode-toggle" role="group" aria-label={t("library.viewMode")}>
             <button
               className={viewMode === "grid" ? "active" : ""}
               type="button"
               onClick={() => onViewModeChange("grid")}
-              aria-label="Ver em grade"
-              title="Grade"
+              aria-label={t("library.grid")}
+              title={t("library.grid")}
             >
               <LayoutGrid size={16} />
             </button>
@@ -447,8 +449,8 @@ export function ModelGrid({
               className={viewMode === "list" ? "active" : ""}
               type="button"
               onClick={() => onViewModeChange("list")}
-              aria-label="Ver em lista"
-              title="Lista"
+              aria-label={t("library.list")}
+              title={t("library.list")}
             >
               <List size={16} />
             </button>
@@ -457,8 +459,8 @@ export function ModelGrid({
             className="icon-only"
             type="button"
             onClick={onOpenSettings}
-            aria-label="Configurações"
-            title="Configurações"
+            aria-label={t("common.settings")}
+            title={t("common.settings")}
           >
             <Settings size={17} />
           </button>
@@ -468,18 +470,18 @@ export function ModelGrid({
               className={`library-status ${isScanning ? "scanning" : monitorStatus}`}
               title={
                 isScanning
-                  ? "Atualizando biblioteca"
+                  ? t("library.updating")
                   : monitorStatus === "active"
-                    ? "Monitoramento ativo"
-                    : "Atualização manual"
+                    ? t("library.monitoring")
+                    : t("library.manual")
               }
             >
               <i aria-hidden="true" />
               {isScanning
-                ? "Atualizando biblioteca..."
+                ? t("library.updatingProgress")
                 : monitorStatus === "active"
-                  ? "Monitoramento ativo"
-                  : "Atualização manual"}
+                  ? t("library.monitoring")
+                  : t("library.manual")}
             </span>
           </div>
           <button
@@ -487,8 +489,8 @@ export function ModelGrid({
             type="button"
             onClick={onRefresh}
             disabled={isScanning}
-            aria-label={isScanning ? "Atualizando biblioteca" : "Atualizar biblioteca"}
-            title={isScanning ? "Atualizando biblioteca" : "Atualizar biblioteca"}
+            aria-label={isScanning ? t("library.updating") : t("common.refresh")}
+            title={isScanning ? t("library.updating") : t("common.refresh")}
           >
             <RotateCw className={isScanning ? "spinning" : ""} size={17} />
           </button>
@@ -500,15 +502,15 @@ export function ModelGrid({
         <input
           value={searchQuery}
           onChange={(event) => onSearchChange(event.currentTarget.value)}
-          placeholder="Buscar por nome, pasta, tag ou nota"
+          placeholder={t("library.search")}
         />
         {searchQuery ? (
           <button
             className="search-clear-button"
             type="button"
             onClick={() => onSearchChange("")}
-            aria-label="Limpar busca"
-            title="Limpar busca"
+            aria-label={t("library.clearSearch")}
+            title={t("library.clearSearch")}
           >
             <X size={15} />
           </button>
@@ -891,6 +893,7 @@ function Breadcrumb({
   onDropOnFolder,
   onDragLeaveFolder
 }: BreadcrumbProps) {
+  const { t } = useI18n();
   const parts = selectedFolder === ALL_FOLDERS_ID ? [] : selectedFolder.split("/").filter(Boolean);
 
   return (
@@ -908,7 +911,7 @@ function Breadcrumb({
         onDragLeave={onDragLeaveFolder}
         onDrop={(event) => onDropOnFolder(event, ALL_FOLDERS_ID)}
       >
-        Todos os modelos
+        {t("navigation.allModels")}
       </button>
       {parts.map((part, index) => {
         const folderId = parts.slice(0, index + 1).join("/");
