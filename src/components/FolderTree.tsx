@@ -11,6 +11,7 @@ import type { CSSProperties, DragEvent, MouseEvent } from "react";
 import { useRef, useState } from "react";
 import type { FolderNode } from "../lib/folderTree";
 import { ALL_FOLDERS_ID } from "../lib/folderFilters";
+import { useI18n } from "../i18n/I18nProvider";
 
 type FolderTreeProps = {
   folders: FolderNode[];
@@ -49,6 +50,7 @@ export function FolderTree({
   onOpenFolderContextMenu,
   onMoveModelsToFolder
 }: FolderTreeProps) {
+  const { t } = useI18n();
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
 
@@ -76,7 +78,7 @@ export function FolderTree({
   return (
     <aside
       className="sidebar"
-      aria-label="Pastas da biblioteca"
+      aria-label={t("navigation.folderTree")}
       ref={sidebarRef}
       onDragOver={scrollSidebarDuringDrag}
       onDragLeave={() => setDragOverFolder(null)}
@@ -85,7 +87,7 @@ export function FolderTree({
         <span className="brand-mark">3D</span>
         <div>
           <h1>Model Library</h1>
-          <p>{modelCount} modelos</p>
+          <p>{t("library.modelCount", { count: modelCount })}</p>
         </div>
       </div>
 
@@ -107,7 +109,7 @@ export function FolderTree({
         onDrop={(event) => dropOnFolder(event, ALL_FOLDERS_ID)}
       >
         <Layers3 size={16} />
-        <span>Todos os modelos</span>
+        <span>{t("navigation.allModels")}</span>
       </button>
 
       <label className="toggle-row">
@@ -116,31 +118,31 @@ export function FolderTree({
           checked={includeSubfolders}
           onChange={(event) => onToggleIncludeSubfolders(event.currentTarget.checked)}
         />
-        <span>Incluir subpastas</span>
+        <span>{t("navigation.includeSubfolders")}</span>
       </label>
 
       {selectedModelCount > 0 ? (
         <div className="selection-hint">
-          {selectedModelCount} selecionado{selectedModelCount === 1 ? "" : "s"}
+          {t("library.selectedCount", { count: selectedModelCount })}
         </div>
       ) : null}
 
       <div className="folder-tree-heading">
-        <span>Pastas</span>
-        <div className="folder-tree-actions" aria-label="Ações da árvore de pastas">
+        <span>{t("navigation.folders")}</span>
+        <div className="folder-tree-actions" aria-label={t("navigation.folderActions")}>
           <button
             type="button"
             onClick={onExpandAllFolders}
-            title="Expandir todas as pastas"
-            aria-label="Expandir todas as pastas"
+            title={t("navigation.expandAll")}
+            aria-label={t("navigation.expandAll")}
           >
             <ChevronsUpDown size={15} />
           </button>
           <button
             type="button"
             onClick={onCollapseAllFolders}
-            title="Recolher todas as pastas"
-            aria-label="Recolher todas as pastas"
+            title={t("navigation.collapseAll")}
+            aria-label={t("navigation.collapseAll")}
           >
             <ChevronsDownUp size={15} />
           </button>
@@ -225,6 +227,7 @@ function FolderNodeButton({
   onDropOnFolder: (event: DragEvent, folderId: string) => void;
   depth?: number;
 }) {
+  const { t } = useI18n();
   const isExpanded = expandedFolderIds.has(folder.id);
   const hasChildren = folder.children.length > 0;
   const isExcluded = excludedFolderIds.has(folder.id);
@@ -258,7 +261,9 @@ function FolderNodeButton({
             className={`folder-disclosure ${isExpanded ? "expanded" : ""}`}
             type="button"
             onClick={() => onToggleFolder(folder.id)}
-            aria-label={isExpanded ? `Recolher ${folder.name}` : `Expandir ${folder.name}`}
+            aria-label={t(isExpanded ? "navigation.collapseFolder" : "navigation.expandFolder", {
+              name: folder.name
+            })}
             aria-expanded={isExpanded}
           >
             <ChevronRight size={14} />
@@ -275,13 +280,13 @@ function FolderNodeButton({
         {isExcluded ? (
           <span
             className="folder-excluded-indicator"
-            aria-label={`${folder.name} oculta dos resultados`}
-            title="Oculta dos resultados"
+            aria-label={t("navigation.hiddenFolder", { name: folder.name })}
+            title={t("navigation.hiddenResults")}
           >
             <EyeOff size={13} />
           </span>
         ) : null}
-        {canMoveModels ? <span className="drop-cue">Soltar</span> : null}
+        {canMoveModels ? <span className="drop-cue">{t("navigation.drop")}</span> : null}
       </div>
       {isExpanded ? folder.children.map((child) => (
         <FolderNodeButton

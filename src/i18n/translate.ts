@@ -16,8 +16,8 @@ export function translate(
   params: TranslationParams = {}
 ): string {
   const catalog = locale === "en" ? en : ptBR;
-  const resolvedKey = key === "library.modelCount"
-    ? (`library.modelCount.${Number(params.count) === 1 ? "one" : "other"}` as keyof typeof ptBR)
+  const resolvedKey = key === "library.modelCount" || key === "library.selectedCount"
+    ? (`${key}.${Number(params.count) === 1 ? "one" : "other"}` as keyof typeof ptBR)
     : key;
   const template = catalog[resolvedKey as keyof typeof ptBR];
   return template.replace(/\{(\w+)\}/g, (_match: string, name: string) => String(params[name] ?? ""));

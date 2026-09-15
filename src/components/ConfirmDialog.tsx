@@ -1,5 +1,6 @@
 import { DialogHeader } from "./DialogHeader";
 import { DialogShell } from "./DialogShell";
+import { useI18n } from "../i18n/I18nProvider";
 
 export type ConfirmDialogOptions = {
   title: string;
@@ -21,13 +22,14 @@ export function ConfirmDialog({
   onCancel,
   onConfirm
 }: ConfirmDialogProps) {
+  const { t } = useI18n();
   return (
     <DialogShell className="confirm-dialog" title={title} onCancel={onCancel}>
-      <DialogHeader eyebrow="Confirmar" title={title} onClose={onCancel} />
+      <DialogHeader eyebrow={t("common.confirm")} title={title} onClose={onCancel} />
       <p>{message}</p>
       <div className="dialog-actions">
         <button className="secondary-button" type="button" onClick={onCancel} autoFocus>
-          Cancelar
+          {t("common.cancel")}
         </button>
         <button
           className={tone === "danger" ? "danger-button" : "primary-button"}

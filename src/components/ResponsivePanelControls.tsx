@@ -1,5 +1,6 @@
 import { PanelLeft, PanelRight } from "lucide-react";
 import type { ResponsivePanel } from "../lib/responsivePanels";
+import { useI18n } from "../i18n/I18nProvider";
 
 type ResponsivePanelControlsProps = {
   openPanel: ResponsivePanel;
@@ -12,16 +13,17 @@ export function ResponsivePanelControls({
   onToggleFolders,
   onToggleDetails
 }: ResponsivePanelControlsProps) {
+  const { t } = useI18n();
   return (
-    <div className="responsive-panel-controls" role="group" aria-label="Painéis">
+    <div className="responsive-panel-controls" role="group" aria-label={t("navigation.panels")}>
       <button className="icon-only responsive-folders-button" type="button"
-        onClick={onToggleFolders} aria-label="Pastas"
-        aria-expanded={openPanel === "folders"} title="Pastas">
+        onClick={onToggleFolders} aria-label={t("navigation.folders")}
+        aria-expanded={openPanel === "folders"} title={t("navigation.folders")}>
         <PanelLeft size={17} />
       </button>
       <button className="icon-only responsive-details-button" type="button"
-        onClick={onToggleDetails} aria-label="Detalhes"
-        aria-expanded={openPanel === "details"} title="Detalhes">
+        onClick={onToggleDetails} aria-label={t("navigation.details")}
+        aria-expanded={openPanel === "details"} title={t("navigation.details")}>
         <PanelRight size={17} />
       </button>
     </div>

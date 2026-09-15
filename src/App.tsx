@@ -1929,7 +1929,11 @@ function LibraryApp() {
   }
 
   if (!settings?.libraryPath) {
-    return <FirstRun onChooseFolder={chooseFolder} themeMode={themeMode} />;
+    return (
+      <I18nProvider locale={settings?.locale ?? "pt-BR"}>
+        <FirstRun onChooseFolder={chooseFolder} themeMode={themeMode} />
+      </I18nProvider>
+    );
   }
 
   const canLaunchContextModelInSlicer = modelContextMenu

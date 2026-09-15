@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { DialogHeader } from "./DialogHeader";
 import { DialogShell } from "./DialogShell";
+import { useI18n } from "../i18n/I18nProvider";
 
 export type TextInputDialogOptions = {
   title: string;
@@ -24,6 +25,7 @@ export function TextInputDialog({
   onCancel,
   onConfirm
 }: TextInputDialogProps) {
+  const { t } = useI18n();
   const [value, setValue] = useState(initialValue);
 
   useEffect(() => {
@@ -32,7 +34,7 @@ export function TextInputDialog({
 
   return (
     <DialogShell className="text-input-dialog" title={title} onCancel={onCancel}>
-      <DialogHeader eyebrow="Entrada" title={title} onClose={onCancel} />
+      <DialogHeader eyebrow={t("common.input")} title={title} onClose={onCancel} />
       <form
         className="text-input-form"
         onSubmit={(event) => {
@@ -51,7 +53,7 @@ export function TextInputDialog({
         </label>
         <div className="dialog-actions">
           <button className="secondary-button" type="button" onClick={onCancel}>
-            Cancelar
+            {t("common.cancel")}
           </button>
           <button className="primary-button" type="submit" disabled={!value.trim()}>
             {confirmLabel}

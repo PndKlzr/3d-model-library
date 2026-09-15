@@ -161,8 +161,8 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("getAllFolderIds");
     expect(folderTreeSource).toContain("onExpandAllFolders");
     expect(folderTreeSource).toContain("onCollapseAllFolders");
-    expect(folderTreeSource).toContain("Expandir todas as pastas");
-    expect(folderTreeSource).toContain("Recolher todas as pastas");
+    expect(folderTreeSource).toContain('t("navigation.expandAll")');
+    expect(folderTreeSource).toContain('t("navigation.collapseAll")');
   });
 
   it("keeps folder and disclosure icons in stable tree columns", async () => {

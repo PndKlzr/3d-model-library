@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 import type { ThumbnailWarmupProgress } from "../lib/thumbnailWarmup";
+import { useI18n } from "../i18n/I18nProvider";
+import type { TranslationKey } from "../i18n/catalog";
+import type { TranslationParams } from "../i18n/translate";
 
 type QueueStatus =
   | { kind: "preparing" | "loading" | "rendering"; count: number; total?: number }
@@ -19,6 +22,7 @@ export function ThumbnailQueueStatus({
   completionMs = 1800,
   warmup = null
 }: ThumbnailQueueStatusProps) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<QueueStatus | null>(null);
   const statusRef = useRef<QueueStatus | null>(null);
   const latestSnapshotRef = useRef(snapshot);
@@ -106,13 +110,13 @@ export function ThumbnailQueueStatus({
     <div className={`thumbnail-queue-status ${displayedStatus?.kind ?? "idle"}`} aria-live="polite">
       {displayedStatus ? <i aria-hidden="true" /> : null}
       {displayedStatus ? (
-        <span className="thumbnail-status-label">{getStatusLabel(displayedStatus)}</span>
+        <span className="thumbnail-status-label">{getStatusLabel(displayedStatus, t)}</span>
       ) : null}
       {displayedStatus?.total ? (
         <span
           className="thumbnail-progress"
           role="progressbar"
-          aria-label="Progresso das miniaturas"
+          aria-label={t("thumbnail.progress")}
           aria-valuemin={0}
           aria-valuemax={displayedStatus.total}
           aria-valuenow={displayedStatus.total - displayedStatus.count}
@@ -146,16 +150,19 @@ function isWorkStatus(status: QueueStatus | null) {
   return status?.kind === "loading" || status?.kind === "rendering";
 }
 
-function getStatusLabel(status: QueueStatus) {
+function getStatusLabel(
+  status: QueueStatus,
+  t: (key: TranslationKey, params?: TranslationParams) => string
+) {
   if (status.kind === "preparing" || status.kind === "loading" || status.kind === "rendering") {
-    return `Miniaturas - ${status.count} restantes`;
+    return t("thumbnail.remaining", { count: status.count });
   }
   if (status.kind === "failed") {
     return status.count
-      ? `${status.count} miniaturas não puderam ser geradas`
-      : "Algumas miniaturas falharam";
+      ? t("thumbnail.failedCount", { count: status.count })
+      : t("thumbnail.failed");
   }
-  return "Miniaturas concluidas";
+  return t("thumbnail.complete");
 }
 
 function clearTimer(timerRef: { current: number | null }) {

@@ -1,4 +1,5 @@
 import type { ThemeMode } from "../lib/viewPreferences";
+import { useI18n } from "../i18n/I18nProvider";
 
 type FirstRunProps = {
   onChooseFolder: () => Promise<void>;
@@ -6,14 +7,15 @@ type FirstRunProps = {
 };
 
 export function FirstRun({ onChooseFolder, themeMode }: FirstRunProps) {
+  const { t } = useI18n();
   return (
     <main className="first-run" data-theme={themeMode}>
       <div className="first-run-panel">
-        <p className="eyebrow">Primeira abertura</p>
-        <h1>Escolha sua pasta de modelos</h1>
-        <p>Depois disso o app vai lembrar essa pasta toda vez que abrir.</p>
+        <p className="eyebrow">{t("firstRun.eyebrow")}</p>
+        <h1>{t("firstRun.title")}</h1>
+        <p>{t("firstRun.description")}</p>
         <button type="button" onClick={onChooseFolder}>
-          Escolher pasta
+          {t("firstRun.choose")}
         </button>
       </div>
     </main>

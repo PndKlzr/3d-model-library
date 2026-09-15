@@ -1,4 +1,5 @@
 import { X } from "lucide-react";
+import { useI18n } from "../i18n/I18nProvider";
 
 type DialogHeaderProps = {
   eyebrow?: string;
@@ -7,6 +8,7 @@ type DialogHeaderProps = {
 };
 
 export function DialogHeader({ eyebrow, title, onClose }: DialogHeaderProps) {
+  const { t } = useI18n();
   return (
     <header className="dialog-header">
       <div className="dialog-header-copy">
@@ -17,8 +19,8 @@ export function DialogHeader({ eyebrow, title, onClose }: DialogHeaderProps) {
         className="icon-only dialog-close"
         type="button"
         onClick={onClose}
-        aria-label="Fechar"
-        title="Fechar"
+        aria-label={t("common.close")}
+        title={t("common.close")}
       >
         <X size={18} />
       </button>

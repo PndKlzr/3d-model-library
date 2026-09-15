@@ -32,9 +32,9 @@ describe("ThumbnailQueueStatus", () => {
     expect(getByText("Miniaturas - 8 restantes")).toBeVisible();
 
     rerender(<ThumbnailQueueStatus snapshot={idleSnapshot({ renders: 8 })} />);
-    expect(getByText("Miniaturas concluidas")).toBeVisible();
+    expect(getByText("Miniaturas concluídas")).toBeVisible();
     act(() => vi.advanceTimersByTime(1799));
-    expect(getByText("Miniaturas concluidas")).toBeVisible();
+    expect(getByText("Miniaturas concluídas")).toBeVisible();
     act(() => vi.advanceTimersByTime(1));
     expect(queryByText(/miniaturas/i)).toBeNull();
   });
