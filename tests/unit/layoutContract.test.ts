@@ -114,4 +114,19 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?background:\s*var\(--panel\);/);
     expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?flex-wrap:\s*wrap;/);
   });
+
+  it("reflows the library header without overlapping labels or controls", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain('className="library-heading"');
+    expect(gridSource).toContain('className="toolbar-actions"');
+    expect(gridSource).toContain('className="toolbar-statuses"');
+    expect(css).toMatch(/\.library-heading\s*\{[\s\S]*?min-width:\s*0;/);
+    expect(css).toMatch(/\.library-heading h2\s*\{[\s\S]*?font-size:\s*24px;/);
+    expect(css).toMatch(/\.toolbar-actions\s*\{[\s\S]*?min-width:\s*0;/);
+    expect(css).toMatch(/\.responsive-panel-controls \.icon-only\s*\{[\s\S]*?width:\s*36px;/);
+    expect(css).toContain("@media (max-width: 1179px)");
+    expect(css).toContain("@media (max-width: 899px)");
+  });
 });

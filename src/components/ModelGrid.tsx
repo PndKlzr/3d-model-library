@@ -368,7 +368,7 @@ export function ModelGrid({
       </div>
       <div className="library-sticky-header">
       <header className="toolbar">
-        <div>
+        <div className="library-heading">
           <p className="eyebrow">STL / 3MF</p>
           <h2>Sua biblioteca visual</h2>
           <div className="breadcrumb-row" aria-label="Caminho da pasta">

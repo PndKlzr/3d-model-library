@@ -561,9 +561,21 @@ button:disabled {
   flex: 1 1 auto;
 }
 
+.library-heading {
+  min-width: 0;
+}
+
+.library-heading h2 {
+  overflow: hidden;
+  font-size: 24px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .toolbar-actions {
   flex: 0 0 auto;
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 8px;
   flex-wrap: nowrap;
@@ -574,6 +586,12 @@ button:disabled {
   display: none;
   align-items: center;
   gap: 6px;
+}
+
+.responsive-panel-controls .icon-only {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
 }
 
 .responsive-panel-scrim {
@@ -3216,6 +3234,26 @@ button:disabled {
     grid-template-columns: clamp(220px, 25vw, 260px) minmax(0, 1fr);
   }
 
+  .toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .library-heading {
+    flex-basis: 100%;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .toolbar-statuses {
+    margin-left: auto;
+  }
+
   .responsive-panel-controls,
   .responsive-details-button {
     display: flex;
@@ -3259,6 +3297,10 @@ button:disabled {
 
   .responsive-folders-button {
     display: flex;
+  }
+
+  .library-panel {
+    --library-padding: 16px;
   }
 
   .sidebar {
