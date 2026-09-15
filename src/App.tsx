@@ -210,9 +210,14 @@ function LibraryApp() {
   const activeFileDragSessionRef = useRef<string | null>(null);
   const gridScrollTopRef = useRef(0);
   const gridScrollRestoreSequenceRef = useRef(0);
+  const modelRevealSequenceRef = useRef(0);
   const [gridScrollRestoreRequest, setGridScrollRestoreRequest] = useState<{
     key: number;
     top: number;
+  } | null>(null);
+  const [modelRevealRequest, setModelRevealRequest] = useState<{
+    key: number;
+    modelId: string;
   } | null>(null);
   const [folderContextMenu, setFolderContextMenu] = useState<{
     folderId: string;
@@ -980,6 +985,7 @@ function LibraryApp() {
     setModelContextMenu(reset.modelContextMenu);
     setTagPickerDialog(null);
     setThumbnailRetryGenerations({});
+    setModelRevealRequest(null);
     setModelHashes({});
     setActionLogEntries([]);
     setUndoToast(null);
@@ -1298,6 +1304,7 @@ function LibraryApp() {
   }
 
   function viewModelFolderInLibrary(model: ModelFile) {
+    setModelContextMenu(null);
     setSearchQuery("");
     setOnlySelected(false);
     setOnlyFavorites(false);
@@ -1306,7 +1313,19 @@ function LibraryApp() {
     setNotesFilter("all");
     setTagMatchMode("all");
     setSelectedTagFilters(new Set());
+    setSelectedModel(model);
+    setSelectedModelIds(new Set([model.id]));
+    setLastSelectedModelId(model.id);
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      visibleExtensions: [...new Set([...current.visibleExtensions, model.extension])],
+      excludedFolders: current.excludedFolders.filter((excluded) =>
+        !isFolderExcluded(model.relativeFolder, [excluded])
+      )
+    }));
     selectFolder(model.relativeFolder || ALL_FOLDERS_ID);
+    modelRevealSequenceRef.current += 1;
+    setModelRevealRequest({ key: modelRevealSequenceRef.current, modelId: model.id });
   }
 
   function retryModelThumbnail(model: ModelFile) {
@@ -1958,6 +1977,7 @@ function LibraryApp() {
         canNavigateBack={folderHistory.back.length > 0}
         canNavigateForward={folderHistory.forward.length > 0}
         scrollRestoreRequest={gridScrollRestoreRequest}
+        modelRevealRequest={modelRevealRequest}
         onScrollTopChange={(top) => { gridScrollTopRef.current = top; }}
         onSearchChange={setSearchQuery}
         onVisibleExtensionsChange={updateVisibleExtensions}

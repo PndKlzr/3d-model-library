@@ -458,14 +458,19 @@ describe("interaction flow contract", () => {
   it("shows the complete model location with copy and Explorer actions", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
     const mainSource = await readFile("electron/main.ts", "utf8");
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 
     expect(detailsSource).toContain("Localização");
+    expect(detailsSource).not.toContain("<span>Pasta</span>");
     expect(detailsSource).toContain("relativeLocation");
     expect(detailsSource).toContain("Copiar caminho completo");
     expect(detailsSource).toContain("window.modelLibrary.copyText(model.absolutePath)");
     expect(detailsSource).toContain("Mostrar no Explorer");
     expect(mainSource).toContain('ipcMain.handle("system:copy-text"');
     expect(mainSource).toContain("clipboard.writeText(value)");
+    expect(appSource).toContain("setModelRevealRequest");
+    expect(gridSource).toContain("rowVirtualizer.scrollToIndex");
   });
 });
 

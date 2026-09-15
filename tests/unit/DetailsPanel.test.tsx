@@ -62,6 +62,7 @@ describe("DetailsPanel image opening", () => {
       onConvertThreeMfToStl={vi.fn()}
     />);
 
+    expect(screen.queryByText("Pasta", { selector: "dt" })).toBeNull();
     expect(screen.getByText(/OBJ exibe somente a geometria/i)).toBeTruthy();
     fireEvent.click(screen.getByRole("tab", { name: "Ações" }));
     expect(screen.getByText("Este tipo de arquivo não é enviado ao slicer.")).toBeTruthy();

@@ -41,7 +41,7 @@ import {
 } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
-import { buildVirtualRows } from "../lib/virtualGrid";
+import { buildVirtualRows, findVirtualRowIndex } from "../lib/virtualGrid";
 import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
 import { isArchive, SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } from "../shared/fileCapabilities";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
@@ -81,6 +81,7 @@ type ModelGridProps = {
   canNavigateBack: boolean;
   canNavigateForward: boolean;
   scrollRestoreRequest?: { key: number; top: number } | null;
+  modelRevealRequest?: { key: number; modelId: string } | null;
   onScrollTopChange?: (top: number) => void;
   onSearchChange: (query: string) => void;
   onVisibleExtensionsChange: (visibleExtensions: ReadonlySet<SupportedFileExtension>) => void;
@@ -150,6 +151,7 @@ export function ModelGrid({
   canNavigateBack,
   canNavigateForward,
   scrollRestoreRequest = null,
+  modelRevealRequest = null,
   onScrollTopChange = () => undefined,
   onSearchChange,
   onVisibleExtensionsChange,
@@ -680,6 +682,7 @@ export function ModelGrid({
           items={collectionItems}
           mode={viewMode}
           scrollElementRef={panelRef}
+          modelRevealRequest={modelRevealRequest}
           renderItem={(item) => {
             if (item.kind === "folder") {
               const folderCard = item.folder;
@@ -768,10 +771,17 @@ type VirtualizedRowsProps = {
   items: CollectionItem[];
   mode: ModelViewMode;
   scrollElementRef: RefObject<HTMLElement>;
+  modelRevealRequest?: { key: number; modelId: string } | null;
   renderItem: (item: CollectionItem) => ReactNode;
 };
 
-function VirtualizedRows({ items, mode, scrollElementRef, renderItem }: VirtualizedRowsProps) {
+function VirtualizedRows({
+  items,
+  mode,
+  scrollElementRef,
+  modelRevealRequest,
+  renderItem
+}: VirtualizedRowsProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [columns, setColumns] = useState(mode === "grid" ? 4 : 1);
   const [scrollMargin, setScrollMargin] = useState(0);
@@ -810,6 +820,16 @@ function VirtualizedRows({ items, mode, scrollElementRef, renderItem }: Virtuali
     setScrollMargin((current) => current === nextMargin ? current : nextMargin);
     rowVirtualizer.measure();
   }, [columns, mode, rowVirtualizer, rows.length, scrollMargin]);
+
+  useLayoutEffect(() => {
+    if (!modelRevealRequest) return;
+    const rowIndex = findVirtualRowIndex(
+      items.map((item) => item.id),
+      mode === "grid" ? columns : 1,
+      `model:${modelRevealRequest.modelId}`
+    );
+    if (rowIndex !== null) rowVirtualizer.scrollToIndex(rowIndex, { align: "center" });
+  }, [columns, items, mode, modelRevealRequest, rowVirtualizer]);
 
   return (
     <div

@@ -7,7 +7,6 @@ import {
   File,
   FileText,
   Folder,
-  FolderOpen,
   FolderSearch,
   LoaderCircle,
   Image as ImageIcon,
@@ -290,13 +289,6 @@ export function DetailsPanel({
             {activeTab === "info" ? (
               <>
                 <dl className="metadata-list">
-                  <div>
-                    <dt>
-                      <FolderOpen size={15} />
-                      Pasta
-                    </dt>
-                    <dd>{model.relativeFolder || "Raiz"}</dd>
-                  </div>
                   <div>
                     <dt>
                       <FolderSearch size={15} />

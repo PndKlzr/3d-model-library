@@ -8,3 +8,13 @@ export function buildVirtualRows<T>(items: T[], columns: number): T[][] {
 
   return rows;
 }
+
+export function findVirtualRowIndex(
+  itemIds: readonly string[],
+  columns: number,
+  targetId: string
+): number | null {
+  const itemIndex = itemIds.indexOf(targetId);
+  if (itemIndex < 0) return null;
+  return Math.floor(itemIndex / Math.max(1, Math.floor(columns)));
+}

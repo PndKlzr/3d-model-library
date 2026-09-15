@@ -9,9 +9,9 @@ describe("thumbnail warmup", () => {
     let finish!: () => void;
     const request = vi.fn(() => ({ promise: new Promise<void>((resolve) => { finish = resolve; }), release: vi.fn() }));
     const queue = startThumbnailWarmup(["a", "b"], request);
-    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(500);
     expect(request).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(199);
+    await vi.advanceTimersByTimeAsync(99);
     expect(request).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
     expect(request).toHaveBeenCalledTimes(1);
@@ -19,7 +19,7 @@ describe("thumbnail warmup", () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(request).toHaveBeenCalledTimes(1);
     finish();
-    await vi.advanceTimersByTimeAsync(1200);
+    await vi.advanceTimersByTimeAsync(24);
     expect(request).toHaveBeenCalledTimes(2);
     queue.stop();
   });
@@ -31,10 +31,10 @@ describe("thumbnail warmup", () => {
     const queue = startThumbnailWarmup(["a", "b"], request, progress);
 
     expect(progress).toHaveBeenLastCalledWith({ phase: "preparing", remaining: 2, total: 2, failures: 0 });
-    await vi.advanceTimersByTimeAsync(1200);
+    await vi.advanceTimersByTimeAsync(600);
     expect(progress).toHaveBeenCalledWith({ phase: "generating", remaining: 2, total: 2, failures: 0 });
     expect(progress).toHaveBeenLastCalledWith({ phase: "preparing", remaining: 1, total: 2, failures: 0 });
-    await vi.advanceTimersByTimeAsync(1200);
+    await vi.advanceTimersByTimeAsync(24);
     expect(progress).toHaveBeenLastCalledWith({ phase: "complete", remaining: 0, total: 2, failures: 0 });
     queue.stop();
   });
@@ -45,7 +45,7 @@ describe("thumbnail warmup", () => {
     let finish!: () => void;
     const request = vi.fn(() => ({ promise: new Promise<void>((resolve) => { finish = resolve; }), release }));
     const queue = startThumbnailWarmup([1, 2], request);
-    await vi.advanceTimersByTimeAsync(1200);
+    await vi.advanceTimersByTimeAsync(600);
     queue.stop();
     expect(release).toHaveBeenCalledOnce();
     finish();
@@ -57,7 +57,7 @@ describe("thumbnail warmup", () => {
     vi.useFakeTimers();
     const request = vi.fn(() => ({ promise: Promise.reject(new Error("bad model")), release: vi.fn() }));
     const queue = startThumbnailWarmup([1, 2], request);
-    await vi.advanceTimersByTimeAsync(2400);
+    await vi.advanceTimersByTimeAsync(624);
     expect(request).toHaveBeenCalledTimes(2);
     queue.stop();
   });
@@ -67,7 +67,7 @@ describe("thumbnail warmup", () => {
     const progress = vi.fn();
     const request = vi.fn(() => ({ promise: Promise.resolve(null), release: vi.fn() }));
     const queue = startThumbnailWarmup([1], request, progress);
-    await vi.advanceTimersByTimeAsync(1200);
+    await vi.advanceTimersByTimeAsync(600);
     expect(progress).toHaveBeenLastCalledWith({
       phase: "complete",
       remaining: 0,

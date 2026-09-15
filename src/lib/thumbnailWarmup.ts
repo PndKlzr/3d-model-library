@@ -6,6 +6,9 @@ export type ThumbnailWarmupProgress = {
   failures: number;
 };
 
+const INITIAL_WARMUP_DELAY_MS = 600;
+const BETWEEN_ITEMS_DELAY_MS = 24;
+
 // Keep background work bounded: one request, followed by a quiet interval.
 export function startThumbnailWarmup<T>(
   items: readonly T[],
@@ -18,7 +21,7 @@ export function startThumbnailWarmup<T>(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let failures = 0;
 
-  function schedule(delayMs = 1200) {
+  function schedule(delayMs = INITIAL_WARMUP_DELAY_MS) {
     clearTimeout(timer);
     if (!stopped && !active && index < items.length) {
       onProgress({
@@ -53,7 +56,7 @@ export function startThumbnailWarmup<T>(
       if (!stopped && index >= items.length) {
         onProgress({ phase: "complete", remaining: 0, total: items.length, failures });
       } else {
-        schedule(120);
+        schedule(BETWEEN_ITEMS_DELAY_MS);
       }
     }
   }

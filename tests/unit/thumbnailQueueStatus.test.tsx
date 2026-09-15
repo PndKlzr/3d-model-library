@@ -29,7 +29,7 @@ describe("ThumbnailQueueStatus", () => {
     );
 
     act(() => vi.advanceTimersByTime(250));
-    expect(getByText("Gerando miniaturas - 8 restantes")).toBeVisible();
+    expect(getByText("Miniaturas - 8 restantes")).toBeVisible();
 
     rerender(<ThumbnailQueueStatus snapshot={idleSnapshot({ renders: 8 })} />);
     expect(getByText("Miniaturas concluidas")).toBeVisible();
@@ -49,7 +49,7 @@ describe("ThumbnailQueueStatus", () => {
 
     act(() => vi.advanceTimersByTime(250));
 
-    expect(getByText("Gerando miniaturas - 4 restantes")).toBeVisible();
+    expect(getByText("Miniaturas - 4 restantes")).toBeVisible();
   });
 
   it("announces aggregate failures after a visible batch", () => {
@@ -59,7 +59,7 @@ describe("ThumbnailQueueStatus", () => {
     );
 
     act(() => vi.advanceTimersByTime(250));
-    expect(getByText("Carregando miniaturas - 3 restantes")).toBeVisible();
+    expect(getByText("Miniaturas - 3 restantes")).toBeVisible();
     rerender(<ThumbnailQueueStatus snapshot={idleSnapshot({ failures: 1 })} />);
 
     expect(getByText("Algumas miniaturas falharam")).toBeVisible();
@@ -76,7 +76,7 @@ describe("ThumbnailQueueStatus", () => {
         warmup={{ phase: "preparing", remaining: 27, total: 40, failures: 0 }}
       />
     );
-    expect(getByText("Preparando miniaturas - 27 restantes")).toBeVisible();
+    expect(getByText("Miniaturas - 27 restantes")).toBeVisible();
     expect(getByRole("progressbar", { name: "Progresso das miniaturas" })).toHaveAttribute(
       "aria-valuenow",
       "13"
@@ -88,7 +88,7 @@ describe("ThumbnailQueueStatus", () => {
         warmup={{ phase: "generating", remaining: 27, total: 40, failures: 0 }}
       />
     );
-    expect(getByText("Gerando miniaturas - 27 restantes")).toBeVisible();
+    expect(getByText("Miniaturas - 27 restantes")).toBeVisible();
   });
 
   it("reports a completed recursive pass with failures", () => {

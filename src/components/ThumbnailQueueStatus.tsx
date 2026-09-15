@@ -147,9 +147,9 @@ function isWorkStatus(status: QueueStatus | null) {
 }
 
 function getStatusLabel(status: QueueStatus) {
-  if (status.kind === "preparing") return `Preparando miniaturas - ${status.count} restantes`;
-  if (status.kind === "loading") return `Carregando miniaturas - ${status.count} restantes`;
-  if (status.kind === "rendering") return `Gerando miniaturas - ${status.count} restantes`;
+  if (status.kind === "preparing" || status.kind === "loading" || status.kind === "rendering") {
+    return `Miniaturas - ${status.count} restantes`;
+  }
   if (status.kind === "failed") {
     return status.count
       ? `${status.count} miniaturas não puderam ser geradas`
