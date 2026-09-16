@@ -121,4 +121,19 @@ describe("folder context menu contract", () => {
     expect(handler).not.toContain("updateVisibleExtensions");
     expect(appSource).toContain('t("context.viewFolder")');
   });
+
+  it("converts only the context-clicked 3MF and reports progress", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const handler = appSource.match(
+      /async function convertContextModelToStl[\s\S]*?\n  }/
+    )?.[0];
+
+    expect(handler).toBeTruthy();
+    expect(handler).toContain("setModelContextMenu(null)");
+    expect(handler).toContain("convertSelectedThreeMfToStl(model.absolutePath");
+    expect(handler).toContain('t("details.converting")');
+    expect(appSource).toContain("canConvertToStl(modelContextMenu.model.extension)");
+    expect(appSource).toContain('t("details.convertToStl")');
+    expect(appSource).toContain("convertContextModelToStl(modelContextMenu.model)");
+  });
 });

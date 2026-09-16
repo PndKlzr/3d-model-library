@@ -105,6 +105,7 @@ import type {
 } from "./shared/types";
 import {
   SUPPORTED_FILE_EXTENSIONS,
+  canConvertToStl,
   canSendToSlicer,
   canShowThumbnail,
   isArchive,
@@ -1884,6 +1885,13 @@ function LibraryApp() {
     });
   }
 
+  async function convertContextModelToStl(model: ModelFile) {
+    setModelContextMenu(null);
+    await convertSelectedThreeMfToStl(model.absolutePath, (progress) => {
+      setOperationMessage(`${t("details.converting")} ${progress}%`);
+    });
+  }
+
   async function undoLastAction() {
     setFolderContextMenu(null);
     setModelContextMenu(null);
@@ -2518,6 +2526,15 @@ function LibraryApp() {
           ) : null}
           <div className="context-menu-separator" />
           <div className="context-menu-section-title">{t("context.file")}</div>
+          {canConvertToStl(modelContextMenu.model.extension) ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void convertContextModelToStl(modelContextMenu.model)}
+            >
+              {t("details.convertToStl")}
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
