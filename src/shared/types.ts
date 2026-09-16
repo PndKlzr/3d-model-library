@@ -114,6 +114,13 @@ export type ModelUserMetadata = {
   notes: string;
 };
 
+export type FileContentIdentity = {
+  algorithm: "sha256";
+  digest: string;
+  sizeBytes: number;
+  modifiedAt: string;
+};
+
 export type SlicerHistoryEntry = {
   modelPath: string;
   slicerId: string;
@@ -124,6 +131,7 @@ export type LibraryMetadata = {
   models: Record<string, ModelUserMetadata>;
   tagCatalog: string[];
   slicerHistory: SlicerHistoryEntry[];
+  fileIdentities: Record<string, FileContentIdentity>;
 };
 
 export type LibraryMetadataAvailability = "ready" | "read-only" | "unavailable";

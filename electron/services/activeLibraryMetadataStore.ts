@@ -15,7 +15,7 @@ import type { LibraryMetadataMirrorStore } from "./libraryMetadataMirrorStore.js
 import {
   decodePortableMetadata,
   encodePortableMetadata,
-  type PortableLibraryManifestV1
+  type PortableLibraryManifestV2
 } from "./portableMetadataCodec.js";
 import type { PortableMetadataRepository } from "./portableMetadataRepository.js";
 import { isPathInside } from "./pathContainment.js";
@@ -35,7 +35,7 @@ export type ActiveLibraryMetadataStore = {
   getMetadata: () => LibraryMetadata;
   getStatus: () => LibraryMetadataStatus;
   getDataStatus: () => LibraryDataStatus;
-  exportManifest: () => PortableLibraryManifestV1;
+  exportManifest: () => PortableLibraryManifestV2;
   restoreManifest: (value: unknown) => Promise<LibraryMetadata>;
   toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
   setTags: (modelPath: string, tags: string[]) => Promise<LibraryMetadata>;
@@ -236,7 +236,7 @@ export function createActiveLibraryMetadataStore({
     }
   }
 
-  function exportManifest(): PortableLibraryManifestV1 {
+  function exportManifest(): PortableLibraryManifestV2 {
     const rootPath = activeRoot ?? requestedRoot;
     if (!rootPath || !libraryId) {
       throw new Error("Os dados da biblioteca não estão disponíveis para exportação.");
@@ -337,6 +337,11 @@ function filterLegacyMetadata(metadata: LibraryMetadata, rootPath: string): Libr
     tagCatalog: [...new Set(Object.values(models).flatMap((model) => model.tags))],
     slicerHistory: metadata.slicerHistory.filter((entry) =>
       isPathInside(rootPath, entry.modelPath)
+    ),
+    fileIdentities: Object.fromEntries(
+      Object.entries(metadata.fileIdentities ?? {}).filter(([modelPath]) =>
+        isPathInside(rootPath, modelPath)
+      )
     )
   };
 }

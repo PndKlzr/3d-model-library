@@ -19,13 +19,13 @@ import {
   MAX_PORTABLE_METADATA_BYTES,
   PORTABLE_METADATA_DIRECTORY,
   PORTABLE_METADATA_FILENAME,
-  type PortableLibraryManifestV1
+  type PortableLibraryManifest
 } from "./portableMetadataCodec.js";
 
 const execFileAsync = promisify(execFile);
 
 export type PortableMetadataLoadResult = {
-  manifest: PortableLibraryManifestV1 | null;
+  manifest: PortableLibraryManifest | null;
   source: "primary" | "backup" | "empty";
   warning: string | null;
   corruptPrimaryPath: string | null;
@@ -40,7 +40,7 @@ export type PortableBackupPreview = {
 };
 
 export type PortableMetadataRestoreResult = {
-  manifest: PortableLibraryManifestV1;
+  manifest: PortableLibraryManifest;
   snapshotPath: string;
 };
 
@@ -50,22 +50,22 @@ export type PortableMetadataRepository = {
   load: (rootPath: string) => Promise<PortableMetadataLoadResult>;
   save: (
     rootPath: string,
-    manifest: PortableLibraryManifestV1,
+    manifest: PortableLibraryManifest,
     options?: { corruptPrimaryPath?: string | null }
   ) => Promise<void>;
   readExternalBackup: (
     rootPath: string,
     filePath: string
-  ) => Promise<{ manifest: PortableLibraryManifestV1; preview: PortableBackupPreview }>;
+  ) => Promise<{ manifest: PortableLibraryManifest; preview: PortableBackupPreview }>;
   exportBackup: (
     rootPath: string,
-    manifest: PortableLibraryManifestV1,
+    manifest: PortableLibraryManifest,
     destinationPath: string
   ) => Promise<void>;
   restoreBackup: (
     rootPath: string,
-    currentManifest: PortableLibraryManifestV1,
-    replacementManifest: PortableLibraryManifestV1
+    currentManifest: PortableLibraryManifest,
+    replacementManifest: PortableLibraryManifest
   ) => Promise<PortableMetadataRestoreResult>;
   getDataDirectory: (rootPath: string) => Promise<string>;
 };
@@ -80,7 +80,7 @@ type PortableMetadataRepositoryOptions = {
 
 type ReadManifestResult =
   | { state: "missing" }
-  | { state: "valid"; manifest: PortableLibraryManifestV1 }
+  | { state: "valid"; manifest: PortableLibraryManifest }
   | { state: "invalid"; error: Error };
 
 export function createPortableMetadataRepository({
@@ -132,7 +132,7 @@ export function createPortableMetadataRepository({
 
       const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
       decodePortableMetadata(canonicalRoot, parsed);
-      return { state: "valid", manifest: parsed as PortableLibraryManifestV1 };
+      return { state: "valid", manifest: parsed as PortableLibraryManifest };
     } catch (error) {
       if (isMissingError(error)) {
         return { state: "missing" };
@@ -231,7 +231,7 @@ export function createPortableMetadataRepository({
 
   async function save(
     rootPath: string,
-    manifest: PortableLibraryManifestV1,
+    manifest: PortableLibraryManifest,
     options: { corruptPrimaryPath?: string | null } = {}
   ) {
     const canonicalRoot = await canonicalizeRoot(rootPath);
@@ -305,7 +305,7 @@ export function createPortableMetadataRepository({
 
     const parsed: unknown = JSON.parse(await readFile(await realpath(filePath), "utf8"));
     const decoded = decodePortableMetadata(canonicalRoot, parsed);
-    const manifest = parsed as PortableLibraryManifestV1;
+    const manifest = parsed as PortableLibraryManifest;
     return {
       manifest,
       preview: {
@@ -320,7 +320,7 @@ export function createPortableMetadataRepository({
 
   async function exportBackup(
     rootPath: string,
-    manifest: PortableLibraryManifestV1,
+    manifest: PortableLibraryManifest,
     destinationPath: string
   ) {
     const canonicalRoot = await canonicalizeRoot(rootPath);
@@ -343,8 +343,8 @@ export function createPortableMetadataRepository({
 
   async function restoreBackup(
     rootPath: string,
-    currentManifest: PortableLibraryManifestV1,
-    replacementManifest: PortableLibraryManifestV1
+    currentManifest: PortableLibraryManifest,
+    replacementManifest: PortableLibraryManifest
   ) {
     const canonicalRoot = await canonicalizeRoot(rootPath);
     decodePortableMetadata(canonicalRoot, currentManifest);
@@ -362,7 +362,7 @@ export function createPortableMetadataRepository({
 
   async function writeManifestAtomically(
     destinationPath: string,
-    manifest: PortableLibraryManifestV1
+    manifest: PortableLibraryManifest
   ) {
     const serialized = `${JSON.stringify(manifest, null, 2)}\n`;
     if (Buffer.byteLength(serialized, "utf8") > maximumBytes) {

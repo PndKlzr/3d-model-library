@@ -1,5 +1,9 @@
 import path from "node:path";
-import type { LibraryMetadata, ModelUserMetadata } from "../../src/shared/types.js";
+import type {
+  FileContentIdentity,
+  LibraryMetadata,
+  ModelUserMetadata
+} from "../../src/shared/types.js";
 import { isPathAtOrInside, isPathInside } from "./pathContainment.js";
 
 export type LibraryMetadataBackend = {
@@ -25,7 +29,8 @@ export function createDefaultLibraryMetadata(): LibraryMetadata {
   return {
     models: {},
     tagCatalog: [],
-    slicerHistory: []
+    slicerHistory: [],
+    fileIdentities: {}
   };
 }
 
@@ -220,7 +225,12 @@ export function normalizeLibraryMetadata(metadata: LibraryMetadata): LibraryMeta
       modelPath: entry.modelPath,
       slicerId: entry.slicerId,
       openedAt: entry.openedAt
-    }))
+    })),
+    fileIdentities: Object.fromEntries(
+      Object.entries(metadata.fileIdentities ?? {})
+        .filter((entry): entry is [string, FileContentIdentity] => isFileContentIdentity(entry[1]))
+        .map(([modelPath, identity]) => [modelPath, { ...identity }])
+    )
   };
 }
 
@@ -230,6 +240,19 @@ export function cloneLibraryMetadata(metadata: LibraryMetadata): LibraryMetadata
 
 function normalizeTags(tags: string[]): string[] {
   return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))].sort();
+}
+
+function isFileContentIdentity(value: unknown): value is FileContentIdentity {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    (value as FileContentIdentity).algorithm === "sha256" &&
+    /^[a-f0-9]{64}$/.test((value as FileContentIdentity).digest) &&
+    Number.isSafeInteger((value as FileContentIdentity).sizeBytes) &&
+    (value as FileContentIdentity).sizeBytes >= 0 &&
+    typeof (value as FileContentIdentity).modifiedAt === "string" &&
+    !Number.isNaN(Date.parse((value as FileContentIdentity).modifiedAt))
+  );
 }
 
 function movePathIfInside(
