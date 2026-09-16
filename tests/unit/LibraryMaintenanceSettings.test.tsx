@@ -38,6 +38,7 @@ describe("LibraryMaintenanceSettings", () => {
       }
     });
     expect(screen.getByText("Problemas encontrados")).toBeTruthy();
+    expect(screen.getByText("render failed")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Tentar miniatura novamente" }));
     expect(onRetryThumbnail).toHaveBeenCalledWith("parts/broken.stl");
   });

@@ -131,7 +131,8 @@ export function LibraryMaintenanceSettings({
               <div className="maintenance-issue" data-severity={item.severity} key={item.id}>
                 <span>
                   <strong>{t(issueLabels[item.code])}</strong>
-                  <small>{item.relativePath ?? item.detail}</small>
+                  {item.relativePath ? <small>{item.relativePath}</small> : null}
+                  {item.detail ? <small className="maintenance-issue-detail">{item.detail}</small> : null}
                 </span>
                 {item.code === "thumbnail-failed" && item.relativePath ? (
                   <button type="button" onClick={() => onRetryThumbnail(item.relativePath!)}>

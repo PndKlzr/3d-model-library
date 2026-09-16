@@ -65,20 +65,26 @@ describe("library image access", () => {
   });
 
   it.each([
-    ["renamed.jpg", pngHeader()],
-    ["renamed.png", webpHeader()]
-  ])("rejects image bytes that do not match the %s extension", async (name, contents) => {
+    ["renamed.jpg", "image/png", ".png", pngHeader()],
+    ["renamed.png", "image/webp", ".webp", webpHeader()]
+  ])("uses the verified image format when %s has the wrong extension", async (
+    name,
+    mime,
+    decodedExtension,
+    contents
+  ) => {
     const root = await tempLibrary();
     const filePath = path.join(root, name);
-    await writeFile(filePath, Buffer.from(contents));
+    const bytes = Buffer.from(contents);
+    await writeFile(filePath, bytes);
     const current = currentSession(root);
     const decodeImage = vi.fn(() => true);
 
     await expect(readLibraryImageDataUrl(current.value, filePath, {
       ...access(current),
       decodeImage
-    })).rejects.toThrow(/formato.*extensão|extensão.*formato/i);
-    expect(decodeImage).not.toHaveBeenCalled();
+    })).resolves.toBe(`data:${mime};base64,${bytes.toString("base64")}`);
+    expect(decodeImage).toHaveBeenCalledWith(expect.anything(), decodedExtension);
   });
 
   it("rejects a superficially valid but undecodable image", async () => {

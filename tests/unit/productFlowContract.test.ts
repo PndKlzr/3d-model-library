@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("product flow contract", () => {
+  it("refreshes slicer availability whenever settings opens", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    expect(appSource).toMatch(
+      /if \(!isSettingsOpen\) return;[\s\S]*?refreshLibraryDataStatus\(\);[\s\S]*?refreshSlicerAvailability\(\);/
+    );
+  });
   it("switches libraries through one atomic renderer activation flow", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 

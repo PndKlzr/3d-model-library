@@ -324,6 +324,7 @@ function LibraryApp() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDetectingSlicers, setIsDetectingSlicers] = useState(false);
   const initialSlicerDetectionRef = useRef(false);
+  const slicerInspectionRequestRef = useRef(0);
   const [responsivePanel, setResponsivePanel] = useState<ResponsivePanel>(null);
   const [foldersPinned, setFoldersPinned] = useState(() =>
     window.localStorage.getItem(FOLDERS_PINNED_STORAGE_KEY) === "true"
@@ -380,20 +381,13 @@ function LibraryApp() {
 
   useEffect(() => {
     if (!settings) return;
-    let cancelled = false;
-    void window.modelLibrary.inspectConfiguredSlicers()
-      .then((ids) => {
-        if (!cancelled) setUnavailableSlicerIds(ids);
-      })
-      .catch(() => {
-        if (!cancelled) setUnavailableSlicerIds([]);
-      });
-    return () => { cancelled = true; };
+    void refreshSlicerAvailability();
   }, [settings?.slicers]);
 
   useEffect(() => {
     if (!isSettingsOpen) return;
     void refreshLibraryDataStatus();
+    void refreshSlicerAvailability();
   }, [isSettingsOpen]);
 
   useEffect(() => {
@@ -756,6 +750,16 @@ function LibraryApp() {
       setOperationMessage(t("slicer.detectFailed", { detail: readLocalizedErrorMessage(error) }));
     } finally {
       setIsDetectingSlicers(false);
+    }
+  }
+
+  async function refreshSlicerAvailability() {
+    const requestId = ++slicerInspectionRequestRef.current;
+    try {
+      const ids = await window.modelLibrary.inspectConfiguredSlicers();
+      if (slicerInspectionRequestRef.current === requestId) setUnavailableSlicerIds(ids);
+    } catch {
+      if (slicerInspectionRequestRef.current === requestId) setUnavailableSlicerIds([]);
     }
   }
 

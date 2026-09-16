@@ -3013,6 +3013,10 @@ button:disabled {
   line-height: 1.4;
 }
 
+.maintenance-issue-detail {
+  opacity: 0.82;
+}
+
 .maintenance-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
