@@ -296,7 +296,7 @@ export function createActiveLibraryMetadataStore({
   ) {
     const metadata = await enqueueMutation(mutate, [modelPath]);
     if (hasDurableModelData(metadata, modelPath)) {
-      void scheduleIdentity({ absolutePath: modelPath, sizeBytes: -1, modifiedAt: "" });
+      await scheduleIdentity({ absolutePath: modelPath, sizeBytes: -1, modifiedAt: "" });
     }
     return metadata;
   }

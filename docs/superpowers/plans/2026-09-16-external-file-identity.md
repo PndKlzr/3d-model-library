@@ -206,7 +206,7 @@ Hash through `createReadStream`, compare `size` and `mtime.toISOString()` before
 
 `ensureFileIdentities(models)` filters to paths with durable data and no current matching identity. Durable data is favorite, tags, non-empty notes, or slicer history. Each completed result rechecks the active root token and the current model signature before committing through the metadata mutation queue.
 
-Metadata edits return as soon as their primary metadata save succeeds; they enqueue identity work afterward. Activation/full scan passes eligible models into the same queue to backfill old libraries gradually.
+Metadata edits save their primary data first, then await the serialized identity job before reporting the operation as fully settled. Identity failure does not roll back the primary edit. Activation/full scan passes eligible models into the same queue to backfill old libraries gradually.
 
 - [ ] **Step 5: Test stale-session and stale-file rejection**
 

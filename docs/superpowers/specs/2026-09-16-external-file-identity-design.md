@@ -33,7 +33,7 @@ Only files with durable user data require a retained identity. Durable data mean
 
 ## Identity Generation
 
-Saving durable metadata succeeds before background identity work begins, so adding a tag or note never waits for a large model to hash. A bounded, low-priority queue computes missing identities without blocking thumbnail rendering or library navigation.
+Saving durable metadata succeeds before identity work begins. Hashing remains asynchronous and does not block thumbnail rendering or library navigation, but the edit operation is not reported as fully settled until its identity job finishes. This prevents an invisible metadata write from racing a library copy immediately after an edit. Identity failure never rolls back the already-saved tag or note.
 
 Identity results are committed only when all of these remain true:
 

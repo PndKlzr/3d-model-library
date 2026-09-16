@@ -307,21 +307,16 @@ describe("activeLibraryMetadataStore", () => {
     } | null>();
     const harness = createHarness({ identifyFile: () => deferred.promise });
     await harness.store.open(firstRoot);
-    await harness.store.setNotes(modelPath, "library A");
-    const pending = harness.store.ensureFileIdentities([{
-      absolutePath: modelPath,
-      sizeBytes: 25,
-      modifiedAt: "2026-09-16T10:00:00.000Z"
-    }]);
-
-    await harness.store.open(secondRoot);
+    const pendingEdit = harness.store.setNotes(modelPath, "library A");
+    await Promise.resolve();
+    const switching = harness.store.open(secondRoot);
     deferred.resolve({
       algorithm: "sha256",
       digest: "e".repeat(64),
       sizeBytes: 25,
       modifiedAt: "2026-09-16T10:00:00.000Z"
     });
-    await pending;
+    await Promise.all([pendingEdit, switching]);
 
     expect(harness.store.getMetadata().fileIdentities).toEqual({});
   });
