@@ -62,6 +62,8 @@ OBJ support is intentionally geometry-only: material libraries, external texture
 
 Folder monitoring is enabled by default and can be turned off in Settings. The Refresh button always performs a manual reconciliation, including when monitoring is disabled or unavailable.
 
+Files carrying tags, notes, favorite state or slicer history receive a streamed SHA-256 identity in the portable library data. When Windows Explorer renames a file or one of its parent folders, monitoring or the next manual refresh reconnects that data only when the old and new paths form one unique content match. Duplicate-content ambiguity is never guessed: the saved data remains protected and the maintenance screen reports that it needs attention.
+
 ### Thumbnail benchmark
 
 Developers can measure cold-cache, warm-cache and rapid-scroll thumbnail behavior against a real library:
@@ -120,6 +122,7 @@ RAR and 7Z inspection/extraction require a compatible external extractor. Openin
 - The library folder is selected on first launch and stored locally in the app settings.
 - Model files remain in their original folders unless you explicitly move, rename, extract, convert or send them to the Recycle Bin.
 - External drag-and-drop copies the file to the target application; it does not remove the original.
+- External rename reconciliation requires a unique SHA-256 content match and never follows files outside the active library.
 - Image opening, OBJ reads and Explorer reveal reject paths outside the active library and stale library sessions.
 - The app does not need an account and this repository does not include cloud sync or telemetry code.
 - Do not commit model files, slicer executables, `.env` files, API keys, tokens or personal library paths.
