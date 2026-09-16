@@ -1152,7 +1152,7 @@ async function createWindow() {
     ? path.join(__dirname, "missing-benchmark-renderer.html")
     : path.join(__dirname, "..", "..", "dist-renderer", "index.html");
   const rendererUrl = isDev && !benchmarkEnvironment
-    ? "http://127.0.0.1:5173/"
+    ? resolveDevRendererUrl(process.env.MODEL_LIBRARY_DEV_SERVER_URL)
     : pathToFileURL(rendererEntry).href;
 
   trustedRendererUrl = rendererUrl;
@@ -1163,6 +1163,24 @@ async function createWindow() {
   } else {
     await window.loadFile(rendererEntry);
   }
+}
+
+function resolveDevRendererUrl(configuredUrl: string | undefined): string {
+  const parsed = new URL(configuredUrl ?? "http://127.0.0.1:5173/");
+
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    parsed.username ||
+    parsed.password
+  ) {
+    throw new Error("Invalid development renderer URL");
+  }
+
+  parsed.pathname = "/";
+  parsed.search = "";
+  parsed.hash = "";
+  return parsed.href;
 }
 
 app.whenReady().then(async () => {
