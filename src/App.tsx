@@ -741,12 +741,18 @@ function LibraryApp() {
     await saveSettings(setSlicerExecutable(slicerId, executablePath));
   }
 
-  async function detectInstalledSlicers() {
+  async function detectInstalledSlicers(announceResult = false) {
     if (isDetectingSlicers) return;
     setIsDetectingSlicers(true);
     try {
       const candidates = await window.modelLibrary.detectSlicers();
       if (candidates.length > 0) await saveSettings(applyDetectedSlicers(candidates));
+      if (announceResult) {
+        const detectedCount = new Set(candidates.map((candidate) => candidate.builtInKey)).size;
+        setOperationMessage(detectedCount > 0
+          ? t("slicer.detectedCount", { count: detectedCount })
+          : t("slicer.noneDetected"));
+      }
     } catch (error) {
       setOperationMessage(t("slicer.detectFailed", { detail: readLocalizedErrorMessage(error) }));
     } finally {
@@ -2472,7 +2478,7 @@ function LibraryApp() {
           onChooseSlicerExecutable={chooseSlicerExecutable}
           detectingSlicers={isDetectingSlicers}
           unavailableSlicerIds={unavailableSlicerIds}
-          onDetectSlicers={detectInstalledSlicers}
+          onDetectSlicers={() => detectInstalledSlicers(true)}
           onAddSlicer={addSlicerProgram}
           onRenameSlicer={renameSlicerProgram}
           onRemoveSlicer={removeSlicerProgram}

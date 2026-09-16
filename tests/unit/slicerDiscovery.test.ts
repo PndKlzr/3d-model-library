@@ -50,6 +50,11 @@ HKEY_CURRENT_USER\Software\Bad
 HKEY_CURRENT_USER\Software\Broken
     DisplayName    REG_SZ    PrusaSlicer
     DisplayIcon    REG_SZ    not a path
+
+HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Uninstall\Cura
+    DisplayName    REG_SZ    UltiMaker Cura 5.13.0
+    DisplayVersion    REG_SZ    5.13.0
+    UninstallString    REG_SZ    C:\Program Files\UltiMaker Cura 5.13.0\uninstall.exe
 `;
 
     expect(parseRegistrySlicerCandidates(output)).toEqual([]);

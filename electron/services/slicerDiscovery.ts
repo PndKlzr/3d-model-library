@@ -64,7 +64,7 @@ export function parseRegistrySlicerCandidates(
       : header.includes("shell\\open\\command")
         ? "association"
         : "uninstall";
-    const executablePath = extractExecutablePath(block)
+    const executablePath = extractExecutablePath(block, definition)
       ?? executableFromInstallLocation(block, definition);
     if (!executablePath) continue;
 
@@ -227,10 +227,17 @@ function findDefinition(
   );
 }
 
-function extractExecutablePath(block: string): string | null {
-  const quoted = block.match(/"([A-Za-z]:\\[^"\r\n]+?\.exe)"/i)?.[1];
-  if (quoted) return quoted.trim();
-  return block.match(/([A-Za-z]:\\[^\r\n,]*?\.exe)(?:\s|,|$)/i)?.[1].trim() ?? null;
+function extractExecutablePath(
+  block: string,
+  definition: BuiltInSlicerDefinition
+): string | null {
+  const executableNames = new Set(definition.executableNames.map((name) => name.toLowerCase()));
+  const matches = block.matchAll(/"?([A-Za-z]:\\[^"\r\n,]*?\.exe)"?(?=\s|,|$)/gi);
+  for (const match of matches) {
+    const candidate = match[1].trim();
+    if (executableNames.has(path.win32.basename(candidate).toLowerCase())) return candidate;
+  }
+  return null;
 }
 
 function executableFromInstallLocation(

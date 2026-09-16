@@ -294,6 +294,8 @@ describe("product flow contract", () => {
 
     expect(appSource).toContain("window.modelLibrary.detectSlicers()");
     expect(appSource).toContain("applyDetectedSlicers(");
+    expect(appSource).toContain('t("slicer.detectedCount"');
+    expect(appSource).toContain('t("slicer.noneDetected"');
     expect(appSource).toContain("addCustomSlicer(");
     expect(appSource).toContain("renameCustomSlicer(");
     expect(appSource).toContain("removeCustomSlicer(");

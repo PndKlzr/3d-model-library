@@ -6,7 +6,7 @@ import type { SlicerConfig } from "../../src/shared/types";
 
 const slicers: SlicerConfig[] = [
   { id: "cura", name: "Cura", kind: "built-in", builtInKey: "cura", executablePath: "C:\\Apps\\Cura.exe", enabled: true, pathSource: "manual" },
-  { id: "orca-slicer", name: "OrcaSlicer", kind: "built-in", builtInKey: "orca-slicer", executablePath: "C:\\Apps\\Orca.exe", enabled: true, pathSource: "detected" },
+  { id: "orca-slicer", name: "OrcaSlicer", kind: "built-in", builtInKey: "orca-slicer", executablePath: "C:\\Program Files\\OrcaSlicer 2.3.1\\orca-slicer.exe", enabled: true, pathSource: "detected" },
   { id: "prusa-slicer", name: "PrusaSlicer", kind: "built-in", builtInKey: "prusa-slicer", executablePath: "", enabled: false, pathSource: null },
   { id: "custom-one", name: "Meu Programa", kind: "custom", executablePath: "C:\\Apps\\Custom.exe", enabled: true, pathSource: "manual" }
 ];
@@ -25,6 +25,7 @@ function renderList(locale: "pt-BR" | "en" = "pt-BR") {
 describe("SlicerIntegrationList", () => {
   it("shows detected, manual, and unconfigured states in Portuguese and English", () => {
     renderList();
+    expect(screen.getByText("OrcaSlicer 2.3.1")).toBeTruthy();
     expect(screen.getByText("Encontrado")).toBeTruthy();
     expect(screen.getAllByText("Manual").length).toBeGreaterThan(0);
     expect(screen.getByText("Não configurado")).toBeTruthy();

@@ -52,6 +52,7 @@ export function SlicerIntegrationList({
       <div className="slicer-integration-list">
         {slicers.map((slicer) => {
           const unavailable = unavailableSlicerIds.includes(slicer.id);
+          const displayName = getSlicerDisplayName(slicer);
           const statusKey = unavailable
             ? "slicer.unavailable"
             : !slicer.executablePath
@@ -60,7 +61,7 @@ export function SlicerIntegrationList({
           return (
             <div className="slicer-integration-row" key={slicer.id}>
               <div className="slicer-integration-identity">
-                <strong>{slicer.name}</strong>
+                <strong>{displayName}</strong>
                 <span className={`slicer-status ${unavailable ? "unavailable" : slicer.executablePath ? "configured" : ""}`}>
                   {t(statusKey)}
                 </span>
@@ -110,4 +111,10 @@ export function SlicerIntegrationList({
       </div>
     </div>
   );
+}
+
+function getSlicerDisplayName(slicer: SlicerConfig): string {
+  if (slicer.kind !== "built-in" || slicer.pathSource !== "detected") return slicer.name;
+  const version = slicer.executablePath.match(/\d+(?:\.\d+)+/)?.[0];
+  return version && !slicer.name.includes(version) ? `${slicer.name} ${version}` : slicer.name;
 }
