@@ -249,6 +249,28 @@ describe("activeLibraryMetadataStore", () => {
     expect(persisted.metadata.models[nextModelPath].notes).toBe("keep me");
   });
 
+  it("persists several metadata moves in one atomic save", async () => {
+    const root = path.resolve("C:/library");
+    const first = path.join(root, "raw", "a.stl");
+    const second = path.join(root, "raw", "b.stl");
+    const destinationFirst = path.join(root, "sorted", "a.stl");
+    const destinationSecond = path.join(root, "sorted", "b.stl");
+    const harness = createHarness();
+    await harness.store.open(root);
+    await harness.store.setNotes(first, "A");
+    await harness.store.setNotes(second, "B");
+    const savesBeforeMove = harness.repository.saveCount;
+
+    await harness.store.movePathMetadataBatch([
+      { sourcePath: first, destinationPath: destinationFirst },
+      { sourcePath: second, destinationPath: destinationSecond }
+    ]);
+
+    expect(harness.repository.saveCount).toBe(savesBeforeMove + 1);
+    expect(harness.store.getMetadata().models[destinationFirst].notes).toBe("A");
+    expect(harness.store.getMetadata().models[destinationSecond].notes).toBe("B");
+  });
+
   it("serializes restore after pending edits and adopts the active library identity", async () => {
     const root = path.resolve("C:/library");
     const modelPath = path.join(root, "part.stl");

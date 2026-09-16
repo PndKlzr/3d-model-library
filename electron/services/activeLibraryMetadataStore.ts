@@ -1,6 +1,7 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
+  FileContentIdentity,
   LibraryDataStatus,
   LibraryMetadata,
   LibraryMetadataStatus
@@ -42,7 +43,14 @@ export type ActiveLibraryMetadataStore = {
   setNotes: (modelPath: string, notes: string) => Promise<LibraryMetadata>;
   addCatalogTag: (tag: string) => Promise<LibraryMetadata>;
   removeCatalogTag: (tag: string) => Promise<LibraryMetadata>;
+  setFileIdentity: (
+    modelPath: string,
+    identity: FileContentIdentity
+  ) => Promise<LibraryMetadata>;
   movePathMetadata: (sourcePath: string, destinationPath: string) => Promise<LibraryMetadata>;
+  movePathMetadataBatch: (
+    moves: Array<{ sourcePath: string; destinationPath: string }>
+  ) => Promise<LibraryMetadata>;
   recordSlicerOpen: (
     modelPath: string,
     slicerId: string,
@@ -314,10 +322,20 @@ export function createActiveLibraryMetadataStore({
       enqueueMutation((reducer) => reducer.setNotes(modelPath, notes), [modelPath]),
     addCatalogTag: (tag) => enqueueMutation((reducer) => reducer.addCatalogTag(tag)),
     removeCatalogTag: (tag) => enqueueMutation((reducer) => reducer.removeCatalogTag(tag)),
+    setFileIdentity: (modelPath, identity) =>
+      enqueueMutation(
+        (reducer) => reducer.setFileIdentity(modelPath, identity),
+        [modelPath]
+      ),
     movePathMetadata: (sourcePath, destinationPath) =>
       enqueueMutation(
         (reducer) => reducer.movePathMetadata(sourcePath, destinationPath),
         [sourcePath, destinationPath]
+      ),
+    movePathMetadataBatch: (moves) =>
+      enqueueMutation(
+        (reducer) => reducer.movePathMetadataBatch(moves),
+        moves.flatMap(({ sourcePath, destinationPath }) => [sourcePath, destinationPath])
       ),
     recordSlicerOpen: (modelPath, slicerId, openedAt) =>
       enqueueMutation(

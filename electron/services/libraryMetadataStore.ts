@@ -19,7 +19,11 @@ export type LibraryMetadataStore = {
   setNotes: (modelPath: string, notes: string) => LibraryMetadata;
   addCatalogTag: (tag: string) => LibraryMetadata;
   removeCatalogTag: (tag: string) => LibraryMetadata;
+  setFileIdentity: (modelPath: string, identity: FileContentIdentity) => LibraryMetadata;
   movePathMetadata: (sourcePath: string, destinationPath: string) => LibraryMetadata;
+  movePathMetadataBatch: (
+    moves: Array<{ sourcePath: string; destinationPath: string }>
+  ) => LibraryMetadata;
   recordSlicerOpen: (modelPath: string, slicerId: string, openedAt?: string) => LibraryMetadata;
 };
 
@@ -123,6 +127,17 @@ export function createLibraryMetadataStore(
       });
     },
 
+    setFileIdentity(modelPath, identity) {
+      const metadata = getMetadata();
+      return saveMetadata({
+        ...metadata,
+        fileIdentities: {
+          ...metadata.fileIdentities,
+          [modelPath]: identity
+        }
+      });
+    },
+
     movePathMetadata(sourcePath, destinationPath) {
       if (samePath(sourcePath, destinationPath)) {
         return getMetadata();
@@ -131,6 +146,8 @@ export function createLibraryMetadataStore(
       const metadata = getMetadata();
       const nextModels: LibraryMetadata["models"] = {};
       const movedModelEntries: Array<[string, ModelUserMetadata]> = [];
+      const nextIdentities: LibraryMetadata["fileIdentities"] = {};
+      const movedIdentityEntries: Array<[string, FileContentIdentity]> = [];
 
       for (const [modelPath, modelMetadata] of Object.entries(metadata.models)) {
         const movedPath = movePathIfInside(modelPath, sourcePath, destinationPath);
@@ -145,14 +162,41 @@ export function createLibraryMetadataStore(
         }
       }
 
+      for (const [modelPath, identity] of Object.entries(metadata.fileIdentities)) {
+        const movedPath = movePathIfInside(modelPath, sourcePath, destinationPath);
+
+        if (movedPath) {
+          movedIdentityEntries.push([movedPath, identity]);
+          continue;
+        }
+
+        if (!isPathSameOrInside(modelPath, destinationPath)) {
+          nextIdentities[modelPath] = identity;
+        }
+      }
+
       return saveMetadata({
         ...metadata,
         models: {
           ...nextModels,
           ...Object.fromEntries(movedModelEntries)
         },
+        fileIdentities: {
+          ...nextIdentities,
+          ...Object.fromEntries(movedIdentityEntries)
+        },
         slicerHistory: moveSlicerHistory(metadata, sourcePath, destinationPath)
       });
+    },
+
+    movePathMetadataBatch(moves) {
+      assertUniqueMoves(moves);
+      const reducer = createLibraryMetadataStore();
+      reducer.saveMetadata(getMetadata());
+      for (const move of moves) {
+        reducer.movePathMetadata(move.sourcePath, move.destinationPath);
+      }
+      return saveMetadata(reducer.getMetadata());
     },
 
     setNotes(modelPath, notes) {
@@ -253,6 +297,25 @@ function isFileContentIdentity(value: unknown): value is FileContentIdentity {
     typeof (value as FileContentIdentity).modifiedAt === "string" &&
     !Number.isNaN(Date.parse((value as FileContentIdentity).modifiedAt))
   );
+}
+
+function assertUniqueMoves(moves: Array<{ sourcePath: string; destinationPath: string }>) {
+  const sources = new Set<string>();
+  const destinations = new Set<string>();
+
+  for (const move of moves) {
+    const source = normalizePathKey(move.sourcePath);
+    const destination = normalizePathKey(move.destinationPath);
+    if (sources.has(source) || destinations.has(destination)) {
+      throw new Error("Metadata path moves must have unique sources and destinations");
+    }
+    sources.add(source);
+    destinations.add(destination);
+  }
+}
+
+function normalizePathKey(value: string): string {
+  return path.resolve(value).toLowerCase();
 }
 
 function movePathIfInside(

@@ -148,6 +148,51 @@ describe("libraryMetadataStore", () => {
     expect(metadata.models["C:\\models\\sorted\\raw\\sub\\clip.3mf"].tags).toEqual(["armor"]);
     expect(metadata.models[siblingPath].tags).toEqual(["keep"]);
   });
+
+  it("moves file identity with model metadata and slicer history", () => {
+    const store = createLibraryMetadataStore();
+    const oldPath = "C:/models/raw/clip.stl";
+    const nextPath = "C:/models/sorted/clip.stl";
+    const identity = {
+      algorithm: "sha256" as const,
+      digest: "b".repeat(64),
+      sizeBytes: 128,
+      modifiedAt: "2026-09-16T10:00:00.000Z"
+    };
+
+    store.setNotes(oldPath, "keep me");
+    store.setFileIdentity(oldPath, identity);
+    store.recordSlicerOpen(oldPath, "cura", "2026-09-16T11:00:00.000Z");
+    store.movePathMetadata(oldPath, nextPath);
+
+    const metadata = store.getMetadata();
+    const resolvedNextPath = path.resolve(nextPath);
+    expect(metadata.fileIdentities[oldPath]).toBeUndefined();
+    expect(metadata.fileIdentities[resolvedNextPath]).toEqual(identity);
+    expect(metadata.models[resolvedNextPath].notes).toBe("keep me");
+    expect(metadata.slicerHistory[0].modelPath).toBe(resolvedNextPath);
+  });
+
+  it("moves several metadata paths as one batch", () => {
+    const store = createLibraryMetadataStore();
+    const first = "C:/models/raw/a.stl";
+    const second = "C:/models/raw/b.stl";
+    const destinationFirst = "C:/models/sorted/a.stl";
+    const destinationSecond = "C:/models/sorted/b.stl";
+
+    store.setNotes(first, "A");
+    store.setNotes(second, "B");
+    store.movePathMetadataBatch([
+      { sourcePath: first, destinationPath: destinationFirst },
+      { sourcePath: second, destinationPath: destinationSecond }
+    ]);
+
+    const metadata = store.getMetadata();
+    expect(metadata.models[path.resolve(destinationFirst)].notes).toBe("A");
+    expect(metadata.models[path.resolve(destinationSecond)].notes).toBe("B");
+    expect(metadata.models[first]).toBeUndefined();
+    expect(metadata.models[second]).toBeUndefined();
+  });
 });
 
 function sameResolvedPath(left: string, right: string): boolean {
