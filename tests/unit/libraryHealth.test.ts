@@ -64,4 +64,26 @@ describe("libraryHealth", () => {
     expect(health.issues).toHaveLength(250);
     expect(health.issues[0].detail).toHaveLength(500);
   });
+
+  it("ignores missing paths whose saved metadata is empty", () => {
+    const health = buildLibraryHealthSnapshot({
+      rootPath: "C:\\Models",
+      checkedAt: null,
+      scanResult: { rootPath: "C:\\Models", models: [], folders: [], errors: [] },
+      metadata: {
+        models: {
+          "C:\\Models\\empty.stl": { favorite: false, tags: [], notes: "" },
+          "C:\\Models\\favorite.stl": { favorite: true, tags: [], notes: "" }
+        },
+        tagCatalog: [],
+        slicerHistory: []
+      },
+      metadataStatus: { availability: "ready", writable: true, source: "primary", message: null },
+      sessionIssues: [],
+      monitoringError: null,
+      unavailableSlicerIds: []
+    });
+
+    expect(health.issues.map((issue) => issue.relativePath)).toEqual(["favorite.stl"]);
+  });
 });

@@ -35,7 +35,8 @@ export function buildLibraryHealthSnapshot(input: LibraryHealthInput): LibraryHe
   }
 
   const currentPaths = new Set((input.scanResult?.models ?? []).map((model) => normalize(model.absolutePath)));
-  for (const modelPath of Object.keys(input.metadata.models)) {
+  for (const [modelPath, metadata] of Object.entries(input.metadata.models)) {
+    if (!metadata.favorite && metadata.tags.length === 0 && !metadata.notes.trim()) continue;
     if (!currentPaths.has(normalize(modelPath))) {
       add({
         ...issue("metadata-file-missing", "warning", `missing:${normalize(modelPath)}`),
