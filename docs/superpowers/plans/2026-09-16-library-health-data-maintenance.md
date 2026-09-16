@@ -529,7 +529,7 @@ git commit -m "Track thumbnail cache ownership"
 - Produces: `ActiveLibrarySession.verify(session)` and preload method `verifyLibrary(session)`.
 - Consumes later: Settings UI from Task 7.
 
-- [ ] **Step 1: Write failing registry and aggregation tests**
+- [x] **Step 1: Write failing registry and aggregation tests**
 
 ```ts
 it("bounds session issues and clears a model after a successful retry", () => {
@@ -559,13 +559,13 @@ it("verifies without publishing or saving a new catalog", async () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and confirm RED**
+- [x] **Step 2: Run focused tests and confirm RED**
 
 Run: `npm test -- --run tests/unit/librarySessionIssueRegistry.test.ts tests/unit/libraryHealth.test.ts tests/unit/modelThumbnailService.test.ts tests/unit/activeLibrarySession.test.ts tests/unit/DetailsPanel.test.tsx`
 
 Expected: FAIL because the health model and registry are absent.
 
-- [ ] **Step 3: Define bounded issue facts**
+- [x] **Step 3: Define bounded issue facts**
 
 ```ts
 export type LibraryHealthIssueCode =
@@ -596,7 +596,7 @@ export type LibraryHealthSnapshot = {
 
 Limit issue details to 500 characters and the snapshot to 250 issues. Normalize paths relative to the active library before they enter the snapshot.
 
-- [ ] **Step 4: Connect thumbnail and archive success/failure events**
+- [x] **Step 4: Connect thumbnail and archive success/failure events**
 
 Add optional hooks to `createModelThumbnailService`:
 
@@ -607,15 +607,15 @@ onSuccess?: (model: ModelFile) => void;
 
 Call `record("thumbnail", ...)` only after all thumbnail strategies fail. Call `resolve("thumbnail", ...)` on cache, embedded, or render success. Add `onArchiveFailure` and `onArchiveSuccess` callbacks to `DetailsPanel`; record only a failed archive listing and resolve it after a successful listing. Reset the registry in the existing library-session reset path so one library cannot display another library's paths.
 
-- [ ] **Step 5: Add an explicitly read-only verification API**
+- [x] **Step 5: Add an explicitly read-only verification API**
 
 Add `ActiveLibrarySession.verify(expected)` beside `scan(expected)`. It runs `scanRoot(expected.rootPath)` inside the catalog queue, validates the session before and after the scan, and returns `{ session, result }` without calling `indexStore.save`, publishing watcher events, or replacing the mounted catalog. Expose it through trusted `library:verify` IPC and `verifyLibrary(session)` in the preload contract.
 
-- [ ] **Step 6: Compose health in `App` without rescanning on render**
+- [x] **Step 6: Compose health in `App` without rescanning on render**
 
 Use memoized current scan, metadata/status, session issues, monitoring error, and unavailable slicer IDs. Compare durable metadata paths against the current or verified scan to emit `metadata-file-missing`. “Verify library” calls `verifyLibrary`, inspects configured slicers, keeps the displayed catalog unchanged, and sets `checkedAt`; ordinary filter, search, scroll, and selection changes never trigger verification.
 
-- [ ] **Step 7: Run focused tests and commit**
+- [x] **Step 7: Run focused tests and commit**
 
 Run: `npm test -- --run tests/unit/librarySessionIssueRegistry.test.ts tests/unit/libraryHealth.test.ts tests/unit/modelThumbnailService.test.ts tests/unit/activeLibrarySession.test.ts tests/unit/DetailsPanel.test.tsx`
 

@@ -135,6 +135,39 @@ export type LibraryMetadataStatus = {
   message: string | null;
 };
 
+export type LibrarySessionIssueKind = "thumbnail" | "archive";
+
+export type LibrarySessionIssueFact = {
+  kind: LibrarySessionIssueKind;
+  modelPath: string;
+  detail: string;
+};
+
+export type LibraryHealthIssueCode =
+  | "metadata-recovered-backup"
+  | "metadata-read-only"
+  | "metadata-unavailable"
+  | "metadata-file-missing"
+  | "scan-error"
+  | "thumbnail-failed"
+  | "archive-read-failed"
+  | "slicer-unavailable"
+  | "monitoring-failed";
+
+export type LibraryHealthIssue = {
+  id: string;
+  code: LibraryHealthIssueCode;
+  severity: "warning" | "error";
+  relativePath?: string;
+  detail?: string;
+};
+
+export type LibraryHealthSnapshot = {
+  checkedAt: string | null;
+  counts: { warning: number; error: number };
+  issues: LibraryHealthIssue[];
+};
+
 export type LibraryDataStatus = {
   libraryId: string | null;
   updatedAt: string | null;

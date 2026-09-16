@@ -62,6 +62,8 @@ type DetailsPanelProps = {
     modelPath: string,
     onProgress: (progress: number) => void
   ) => Promise<void>;
+  onArchiveFailure?: (model: ModelFile, error: Error) => void;
+  onArchiveSuccess?: (model: ModelFile) => void;
 };
 
 export function DetailsPanel({
@@ -83,7 +85,9 @@ export function DetailsPanel({
   onSetModelNotes,
   onRetryMetadata,
   onExtractArchive,
-  onConvertThreeMfToStl
+  onConvertThreeMfToStl,
+  onArchiveFailure,
+  onArchiveSuccess
 }: DetailsPanelProps) {
   const { locale, t, formatDate } = useI18n();
   const [showPreview, setShowPreview] = useState(false);
@@ -172,11 +176,16 @@ export function DetailsPanel({
     window.modelLibrary
       .listArchiveEntries(model.absolutePath)
       .then((result) => {
+        onArchiveSuccess?.(model);
         if (isMounted) {
           setArchiveEntries(result.entries);
         }
       })
       .catch((error) => {
+        onArchiveFailure?.(
+          model,
+          error instanceof Error ? error : new Error(String(error))
+        );
         if (isMounted) {
           setArchiveMessage(localizeErrorMessage(locale, error));
           setArchiveEntries([]);

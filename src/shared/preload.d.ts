@@ -56,6 +56,7 @@ export type ModelLibraryApi = {
   ) => Promise<LibraryActivationResult | null>;
   getCurrentLibrary: () => Promise<LibraryActivationResult | null>;
   scanLibrary: (session: LibrarySessionRef) => Promise<VersionedLibraryScanResult>;
+  verifyLibrary: (session: LibrarySessionRef) => Promise<VersionedLibraryScanResult>;
   rebuildLibraryIndex: (session: LibrarySessionRef) => Promise<VersionedLibraryScanResult>;
   showLibraryDataFolder: (session: LibrarySessionRef) => Promise<void>;
   setLibraryMonitoring: (session: LibrarySessionRef, enabled: boolean) => Promise<void>;

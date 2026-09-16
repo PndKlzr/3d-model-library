@@ -710,6 +710,27 @@ describe("modelThumbnailService", () => {
     expect(serialized).not.toContain("identifying-model");
     expect(serialized).not.toContain(WEBP);
   });
+
+  it("reports a terminal failure and resolves it after a successful retry", async () => {
+    const onFailure = vi.fn();
+    const onSuccess = vi.fn();
+    const readModelFile = vi.fn()
+      .mockRejectedValueOnce(new Error("broken model"))
+      .mockResolvedValueOnce(new ArrayBuffer(8));
+    const service = createModelThumbnailService(dependencies({
+      readModelFile,
+      onFailure,
+      onSuccess
+    }));
+    const target = model();
+
+    await expect(service.request(target, "visible").promise).resolves.toBeNull();
+    expect(onFailure).toHaveBeenCalledWith(target, expect.objectContaining({ message: "broken model" }));
+
+    await service.retry(target);
+    await expect(service.request(target, "visible").promise).resolves.toBe(WEBP);
+    expect(onSuccess).toHaveBeenCalledWith(target);
+  });
 });
 
 function dependencies(

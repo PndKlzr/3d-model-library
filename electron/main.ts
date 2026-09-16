@@ -221,6 +221,10 @@ function registerIpcHandlers() {
     activeLibrarySession!.scan(expected)
   );
 
+  ipcMain.handle("library:verify", (_event, expected: LibrarySessionRef) =>
+    activeLibrarySession!.verify(expected)
+  );
+
   ipcMain.handle("library:rebuild-index", (_event, expected: LibrarySessionRef) =>
     activeLibrarySession!.rebuildIndex(expected)
   );

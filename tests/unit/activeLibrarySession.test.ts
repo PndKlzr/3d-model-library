@@ -84,6 +84,32 @@ describe("activeLibrarySession", () => {
     expect(harness.invalidations).toEqual([`${harness.firstRoot}:id-first`]);
   });
 
+  it("verifies without publishing or saving a new catalog", async () => {
+    const verifiedResult = {
+      ...scanResult(path.join(tmpdir(), "library-session-first")),
+      models: [{
+        id: "part",
+        name: "part.stl",
+        extension: ".stl" as const,
+        absolutePath: path.join(tmpdir(), "library-session-first", "part.stl"),
+        relativeFolder: "",
+        sizeBytes: 10,
+        modifiedAt: "2026-09-16T00:00:00.000Z",
+        dimensionsMm: null,
+        objectCount: null,
+        previewError: null
+      }]
+    };
+    const harness = createHarness({ scan: async () => verifiedResult });
+    const active = await harness.session.activate(harness.firstRoot, false);
+
+    const verified = await harness.session.verify(active!.session);
+
+    expect(verified.result.models).toHaveLength(1);
+    expect(harness.saves).toEqual([]);
+    expect(harness.session.current()).toEqual(active!.session);
+  });
+
   it("ignores a stale watcher batch after switching roots", async () => {
     const applyEvents = vi.fn(async (current: LibraryScanResult) => current);
     const onChanged = vi.fn();

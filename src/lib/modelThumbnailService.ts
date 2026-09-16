@@ -11,6 +11,7 @@ import type { LibrarySessionRef, ModelFile } from "../shared/types";
 import { isArchive, isDirectImage } from "../shared/fileCapabilities";
 import { compactImageThumbnail } from "./imageThumbnail";
 import { thumbnailWorkerClient } from "./thumbnailWorkerClient";
+import { librarySessionIssueRegistry } from "./librarySessionIssueRegistry";
 
 export type { ThumbnailPriority } from "./thumbnailScheduler";
 
@@ -31,6 +32,8 @@ export type ModelThumbnailServiceDependencies = {
   cancelThumbnailWorker: typeof thumbnailWorkerClient.cancel;
   compactImageThumbnail: typeof compactImageThumbnail;
   yieldBeforeRender: () => Promise<void>;
+  onFailure?: (model: ModelFile, error: Error) => void;
+  onSuccess?: (model: ModelFile) => void;
 };
 
 export type ModelThumbnailService = {
@@ -226,12 +229,21 @@ export function createModelThumbnailService(
       } catch {
         // The generated image remains usable even when its disk-cache write fails.
       }
-    } catch {
-      if (isEntryCurrent(entry)) failedSignatures.add(entry.key);
+    } catch (error) {
+      if (isEntryCurrent(entry)) {
+        failedSignatures.add(entry.key);
+        dependencies.onFailure?.(
+          entry.model,
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
     } finally {
       entry.stageRequest = null;
       if (pipelineEntries.get(entry.key) === entry) pipelineEntries.delete(entry.key);
-      if (thumbnail && isEntryCurrent(entry)) readySignatures.add(entry.key);
+      if (thumbnail && isEntryCurrent(entry)) {
+        readySignatures.add(entry.key);
+        dependencies.onSuccess?.(entry.model);
+      }
       entry.requestOperation.settled();
       entry.resolve(isEntryCurrent(entry) ? thumbnail ?? null : null);
       publishDiagnostics();
@@ -435,7 +447,11 @@ export const modelThumbnailService = createModelThumbnailService({
   renderThumbnailInWorker: thumbnailWorkerClient.render,
   cancelThumbnailWorker: thumbnailWorkerClient.cancel,
   compactImageThumbnail,
-  yieldBeforeRender: yieldBeforeThumbnailRender
+  yieldBeforeRender: yieldBeforeThumbnailRender,
+  onFailure: (model, error) =>
+    librarySessionIssueRegistry.record("thumbnail", model.absolutePath, error),
+  onSuccess: (model) =>
+    librarySessionIssueRegistry.resolve("thumbnail", model.absolutePath)
 });
 
 function createSessionKey(session: LibrarySessionRef): string {

@@ -57,6 +57,8 @@ import {
 } from "./lib/librarySessionState";
 import { updateSelectionForGesture } from "./lib/modelSelection";
 import { modelThumbnailService } from "./lib/modelThumbnailService";
+import { buildLibraryHealthSnapshot } from "./lib/libraryHealth";
+import { librarySessionIssueRegistry } from "./lib/librarySessionIssueRegistry";
 import {
   runThumbnailBenchmark,
   type ThumbnailBenchmarkScenario
@@ -99,6 +101,7 @@ import type {
   LibraryMetadata,
   LibraryMetadataStatus,
   LibraryScanResult,
+  LibrarySessionIssueFact,
   LibrarySessionRef,
   ModelHashResult,
   ModelFile
@@ -218,6 +221,12 @@ function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfigu
 function LibraryApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [unavailableSlicerIds, setUnavailableSlicerIds] = useState<string[]>([]);
+  const [sessionIssues, setSessionIssues] = useState<LibrarySessionIssueFact[]>(
+    () => librarySessionIssueRegistry.getSnapshot()
+  );
+  const [monitoringError, setMonitoringError] = useState<string | null>(null);
+  const [verifiedHealthScan, setVerifiedHealthScan] = useState<LibraryScanResult | null>(null);
+  const [healthCheckedAt, setHealthCheckedAt] = useState<string | null>(null);
   const locale = settings?.locale ?? "pt-BR";
   const t = (key: TranslationKey, params?: TranslationParams) =>
     translate(locale, key, params);
@@ -347,6 +356,8 @@ function LibraryApp() {
 
   useEffect(() => modelThumbnailService.subscribe(setThumbnailDiagnostics), []);
 
+  useEffect(() => librarySessionIssueRegistry.subscribe(setSessionIssues), []);
+
   useEffect(() => {
     if (!settings || initialSlicerDetectionRef.current) return;
     initialSlicerDetectionRef.current = true;
@@ -380,6 +391,7 @@ function LibraryApp() {
     const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((payload) => {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, payload.session)) return;
       setMonitorStatus("error");
+      setMonitoringError(payload.message);
       setOperationMessage(translate(locale, "message.monitorPaused", {
         detail: localizeErrorMessage(locale, new Error(payload.message))
       }));
@@ -390,6 +402,27 @@ function LibraryApp() {
       unsubscribeError();
     };
   }, [locale]);
+
+  const libraryHealth = useMemo(() => buildLibraryHealthSnapshot({
+    rootPath: activeLibrarySessionRef.current?.rootPath ?? settings?.libraryPath ?? "",
+    checkedAt: healthCheckedAt,
+    scanResult: verifiedHealthScan ?? scanResult,
+    metadata: libraryMetadata,
+    metadataStatus,
+    sessionIssues,
+    monitoringError,
+    unavailableSlicerIds
+  }), [
+    healthCheckedAt,
+    libraryMetadata,
+    metadataStatus,
+    monitoringError,
+    scanResult,
+    sessionIssues,
+    settings?.libraryPath,
+    unavailableSlicerIds,
+    verifiedHealthScan
+  ]);
 
   useEffect(() => {
     const unsubscribe = window.modelLibrary.onFileDragStatus?.((status) => {
@@ -1080,6 +1113,7 @@ function LibraryApp() {
       setMetadataStatus(activation.metadataStatus);
       setScanResult(activation.cachedResult);
       setMonitorStatus(monitoring ? "active" : "disabled");
+      setMonitoringError(null);
       void scanLibrarySession(activation.session);
       return activation;
     } catch (error) {
@@ -1122,6 +1156,24 @@ function LibraryApp() {
       message: t("message.libraryNotConnected")
     });
     setMonitorStatus("disabled");
+    setMonitoringError(null);
+    setVerifiedHealthScan(null);
+    setHealthCheckedAt(null);
+    librarySessionIssueRegistry.reset();
+  }
+
+  async function verifyLibraryHealth() {
+    const session = activeLibrarySessionRef.current;
+    if (!session) throw new Error(t("error.libraryInactive"));
+    const [verified, unavailable] = await Promise.all([
+      window.modelLibrary.verifyLibrary(session),
+      window.modelLibrary.inspectConfiguredSlicers()
+    ]);
+    if (!isCurrentLibraryResult(activeLibrarySessionRef.current, verified.session)) return null;
+    setVerifiedHealthScan(verified.result);
+    setUnavailableSlicerIds(unavailable);
+    setHealthCheckedAt(new Date().toISOString());
+    return verified.result;
   }
 
   async function restorePreviousLibrary(
@@ -1203,6 +1255,8 @@ function LibraryApp() {
       }
       const nextScanResult = versionedResult.result;
       setScanResult(nextScanResult);
+      setVerifiedHealthScan(null);
+      setHealthCheckedAt(null);
       const modelsByPath = new Map(
         nextScanResult.models.map((model) => [model.absolutePath.toLowerCase(), model])
       );
@@ -2223,6 +2277,10 @@ function LibraryApp() {
         onRetryMetadata={retryLibraryMetadata}
         onExtractArchive={extractArchiveFile}
         onConvertThreeMfToStl={convertSelectedThreeMfToStl}
+        onArchiveFailure={(model, error) =>
+          librarySessionIssueRegistry.record("archive", model.absolutePath, error)}
+        onArchiveSuccess={(model) =>
+          librarySessionIssueRegistry.resolve("archive", model.absolutePath)}
       />
       {responsivePanel ? (
         <button

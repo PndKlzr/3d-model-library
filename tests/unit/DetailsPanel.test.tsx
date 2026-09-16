@@ -194,6 +194,35 @@ describe("DetailsPanel image opening", () => {
     expect(onExtractArchive).toHaveBeenNthCalledWith(1, "C:\\Models\\photo.jpg", "here");
     expect(onExtractArchive).toHaveBeenNthCalledWith(2, "C:\\Models\\photo.jpg", "named-folder");
   });
+
+  it("reports archive listing failures and resolves them after a successful listing", async () => {
+    const onArchiveFailure = vi.fn();
+    const onArchiveSuccess = vi.fn();
+    window.modelLibrary = {
+      listArchiveEntries: vi.fn()
+        .mockRejectedValueOnce(new Error("broken archive"))
+        .mockResolvedValueOnce({ ok: true, archivePath: "C:\\Models\\pack.zip", entries: [] })
+    } as unknown as Window["modelLibrary"];
+    const target = imageModel({ id: "pack-1", name: "pack.zip", extension: ".zip" });
+    const props = detailsProps(target);
+    const view = render(<DetailsPanel
+      {...props}
+      onArchiveFailure={onArchiveFailure}
+      onArchiveSuccess={onArchiveSuccess}
+    />);
+    await waitFor(() => expect(onArchiveFailure).toHaveBeenCalledWith(
+      target,
+      expect.objectContaining({ message: "broken archive" })
+    ));
+
+    view.rerender(<DetailsPanel
+      {...props}
+      model={{ ...target, id: "pack-2" }}
+      onArchiveFailure={onArchiveFailure}
+      onArchiveSuccess={onArchiveSuccess}
+    />);
+    await waitFor(() => expect(onArchiveSuccess).toHaveBeenCalled());
+  });
 });
 
 function imageModel(overrides: Partial<ModelFile> = {}): ModelFile {
