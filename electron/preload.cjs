@@ -71,6 +71,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   invalidateCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-invalidate", model),
   writeCachedThumbnail: (model, dataUrl, sessionKey) =>
     ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl, sessionKey),
+  cleanUnusedThumbnails: (session, models) =>
+    ipcRenderer.invoke("thumbnail:clean-library", session, models),
   saveConvertedStl: (sourcePath, stlContent) =>
     ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),

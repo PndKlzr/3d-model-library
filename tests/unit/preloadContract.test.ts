@@ -22,6 +22,8 @@ describe("Electron preload contract", () => {
     expect(mainSource).toContain('ipcMain.handle("library:show-folder"');
     expect(preloadSource).toContain("readCachedThumbnail");
     expect(preloadSource).toContain("writeCachedThumbnail");
+    expect(preloadSource).toContain("cleanUnusedThumbnails: (session, models)");
+    expect(preloadSource).toContain('ipcRenderer.invoke("thumbnail:clean-library", session, models)');
     expect(preloadSource).toContain('ipcRenderer.invoke("thumbnail:cache-invalidate"');
     expect(mainSource).toContain('ipcMain.handle("thumbnail:cache-invalidate"');
     expect(preloadSource).toContain("activateLibrary");

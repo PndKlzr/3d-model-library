@@ -7,7 +7,7 @@ import {
   createThumbnailCacheKey,
   THUMBNAIL_RENDER_VERSION
 } from "../../electron/services/thumbnailCache";
-import type { ThumbnailSignature } from "../../src/shared/types";
+import type { ThumbnailCacheOwner, ThumbnailSignature } from "../../src/shared/types";
 
 let cacheDirectory: string;
 
@@ -171,6 +171,56 @@ describe("thumbnailCache", () => {
     await expect(stat(activeTemporary)).resolves.toMatchObject({ size: 7 });
     await expect(stat(abandonedTemporary)).rejects.toThrow();
   });
+
+  it("removes stale entries owned by the active library only", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const oldA = model({ absolutePath: "C:\\Models\\old.stl" });
+    const currentA = model({ absolutePath: "C:\\Models\\current.stl" });
+    const modelB = model({ absolutePath: "D:\\Models\\other.stl" });
+    const image = `data:image/webp;base64,${Buffer.from("RIFF0000WEBP").toString("base64")}`;
+    await cache.write(oldA, image, owner("library-a", "old.stl"));
+    await cache.write(currentA, image, owner("library-a", "current.stl"));
+    await cache.write(modelB, image, owner("library-b", "other.stl"));
+
+    const result = await cache.cleanLibrary("library-a", [currentA]);
+
+    expect(result).toEqual({ removedFiles: 1, reclaimedBytes: 12 });
+    await expect(cache.read(oldA)).resolves.toBeNull();
+    await expect(cache.read(currentA)).resolves.toBe(image);
+    await expect(cache.read(modelB)).resolves.toBe(image);
+  });
+
+  it("preserves legacy entries without ownership records", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const legacyModel = model({ absolutePath: "C:\\Models\\legacy.stl" });
+    const bytes = Buffer.from("RIFF0000WEBP");
+    const key = createThumbnailCacheKey(legacyModel);
+    await writeFile(path.join(cacheDirectory, `${key}.webp`), bytes);
+
+    await expect(cache.cleanLibrary("library-a", [])).resolves.toEqual({
+      removedFiles: 0,
+      reclaimedBytes: 0
+    });
+    await expect(cache.read(legacyModel)).resolves.toBe(
+      `data:image/webp;base64,${bytes.toString("base64")}`
+    );
+  });
+
+  it("removes malformed ownership records without deleting their image", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const target = model();
+    const bytes = Buffer.from("RIFF0000WEBP");
+    const key = createThumbnailCacheKey(target);
+    const imagePath = path.join(cacheDirectory, `${key}.webp`);
+    const sidecarPath = path.join(cacheDirectory, `${key}.meta.json`);
+    await writeFile(imagePath, bytes);
+    await writeFile(sidecarPath, JSON.stringify({ libraryId: "library-a", relativePath: "../bad" }));
+
+    await cache.cleanLibrary("library-a", []);
+
+    await expect(stat(imagePath)).resolves.toMatchObject({ size: 12 });
+    await expect(stat(sidecarPath)).rejects.toThrow();
+  });
 });
 
 function model(overrides: Partial<ThumbnailSignature> = {}): ThumbnailSignature {
@@ -180,6 +230,10 @@ function model(overrides: Partial<ThumbnailSignature> = {}): ThumbnailSignature 
     modifiedAt: "2026-09-09T00:00:00.000Z",
     ...overrides
   };
+}
+
+function owner(libraryId: string, relativePath: string): ThumbnailCacheOwner {
+  return { libraryId, relativePath };
 }
 
 function deferred<T>() {

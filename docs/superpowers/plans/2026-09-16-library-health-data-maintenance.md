@@ -434,7 +434,7 @@ git commit -m "Add safe library index maintenance"
 - Produces: `thumbnailCache.cleanLibrary(libraryId, currentSignatures)`.
 - Produces preload method `cleanUnusedThumbnails(session, models)`.
 
-- [ ] **Step 1: Add failing ownership isolation tests**
+- [x] **Step 1: Add failing ownership isolation tests**
 
 ```ts
 it("removes stale entries owned by the active library only", async () => {
@@ -453,13 +453,13 @@ it("preserves legacy entries without ownership records", async () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and confirm RED**
+- [x] **Step 2: Run focused tests and confirm RED**
 
 Run: `npm test -- --run tests/unit/thumbnailCache.test.ts tests/unit/preloadContract.test.ts`
 
 Expected: FAIL because cache ownership and targeted cleanup are absent.
 
-- [ ] **Step 3: Add bounded ownership records**
+- [x] **Step 3: Add bounded ownership records**
 
 ```ts
 export type ThumbnailCacheOwner = {
@@ -475,17 +475,17 @@ export type ThumbnailCleanupResult = {
 
 Write `<cache-key>.meta.json` atomically after the image publication commits. The record contains schema version, cache key, library ID, relative path, size, modified time, renderer version, and last access timestamp. Validate maximum field lengths and reject absolute/traversal paths when reading sidecars.
 
-- [ ] **Step 4: Implement targeted cleanup and legacy behavior**
+- [x] **Step 4: Implement targeted cleanup and legacy behavior**
 
 `cleanLibrary(libraryId, currentSignatures)` computes the active set of current keys. It removes an image and sidecar only when a valid sidecar names `libraryId` and its key is absent from the active set. Malformed sidecars are removed without deleting an otherwise valid legacy image. Extend pruning to read each candidate's bounded signature bytes and remove PNG, JPEG, or WebP files whose signatures are invalid; then apply the existing age, temporary-file, and size policies. Return the actual removed image count and bytes.
 
 Pass owner data from the trusted main-process thumbnail read/write handlers using the current session and `path.relative(session.rootPath, model.absolutePath)`. The renderer never chooses a library ID or relative ownership path.
 
-- [ ] **Step 5: Add the cleanup IPC method with session validation**
+- [x] **Step 5: Add the cleanup IPC method with session validation**
 
 The renderer sends the active `LibrarySessionRef` and current `ModelFile[]`. The main process verifies the session and canonical containment for every signature, derives ownership itself, runs cleanup, verifies the session again, and returns `ThumbnailCleanupResult`.
 
-- [ ] **Step 6: Run focused tests, full tests, and build**
+- [x] **Step 6: Run focused tests, full tests, and build**
 
 Run: `npm test -- --run tests/unit/thumbnailCache.test.ts tests/unit/preloadContract.test.ts`
 
@@ -495,7 +495,7 @@ Run: `npm run build`
 
 Expected: all pass and benchmark cache behavior remains covered.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add electron/services/thumbnailCache.ts electron/main.ts electron/preload.cjs src/shared/types.ts src/shared/preload.d.ts tests/unit/thumbnailCache.test.ts tests/unit/preloadContract.test.ts

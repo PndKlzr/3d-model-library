@@ -25,7 +25,9 @@ import type {
   LibraryBackupActionResult,
   LibrarySessionRef,
   ModelHashInput,
-  SlicerConfig
+  SlicerConfig,
+  ThumbnailCleanupResult,
+  ThumbnailSignature
 } from "../src/shared/types.js";
 import {
   canSendToSlicer,
@@ -516,7 +518,9 @@ function registerIpcHandlers() {
   ipcMain.handle("thumbnail:cache-read", async (_event, model) => {
     assertThumbnailSignature(model);
     assertPathInsideLibrary(model.absolutePath);
-    return thumbnailCache.read(model);
+    const current = activeLibrarySession!.current();
+    if (!current) throw new Error("Library session is not active");
+    return thumbnailCache.read(model, createThumbnailOwner(current, model.absolutePath));
   });
 
   ipcMain.handle("thumbnail:cache-invalidate", async (_event, model) => {
@@ -543,10 +547,36 @@ function registerIpcHandlers() {
       throw new Error("Stale thumbnail session");
     }
 
-    await thumbnailCache.write(model, dataUrl, {
-      key: sessionKey,
-      publish: (commit) => activeLibrarySession!.publishIfCurrent(expected, commit)
+    await thumbnailCache.write(
+      model,
+      dataUrl,
+      createThumbnailOwner(expected, model.absolutePath),
+      {
+        key: sessionKey,
+        publish: (commit) => activeLibrarySession!.publishIfCurrent(expected, commit)
+      }
+    );
+  });
+
+  ipcMain.handle("thumbnail:clean-library", async (
+    _event,
+    expected: LibrarySessionRef,
+    models: ThumbnailSignature[]
+  ): Promise<ThumbnailCleanupResult> => {
+    if (!Array.isArray(models) || models.length > 100_000) {
+      throw new Error("Invalid thumbnail cleanup input");
+    }
+
+    let result: ThumbnailCleanupResult | null = null;
+    const published = await activeLibrarySession!.publishIfCurrent(expected, async () => {
+      for (const model of models) {
+        assertThumbnailSignature(model);
+        await resolveCanonicalLibraryFile(expected.rootPath, model.absolutePath);
+      }
+      result = await thumbnailCache.cleanLibrary(expected.libraryId, models);
     });
+    if (!published || !result) throw new Error("Stale thumbnail session");
+    return result;
   });
 
   ipcMain.handle("model:hashes", async (_event, models: ModelHashInput[]) => {
@@ -1005,6 +1035,14 @@ function createLibraryFolderAccess() {
 
 function createThumbnailSessionKey(session: LibrarySessionRef): string {
   return `${session.libraryId}:${session.generation}:${session.rootPath}`;
+}
+
+function createThumbnailOwner(session: LibrarySessionRef, absolutePath: string) {
+  const relativePath = path.relative(session.rootPath, absolutePath);
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${path.sep}`) || path.isAbsolute(relativePath)) {
+    throw new Error("Thumbnail file is outside the active library");
+  }
+  return { libraryId: session.libraryId, relativePath };
 }
 
 function getArchiveToolOptions() {

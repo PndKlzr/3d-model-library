@@ -59,6 +59,16 @@ export type ModelFile = {
 
 export type ThumbnailSignature = Pick<ModelFile, "absolutePath" | "sizeBytes" | "modifiedAt">;
 
+export type ThumbnailCacheOwner = {
+  libraryId: string;
+  relativePath: string;
+};
+
+export type ThumbnailCleanupResult = {
+  removedFiles: number;
+  reclaimedBytes: number;
+};
+
 export type LibraryScanResult = {
   rootPath: string;
   models: ModelFile[];

@@ -19,6 +19,7 @@ import type {
   ModelHashResult,
   ModelFile,
   ThumbnailSignature,
+  ThumbnailCleanupResult,
   SlicerLaunchResult,
   SlicerCandidate
 } from "./types";
@@ -115,6 +116,10 @@ export type ModelLibraryApi = {
     dataUrl: string,
     sessionKey: string
   ) => Promise<void>;
+  cleanUnusedThumbnails: (
+    session: LibrarySessionRef,
+    models: ModelFile[]
+  ) => Promise<ThumbnailCleanupResult>;
   saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
