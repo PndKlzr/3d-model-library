@@ -16,6 +16,7 @@ export const MAX_LIBRARY_INDEX_BYTES = 32 * 1024 * 1024;
 export type LibraryIndexStore = {
   load: (rootPath: string, libraryId?: string) => Promise<LibraryScanResult | null>;
   save: (rootPath: string, libraryId: string, result: LibraryScanResult) => Promise<void>;
+  invalidate: (rootPath: string, libraryId: string) => Promise<void>;
 };
 
 type LibraryIndexStoreOptions = {
@@ -120,7 +121,47 @@ export function createLibraryIndexStore({
     }
   }
 
-  return { load, save };
+  async function invalidate(rootPath: string, libraryId: string): Promise<void> {
+    const normalizedRoot = await requireRoot(rootPath);
+    const indexPath = getIndexPath(normalizedRoot);
+    let handle: ReadIndexHandle;
+
+    try {
+      handle = await openFile(indexPath);
+    } catch (error) {
+      if (isMissingError(error)) return;
+      throw error;
+    }
+
+    try {
+      const indexStat = await handle.stat();
+      if (indexStat.isFile() && indexStat.size <= maximumBytes) {
+        const serialized = await readBoundedUtf8(handle, maximumBytes);
+        if (serialized !== null) {
+          try {
+            const parsed: unknown = JSON.parse(serialized);
+            if (
+              typeof parsed === "object" &&
+              parsed !== null &&
+              "libraryId" in parsed &&
+              typeof parsed.libraryId === "string" &&
+              parsed.libraryId !== libraryId
+            ) {
+              throw new Error("Library index identity does not match the active library");
+            }
+          } catch (error) {
+            if (error instanceof Error && /identity/.test(error.message)) throw error;
+          }
+        }
+      }
+    } finally {
+      await handle.close();
+    }
+
+    await rm(indexPath, { force: true });
+  }
+
+  return { load, save, invalidate };
 }
 
 export function createInMemoryLibraryIndexStore(): LibraryIndexStore {
@@ -138,6 +179,15 @@ export function createInMemoryLibraryIndexStore(): LibraryIndexStore {
         normalizeRootKey(rootPath),
         structuredClone(encodeLibraryIndex(rootPath, result, libraryId))
       );
+    },
+    async invalidate(rootPath, libraryId) {
+      const key = normalizeRootKey(rootPath);
+      const manifest = manifests.get(key);
+      if (!manifest) return;
+      if (manifest.libraryId !== libraryId) {
+        throw new Error("Library index identity does not match the active library");
+      }
+      manifests.delete(key);
     }
   };
 }

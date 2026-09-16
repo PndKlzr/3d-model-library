@@ -60,6 +60,30 @@ describe("activeLibrarySession", () => {
     expect(harness.saves).toEqual([]);
   });
 
+  it("does not publish a rebuild after the active library changes", async () => {
+    const scanStarted = createDeferred<void>();
+    const scanReady = createDeferred<LibraryScanResult>();
+    const harness = createHarness({
+      scan: async () => {
+        scanStarted.resolve();
+        return scanReady.promise;
+      }
+    });
+    const first = await harness.session.activate(harness.firstRoot, false);
+
+    const rebuilding = harness.session.rebuildIndex(first!.session);
+    await scanStarted.promise;
+    const activation = harness.session.activate(harness.secondRoot, false);
+    await flushMicrotasks();
+    expect(harness.session.current()).toBeNull();
+    scanReady.resolve(scanResult(harness.firstRoot));
+
+    await expect(rebuilding).rejects.toThrow(/stale session/i);
+    await activation;
+    expect(harness.saves).toEqual([]);
+    expect(harness.invalidations).toEqual([`${harness.firstRoot}:id-first`]);
+  });
+
   it("ignores a stale watcher batch after switching roots", async () => {
     const applyEvents = vi.fn(async (current: LibraryScanResult) => current);
     const onChanged = vi.fn();
@@ -439,6 +463,7 @@ function createHarness(options: HarnessOptions = {}) {
   const order: string[] = [];
   const saves: string[] = [];
   const savedResults: LibraryScanResult[] = [];
+  const invalidations: string[] = [];
   const catalogs = new Map<string, LibraryScanResult>();
   const watcherAttempts = new Map<string, number>();
   const watchers: Array<{
@@ -490,6 +515,10 @@ function createHarness(options: HarnessOptions = {}) {
       await options.beforeSave?.(rootPath, result, saves.length);
       savedResults.push(structuredClone(result));
       catalogs.set(rootPath, structuredClone(result));
+    },
+    async invalidate(rootPath: string, libraryId: string) {
+      invalidations.push(`${rootPath}:${libraryId}`);
+      catalogs.delete(rootPath);
     }
   };
   const createWatcher: ActiveLibrarySessionOptions["createWatcher"] = ({
@@ -534,6 +563,7 @@ function createHarness(options: HarnessOptions = {}) {
     order,
     saves,
     savedResults,
+    invalidations,
     watchers,
     catalogFor: (rootPath: string) => catalogs.get(rootPath)
   };

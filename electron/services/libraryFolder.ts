@@ -2,6 +2,7 @@ import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import type { LibrarySessionRef } from "../../src/shared/types.js";
 import { isPathAtOrInside } from "./pathContainment.js";
+import { PORTABLE_METADATA_DIRECTORY } from "./portableMetadataCodec.js";
 
 type FolderFileSystem = {
   realpath: (value: string) => Promise<string>;
@@ -12,6 +13,12 @@ export type LibraryFolderAccess = {
   getCurrentSession: () => LibrarySessionRef | null;
   openPath: (value: string) => Promise<string>;
   fileSystem?: FolderFileSystem;
+};
+
+export type LibraryDataFolderAccess = {
+  getCurrentSession: () => LibrarySessionRef | null;
+  getDataDirectory: (rootPath: string) => Promise<string>;
+  openPath: (value: string) => Promise<string>;
 };
 
 const defaultFileSystem: FolderFileSystem = { realpath, stat };
@@ -55,6 +62,23 @@ export async function showLibraryFolder(
 
   assertCurrentSession(expectedSession, access.getCurrentSession());
   const failure = await access.openPath(liveTarget);
+  if (failure) throw new Error(failure);
+  assertCurrentSession(expectedSession, access.getCurrentSession());
+}
+
+export async function showLibraryDataFolder(
+  expectedSession: LibrarySessionRef,
+  access: LibraryDataFolderAccess
+): Promise<void> {
+  assertCurrentSession(expectedSession, access.getCurrentSession());
+  const dataDirectory = await access.getDataDirectory(expectedSession.rootPath);
+  const expectedDirectory = path.join(expectedSession.rootPath, PORTABLE_METADATA_DIRECTORY);
+  if (normalizePath(dataDirectory) !== normalizePath(expectedDirectory)) {
+    throw new Error("A pasta interna de dados da biblioteca é inválida.");
+  }
+
+  assertCurrentSession(expectedSession, access.getCurrentSession());
+  const failure = await access.openPath(dataDirectory);
   if (failure) throw new Error(failure);
   assertCurrentSession(expectedSession, access.getCurrentSession());
 }

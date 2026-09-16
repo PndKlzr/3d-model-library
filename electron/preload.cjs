@@ -18,6 +18,8 @@ contextBridge.exposeInMainWorld("modelLibrary", {
     ipcRenderer.invoke("library:activate", rootPath, monitoring),
   getCurrentLibrary: () => ipcRenderer.invoke("library:current"),
   scanLibrary: (session) => ipcRenderer.invoke("library:scan", session),
+  rebuildLibraryIndex: (session) => ipcRenderer.invoke("library:rebuild-index", session),
+  showLibraryDataFolder: (session) => ipcRenderer.invoke("library:show-data-folder", session),
   setLibraryMonitoring: (session, enabled) =>
     ipcRenderer.invoke("library:set-monitoring", session, enabled),
   onLibraryChanged: (callback) => {

@@ -356,7 +356,7 @@ git commit -m "Add library metadata backup workflow"
 - Produces: `ActiveLibrarySession.rebuildIndex(session)`.
 - Produces preload methods `rebuildLibraryIndex(session)` and `showLibraryDataFolder(session)`.
 
-- [ ] **Step 1: Write failing index and stale-session tests**
+- [x] **Step 1: Write failing index and stale-session tests**
 
 ```ts
 it("invalidates only the disposable index", async () => {
@@ -372,17 +372,17 @@ it("does not publish a rebuild after the active library changes", async () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and confirm RED**
+- [x] **Step 2: Run focused tests and confirm RED**
 
 Run: `npm test -- --run tests/unit/libraryIndexStore.test.ts tests/unit/activeLibrarySession.test.ts tests/unit/libraryFolder.test.ts`
 
 Expected: FAIL because invalidation and rebuild methods do not exist.
 
-- [ ] **Step 3: Implement exact index invalidation**
+- [x] **Step 3: Implement exact index invalidation**
 
 Reuse the store's canonical root and index path validation. `invalidate` unlinks only `LIBRARY_INDEX_DO_NOT_DELETE.json`, ignores `ENOENT`, and rejects stale library identity in the file if one is present.
 
-- [ ] **Step 4: Implement rebuild through the catalog queue**
+- [x] **Step 4: Implement rebuild through the catalog queue**
 
 ```ts
 async rebuildIndex(expected) {
@@ -401,7 +401,7 @@ async rebuildIndex(expected) {
 
 Add trusted IPC handlers. `showLibraryDataFolder` obtains the directory from the repository, validates the session again, and calls `shell.openPath` only for that exact directory.
 
-- [ ] **Step 5: Run focused tests and build**
+- [x] **Step 5: Run focused tests and build**
 
 Run: `npm test -- --run tests/unit/libraryIndexStore.test.ts tests/unit/activeLibrarySession.test.ts tests/unit/libraryFolder.test.ts`
 
@@ -409,7 +409,7 @@ Run: `npm run build`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add electron/services/libraryIndexStore.ts electron/services/activeLibrarySession.ts electron/main.ts electron/preload.cjs src/shared/preload.d.ts tests/unit/libraryIndexStore.test.ts tests/unit/activeLibrarySession.test.ts tests/unit/libraryFolder.test.ts

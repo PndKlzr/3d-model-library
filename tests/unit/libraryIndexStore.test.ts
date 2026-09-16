@@ -43,6 +43,30 @@ describe("libraryIndexStore", () => {
       .resolves.toBe("durable-backup");
   });
 
+  it("invalidates only the disposable index and preserves durable metadata", async () => {
+    const root = await makeLibrary();
+    const directory = path.join(root, PORTABLE_METADATA_DIRECTORY);
+    const durableMetadataPath = path.join(directory, PORTABLE_METADATA_FILENAME);
+    await mkdir(directory);
+    await writeFile(durableMetadataPath, "durable-metadata", "utf8");
+    const store = createLibraryIndexStore({ hideDirectory: async () => undefined });
+    await store.save(root, "library-1", scanResult(root));
+
+    await store.invalidate(root, "library-1");
+
+    await expect(store.load(root, "library-1")).resolves.toBeNull();
+    await expect(readFile(durableMetadataPath, "utf8")).resolves.toBe("durable-metadata");
+  });
+
+  it("refuses to invalidate an index owned by another library identity", async () => {
+    const root = await makeLibrary();
+    const store = createLibraryIndexStore({ hideDirectory: async () => undefined });
+    await store.save(root, "library-1", scanResult(root));
+
+    await expect(store.invalidate(root, "library-2")).rejects.toThrow(/identity/i);
+    await expect(store.load(root, "library-1")).resolves.toEqual(scanResult(root));
+  });
+
   it("returns null for missing, corrupt, incompatible, and oversized indexes", async () => {
     const root = await makeLibrary();
     const directory = path.join(root, PORTABLE_METADATA_DIRECTORY);
@@ -178,6 +202,16 @@ describe("libraryIndexStore", () => {
     await store.save(root, "library-1", scanResult(root));
 
     await expect(store.load(root, "library-2")).resolves.toBeNull();
+  });
+
+  it("invalidates the matching in-memory index", async () => {
+    const store = createInMemoryLibraryIndexStore();
+    const root = path.resolve("C:/Models");
+    await store.save(root, "library-1", scanResult(root));
+
+    await store.invalidate(root, "library-1");
+
+    await expect(store.load(root, "library-1")).resolves.toBeNull();
   });
 });
 

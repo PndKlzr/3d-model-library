@@ -29,6 +29,10 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain('ipcRenderer.invoke("library:current")');
     expect(preloadSource).toContain('ipcRenderer.invoke("library:activate"');
     expect(preloadSource).toContain('ipcRenderer.invoke("library:scan", session)');
+    expect(preloadSource).toContain("rebuildLibraryIndex: (session)");
+    expect(preloadSource).toContain('ipcRenderer.invoke("library:rebuild-index", session)');
+    expect(preloadSource).toContain("showLibraryDataFolder: (session)");
+    expect(preloadSource).toContain('ipcRenderer.invoke("library:show-data-folder", session)');
     expect(preloadSource).toContain("setLibraryMonitoring");
     expect(preloadSource).toContain("onLibraryChanged");
     expect(preloadSource).toContain("callback(payload)");

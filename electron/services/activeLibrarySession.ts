@@ -17,6 +17,7 @@ export type ActiveLibrarySession = {
   currentState(): Promise<LibraryActivationResult | null>;
   publishIfCurrent(expected: LibrarySessionRef, publish: () => Promise<void>): Promise<boolean>;
   scan(expected: LibrarySessionRef): Promise<VersionedLibraryScanResult>;
+  rebuildIndex(expected: LibrarySessionRef): Promise<VersionedLibraryScanResult>;
   setMonitoring(expected: LibrarySessionRef, enabled: boolean): Promise<void>;
   current(): LibrarySessionRef | null;
   close(): Promise<void>;
@@ -229,6 +230,20 @@ export function createActiveLibrarySession({
     async scan(expected) {
       assertCurrent(expected);
       return enqueueCatalogMutation(async () => {
+        assertCurrent(expected);
+        const result = await scanRoot(expected.rootPath);
+        assertCurrent(expected);
+        await indexStore.save(expected.rootPath, expected.libraryId, result);
+        assertCurrent(expected);
+        return structuredClone({ session: expected, result });
+      });
+    },
+
+    async rebuildIndex(expected) {
+      assertCurrent(expected);
+      return enqueueCatalogMutation(async () => {
+        assertCurrent(expected);
+        await indexStore.invalidate(expected.rootPath, expected.libraryId);
         assertCurrent(expected);
         const result = await scanRoot(expected.rootPath);
         assertCurrent(expected);

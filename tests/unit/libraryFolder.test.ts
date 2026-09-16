@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { showLibraryFolder } from "../../electron/services/libraryFolder";
+import { showLibraryDataFolder, showLibraryFolder } from "../../electron/services/libraryFolder";
 import type { LibrarySessionRef } from "../../src/shared/types";
 
 const root = path.resolve("C:/Models");
@@ -100,6 +100,48 @@ describe("showLibraryFolder", () => {
     });
 
     await expect(showLibraryFolder(session, "", harness.access)).rejects.toThrow(/sessão/i);
+  });
+});
+
+describe("showLibraryDataFolder", () => {
+  it("opens only the active library internal data directory", async () => {
+    const harness = createHarness();
+    const dataDirectory = path.join(root, ".3d-model-library");
+    const getDataDirectory = vi.fn(async () => dataDirectory);
+
+    await showLibraryDataFolder(session, {
+      getCurrentSession: () => harness.currentSession,
+      getDataDirectory,
+      openPath: harness.openPath
+    });
+
+    expect(getDataDirectory).toHaveBeenCalledWith(root);
+    expect(harness.openPath).toHaveBeenCalledWith(dataDirectory);
+  });
+
+  it("rejects a changed session before opening the internal directory", async () => {
+    const harness = createHarness();
+
+    await expect(showLibraryDataFolder(session, {
+      getCurrentSession: () => harness.currentSession,
+      getDataDirectory: async () => {
+        harness.currentSession = { ...session, generation: session.generation + 1 };
+        return path.join(root, ".3d-model-library");
+      },
+      openPath: harness.openPath
+    })).rejects.toThrow(/sessão/i);
+    expect(harness.openPath).not.toHaveBeenCalled();
+  });
+
+  it("rejects a repository result other than the exact internal directory", async () => {
+    const harness = createHarness();
+
+    await expect(showLibraryDataFolder(session, {
+      getCurrentSession: () => harness.currentSession,
+      getDataDirectory: async () => path.join(root, "other"),
+      openPath: harness.openPath
+    })).rejects.toThrow(/dados/i);
+    expect(harness.openPath).not.toHaveBeenCalled();
   });
 });
 

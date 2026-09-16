@@ -83,7 +83,7 @@ import {
   readLibraryImageDataUrl
 } from "./services/libraryImage.js";
 import { readLibraryObjPreview } from "./services/libraryObj.js";
-import { showLibraryFolder } from "./services/libraryFolder.js";
+import { showLibraryDataFolder, showLibraryFolder } from "./services/libraryFolder.js";
 import {
   createBenchmarkLibraryContext,
   type BenchmarkLibraryContext
@@ -217,6 +217,18 @@ function registerIpcHandlers() {
 
   ipcMain.handle("library:scan", (_event, expected: LibrarySessionRef) =>
     activeLibrarySession!.scan(expected)
+  );
+
+  ipcMain.handle("library:rebuild-index", (_event, expected: LibrarySessionRef) =>
+    activeLibrarySession!.rebuildIndex(expected)
+  );
+
+  ipcMain.handle("library:show-data-folder", (_event, expected: LibrarySessionRef) =>
+    showLibraryDataFolder(expected, {
+      getCurrentSession: () => activeLibrarySession!.current(),
+      getDataDirectory: (rootPath) => portableMetadataRepository.getDataDirectory(rootPath),
+      openPath: (targetPath) => shell.openPath(targetPath)
+    })
   );
 
   ipcMain.handle("library:set-monitoring", (
