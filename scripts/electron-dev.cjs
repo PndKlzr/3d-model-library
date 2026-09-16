@@ -1,47 +1,59 @@
 const { spawn } = require("node:child_process");
-const net = require("node:net");
+const { createHash } = require("node:crypto");
+const { realpathSync } = require("node:fs");
 
+const VITE_URL = "http://127.0.0.1:5173";
+const PROJECT_ID = createProjectId(process.cwd());
 let vite = null;
 let electron = null;
 let didStartElectron = false;
 let isShuttingDown = false;
-let vitePort = 0;
-let viteUrl = "";
+let ownsViteProcess = false;
 
 void main();
 
 async function main() {
-  vitePort = await findAvailablePort();
-  viteUrl = `http://127.0.0.1:${vitePort}`;
+  const runningProjectId = await getRunningProjectId();
+  if (runningProjectId === PROJECT_ID) {
+    console.log(`Existing project Vite server detected at ${VITE_URL}.`);
+    startElectron();
+    return;
+  }
+  if (runningProjectId) {
+    console.error("Refusing to reuse a Vite server from another checkout.");
+    process.exitCode = 1;
+    return;
+  }
+
   startVite();
 }
 
-function findAvailablePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      const port = typeof address === "object" && address ? address.port : 0;
-      server.close((error) => error ? reject(error) : resolve(port));
+function createProjectId(projectRoot) {
+  const canonicalRoot = realpathSync(projectRoot).toLowerCase();
+  return createHash("sha256").update(canonicalRoot).digest("hex");
+}
+
+async function getRunningProjectId() {
+  try {
+    const response = await fetch(`${VITE_URL}/__model_library_dev_identity`, {
+      signal: AbortSignal.timeout(1_000)
     });
-  });
+    return response.ok ? (await response.text()).trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 function startVite() {
-  vite = spawn(
-    "cmd.exe",
-    ["/c", "npm.cmd", "run", "dev", "--", "--port", String(vitePort)],
-    {
+  ownsViteProcess = true;
+  vite = spawn("cmd.exe", ["/c", "npm.cmd", "run", "dev"], {
     shell: false,
     stdio: ["ignore", "pipe", "pipe"]
-    }
-  );
+  });
 
   const startupTimer = setTimeout(() => {
     if (!didStartElectron) {
-      console.error(`Vite did not become ready on ${viteUrl} in time.`);
+      console.error(`Vite did not become ready on ${VITE_URL} in time.`);
       shutdown(1);
     }
   }, 30000);
@@ -80,7 +92,7 @@ function shutdown(code) {
 
   isShuttingDown = true;
   electron?.kill();
-  vite?.kill();
+  if (ownsViteProcess) vite?.kill();
 
   process.exit(code);
 }
@@ -92,7 +104,7 @@ function startElectron() {
     stdio: "inherit",
     env: {
       ...process.env,
-      MODEL_LIBRARY_DEV_SERVER_URL: viteUrl
+      MODEL_LIBRARY_DEV_SERVER_URL: VITE_URL
     }
   });
   electron.on("exit", (code) => shutdown(code ?? 0));
