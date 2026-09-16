@@ -156,7 +156,7 @@ git commit -m "Harden privileged Electron IPC"
 - Produces repository methods `readExternalBackup`, `exportBackup`, `restoreBackup`, `getDataDirectory`.
 - Consumes: existing `encodePortableMetadata` and `decodePortableMetadata` validation.
 
-- [ ] **Step 1: Add failing repository tests for export, inspection, restore, and retention**
+- [x] **Step 1: Add failing repository tests for export, inspection, restore, and retention**
 
 ```ts
 it("exports only a validated portable manifest with relative paths", async () => {
@@ -185,13 +185,13 @@ it("leaves the primary unchanged when replacement fails", async () => {
 });
 ```
 
-- [ ] **Step 2: Run repository tests and confirm RED**
+- [x] **Step 2: Run repository tests and confirm RED**
 
 Run: `npm test -- --run tests/unit/portableMetadataRepository.test.ts tests/unit/portableMetadataSecurity.test.ts`
 
 Expected: FAIL because external backup and recovery snapshot operations are absent.
 
-- [ ] **Step 3: Add bounded backup types and external-file validation**
+- [x] **Step 3: Add bounded backup types and external-file validation**
 
 ```ts
 export type PortableBackupPreview = {
@@ -210,7 +210,7 @@ export type PortableMetadataRestoreResult = {
 
 `readExternalBackup(rootPath, filePath)` must resolve a regular file, reject symbolic links, enforce `MAX_PORTABLE_METADATA_BYTES` before reading, parse JSON once, and call `decodePortableMetadata(rootPath, value)` before returning `{ manifest, preview }`.
 
-- [ ] **Step 4: Implement atomic export and restore**
+- [x] **Step 4: Implement atomic export and restore**
 
 `exportBackup` validates the manifest, writes a sibling random `.tmp`, syncs it, and renames it to the dialog-selected `.json` destination. `restoreBackup` validates both manifests, writes the current manifest to:
 
@@ -222,13 +222,13 @@ Then install the replacement through the existing atomic `save`. Keep the newest
 
 `getDataDirectory(rootPath)` canonicalizes the root and returns the exact child `.3d-model-library` path after ensuring it exists and is hidden.
 
-- [ ] **Step 5: Run focused tests and verify PASS**
+- [x] **Step 5: Run focused tests and verify PASS**
 
 Run: `npm test -- --run tests/unit/portableMetadataRepository.test.ts tests/unit/portableMetadataSecurity.test.ts`
 
 Expected: all focused tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add electron/services/portableMetadataCodec.ts electron/services/portableMetadataRepository.ts tests/unit/portableMetadataRepository.test.ts tests/unit/portableMetadataSecurity.test.ts
