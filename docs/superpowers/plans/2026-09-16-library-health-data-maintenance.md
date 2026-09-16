@@ -253,7 +253,7 @@ git commit -m "Add portable metadata backup storage"
 - Produces: `LibraryDataStatus`, `LibraryBackupActionResult`, and task-specific preload methods.
 - Produces active-store methods `getDataStatus`, `exportManifest`, and `restoreManifest`.
 
-- [ ] **Step 1: Write failing active-store tests**
+- [x] **Step 1: Write failing active-store tests**
 
 ```ts
 it("serializes restore behind metadata mutations and adopts the active library identity", async () => {
@@ -275,13 +275,13 @@ it("keeps current metadata when repository restore fails", async () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and confirm RED**
+- [x] **Step 2: Run focused tests and confirm RED**
 
 Run: `npm test -- --run tests/unit/activeLibraryMetadataStore.test.ts tests/unit/preloadContract.test.ts`
 
 Expected: FAIL because restore/export interfaces are absent.
 
-- [ ] **Step 3: Define shared result types**
+- [x] **Step 3: Define shared result types**
 
 ```ts
 export type LibraryDataStatus = {
@@ -304,11 +304,11 @@ export type LibraryBackupActionResult = {
 
 Track `updatedAt` from the loaded manifest and successful mutations without adding it to durable user metadata.
 
-- [ ] **Step 4: Implement queued active-store operations**
+- [x] **Step 4: Implement queued active-store operations**
 
 `exportManifest()` returns a validated manifest from the current in-memory state and is available for valid mirror data. `restoreManifest(rawManifest)` runs on `mutationTail`, requires a writable active root, decodes against that root, re-encodes with the active `libraryId` and current timestamp, calls `repository.restoreBackup`, then updates in-memory metadata, status, timestamp, and mirror only after success.
 
-- [ ] **Step 5: Add native-dialog IPC workflows**
+- [x] **Step 5: Add native-dialog IPC workflows**
 
 Add preload methods:
 
@@ -320,7 +320,7 @@ restoreLibraryBackup(session: LibrarySessionRef): Promise<LibraryBackupActionRes
 
 Export uses `dialog.showSaveDialog` with JSON filtering and a timestamped default name. Restore uses `dialog.showOpenDialog`, repository inspection, then `dialog.showMessageBox` showing backup date, counts, and library match/mismatch. It calls `activeLibrarySession.publishIfCurrent(session, ...)` immediately before restore and returns refreshed metadata/status.
 
-- [ ] **Step 6: Run focused tests, full tests, and build**
+- [x] **Step 6: Run focused tests, full tests, and build**
 
 Run: `npm test -- --run tests/unit/activeLibraryMetadataStore.test.ts tests/unit/preloadContract.test.ts`
 
@@ -330,7 +330,7 @@ Run: `npm run build`
 
 Expected: all pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```powershell
 git add electron/services/activeLibraryMetadataStore.ts electron/main.ts electron/preload.cjs src/shared/types.ts src/shared/preload.d.ts tests/unit/activeLibraryMetadataStore.test.ts tests/unit/preloadContract.test.ts

@@ -22,6 +22,7 @@ import type {
   FileDragStatus,
   FileOperationResult,
   FileRestorePair,
+  LibraryBackupActionResult,
   LibrarySessionRef,
   ModelHashInput,
   SlicerConfig
@@ -62,7 +63,10 @@ import {
   createLegacyElectronLibraryMetadataStore
 } from "./services/libraryMetadataStore.js";
 import { createElectronLibraryMetadataMirrorStore } from "./services/libraryMetadataMirrorStore.js";
-import { createPortableMetadataRepository } from "./services/portableMetadataRepository.js";
+import {
+  createPortableMetadataRepository,
+  type PortableMetadataRepository
+} from "./services/portableMetadataRepository.js";
 import {
   createNativeFileDragPayload,
   resolveDraggableFilePathsSync
@@ -105,6 +109,7 @@ if (benchmarkEnvironment) {
 let settingsStore: SettingsStore;
 let libraryIndexStore: LibraryIndexStore;
 let libraryMetadataStore: ActiveLibraryMetadataStore;
+let portableMetadataRepository: PortableMetadataRepository;
 let activeLibrarySession: ActiveLibrarySession | null = null;
 let modelHashStore: ModelHashStore;
 let thumbnailCache: ThumbnailCache;
@@ -355,6 +360,87 @@ function registerIpcHandlers() {
 
   ipcMain.handle("metadata:get", () => libraryMetadataStore.getMetadata());
   ipcMain.handle("metadata:status", () => libraryMetadataStore.getStatus());
+  ipcMain.handle("metadata:data-status", () => libraryMetadataStore.getDataStatus());
+  ipcMain.handle(
+    "metadata:export-backup",
+    async (_event, expected: LibrarySessionRef): Promise<LibraryBackupActionResult> => {
+      const result = await dialog.showSaveDialog({
+        title: mainT("dialog.exportLibraryBackup"),
+        defaultPath: `3D_LIBRARY_BACKUP_${new Date().toISOString().slice(0, 10)}.json`,
+        filters: [{ name: mainT("dialog.jsonFiles"), extensions: ["json"] }]
+      });
+      if (result.canceled || !result.filePath) {
+        return { state: "cancelled", message: mainT("message.backupCancelled") };
+      }
+
+      let exported = false;
+      const published = await activeLibrarySession!.publishIfCurrent(expected, async () => {
+        await portableMetadataRepository.exportBackup(
+          expected.rootPath,
+          libraryMetadataStore.exportManifest(),
+          result.filePath!
+        );
+        exported = true;
+      });
+      if (!published || !exported) throw new Error(mainT("error.libraryInactive"));
+      return { state: "exported", message: mainT("message.backupExported") };
+    }
+  );
+  ipcMain.handle(
+    "metadata:restore-backup",
+    async (_event, expected: LibrarySessionRef): Promise<LibraryBackupActionResult> => {
+      const selected = await dialog.showOpenDialog({
+        title: mainT("dialog.restoreLibraryBackup"),
+        filters: [{ name: mainT("dialog.jsonFiles"), extensions: ["json"] }],
+        properties: ["openFile"]
+      });
+      if (selected.canceled || !selected.filePaths[0]) {
+        return { state: "cancelled", message: mainT("message.backupCancelled") };
+      }
+
+      const inspected = await portableMetadataRepository.readExternalBackup(
+        expected.rootPath,
+        selected.filePaths[0]
+      );
+      const activeLibraryId = activeLibrarySession!.current()?.libraryId;
+      const identity = inspected.preview.libraryId === activeLibraryId
+        ? mainT("dialog.restoreLibraryBackupMatch")
+        : mainT("dialog.restoreLibraryBackupMismatch");
+      const confirmation = await dialog.showMessageBox({
+        type: "warning",
+        title: mainT("dialog.restoreLibraryBackupTitle"),
+        message: mainT("dialog.restoreLibraryBackupTitle"),
+        detail: mainT("dialog.restoreLibraryBackupDetail", {
+          date: new Date(inspected.preview.updatedAt).toLocaleString(
+            settingsStore.getSettings().locale
+          ),
+          models: inspected.preview.modelCount,
+          tags: inspected.preview.tagCount,
+          history: inspected.preview.historyCount,
+          identity
+        }),
+        buttons: [mainT("dialog.restoreLibraryBackupConfirm"), mainT("common.cancel")],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true
+      });
+      if (confirmation.response !== 0) {
+        return { state: "cancelled", message: mainT("message.backupCancelled") };
+      }
+
+      let metadata = libraryMetadataStore.getMetadata();
+      const published = await activeLibrarySession!.publishIfCurrent(expected, async () => {
+        metadata = await libraryMetadataStore.restoreManifest(inspected.manifest);
+      });
+      if (!published) throw new Error(mainT("error.libraryInactive"));
+      return {
+        state: "restored",
+        message: mainT("message.backupRestored"),
+        metadata,
+        metadataStatus: libraryMetadataStore.getStatus()
+      };
+    }
+  );
   ipcMain.handle("metadata:retry", async () => {
     await libraryMetadataStore.retry();
     return libraryMetadataStore.getStatus();
@@ -1059,7 +1145,7 @@ app.whenReady().then(async () => {
   libraryIndexStore = createLibraryIndexStore();
   const legacyMetadataStore = await createLegacyElectronLibraryMetadataStore();
   const metadataMirrorStore = await createElectronLibraryMetadataMirrorStore();
-  const portableMetadataRepository = createPortableMetadataRepository();
+  portableMetadataRepository = createPortableMetadataRepository();
   libraryMetadataStore = createActiveLibraryMetadataStore({
     repository: portableMetadataRepository,
     mirror: metadataMirrorStore,

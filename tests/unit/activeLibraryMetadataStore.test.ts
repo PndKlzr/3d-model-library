@@ -248,6 +248,52 @@ describe("activeLibraryMetadataStore", () => {
     const persisted = decodePortableMetadata(root, harness.repository.lastSavedManifest!);
     expect(persisted.metadata.models[nextModelPath].notes).toBe("keep me");
   });
+
+  it("serializes restore after pending edits and adopts the active library identity", async () => {
+    const root = path.resolve("C:/library");
+    const modelPath = path.join(root, "part.stl");
+    const harness = createHarness({ saveDelayMs: 5 });
+    await harness.store.open(root);
+    const foreign = encodePortableMetadata(
+      root,
+      "foreign-library",
+      metadataWithNote(modelPath, "restored note"),
+      "2026-09-08T10:00:00.000Z"
+    );
+
+    const pendingEdit = harness.store.setNotes(modelPath, "pending note");
+    const restore = harness.store.restoreManifest(foreign);
+    await Promise.all([pendingEdit, restore]);
+
+    expect(harness.repository.lastRestoredCurrent?.models["part.stl"]?.notes).toBe("pending note");
+    expect(harness.repository.lastRestoredReplacement).toMatchObject({
+      libraryId: "generated-id",
+      updatedAt: "2026-09-09T12:00:00.000Z"
+    });
+    expect(harness.store.getMetadata().models[modelPath].notes).toBe("restored note");
+    expect(harness.store.getDataStatus()).toMatchObject({
+      libraryId: "generated-id",
+      updatedAt: "2026-09-09T12:00:00.000Z",
+      modelCount: 1
+    });
+  });
+
+  it("keeps current metadata when repository restore fails", async () => {
+    const root = path.resolve("C:/library");
+    const modelPath = path.join(root, "part.stl");
+    const harness = createHarness();
+    await harness.store.open(root);
+    await harness.store.setNotes(modelPath, "current note");
+    harness.repository.failNextRestore = true;
+    const replacement = encodePortableMetadata(
+      root,
+      "foreign-library",
+      metadataWithNote(modelPath, "lost note")
+    );
+
+    await expect(harness.store.restoreManifest(replacement)).rejects.toThrow("restore failed");
+    expect(harness.store.getMetadata().models[modelPath].notes).toBe("current note");
+  });
 });
 
 type HarnessOptions = {
@@ -271,14 +317,20 @@ function createHarness(options: HarnessOptions = {}) {
   let maxConcurrentSaves = 0;
   let saveCount = 0;
   let failNextSave = false;
+  let failNextRestore = false;
   let lastSavedManifest: PortableLibraryManifestV1 | null = null;
   let lastSaveOptions: { corruptPrimaryPath?: string | null } | undefined;
+  let lastRestoredCurrent: PortableLibraryManifestV1 | null = null;
+  let lastRestoredReplacement: PortableLibraryManifestV1 | null = null;
   const repository: ActiveLibraryMetadataStoreOptions["repository"] & {
     maxConcurrentSaves: number;
     saveCount: number;
     failNextSave: boolean;
     lastSavedManifest: PortableLibraryManifestV1 | null;
     lastSaveOptions: { corruptPrimaryPath?: string | null } | undefined;
+    failNextRestore: boolean;
+    lastRestoredCurrent: PortableLibraryManifestV1 | null;
+    lastRestoredReplacement: PortableLibraryManifestV1 | null;
   } = {
     async canonicalizeRoot(rootPath) {
       const normalized = path.resolve(rootPath);
@@ -318,6 +370,25 @@ function createHarness(options: HarnessOptions = {}) {
         concurrentSaves -= 1;
       }
     },
+    async readExternalBackup() {
+      throw new Error("not used by active store tests");
+    },
+    async exportBackup() {
+      throw new Error("not used by active store tests");
+    },
+    async restoreBackup(rootPath, currentManifest, replacementManifest) {
+      if (failNextRestore) {
+        failNextRestore = false;
+        throw new Error("restore failed");
+      }
+      manifests.set(path.resolve(rootPath).toLowerCase(), structuredClone(replacementManifest));
+      lastRestoredCurrent = structuredClone(currentManifest);
+      lastRestoredReplacement = structuredClone(replacementManifest);
+      return { manifest: replacementManifest, snapshotPath: "C:/snapshot.json" };
+    },
+    async getDataDirectory(rootPath) {
+      return path.join(rootPath, ".3d-model-library");
+    },
     get maxConcurrentSaves() {
       return maxConcurrentSaves;
     },
@@ -335,6 +406,18 @@ function createHarness(options: HarnessOptions = {}) {
     },
     get lastSaveOptions() {
       return lastSaveOptions;
+    },
+    get failNextRestore() {
+      return failNextRestore;
+    },
+    set failNextRestore(value: boolean) {
+      failNextRestore = value;
+    },
+    get lastRestoredCurrent() {
+      return lastRestoredCurrent;
+    },
+    get lastRestoredReplacement() {
+      return lastRestoredReplacement;
     }
   };
 

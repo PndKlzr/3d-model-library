@@ -125,6 +125,23 @@ export type LibraryMetadataStatus = {
   message: string | null;
 };
 
+export type LibraryDataStatus = {
+  libraryId: string | null;
+  updatedAt: string | null;
+  availability: LibraryMetadataAvailability;
+  writable: boolean;
+  source: LibraryMetadataStatus["source"];
+  modelCount: number;
+  tagCount: number;
+};
+
+export type LibraryBackupActionResult = {
+  state: "cancelled" | "exported" | "restored";
+  message: string;
+  metadata?: LibraryMetadata;
+  metadataStatus?: LibraryMetadataStatus;
+};
+
 export type SlicerLaunchResult = {
   ok: boolean;
   message: string;

@@ -65,6 +65,15 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain("addCatalogTag");
     expect(preloadSource).toContain("removeCatalogTag");
     expect(preloadSource).toContain("setModelNotes");
+    expect(preloadSource).toContain("getLibraryDataStatus");
+    expect(preloadSource).toContain('ipcRenderer.invoke("metadata:data-status")');
+    expect(preloadSource).toContain("exportLibraryBackup: (session)");
+    expect(preloadSource).toContain('ipcRenderer.invoke("metadata:export-backup", session)');
+    expect(preloadSource).toContain("restoreLibraryBackup: (session)");
+    expect(preloadSource).toContain('ipcRenderer.invoke("metadata:restore-backup", session)');
+    expect(mainSource).toContain('ipcMain.handle("metadata:data-status"');
+    expect(mainSource).toMatch(/ipcMain\.handle\(\s*"metadata:export-backup"/);
+    expect(mainSource).toMatch(/ipcMain\.handle\(\s*"metadata:restore-backup"/);
     expect(preloadSource).toContain("showModelInFolder");
     expect(preloadSource).toContain("copyText");
     expect(preloadSource).toContain("getRuntimeVersions");

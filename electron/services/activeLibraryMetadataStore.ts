@@ -1,6 +1,7 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type {
+  LibraryDataStatus,
   LibraryMetadata,
   LibraryMetadataStatus
 } from "../../src/shared/types.js";
@@ -13,7 +14,8 @@ import {
 import type { LibraryMetadataMirrorStore } from "./libraryMetadataMirrorStore.js";
 import {
   decodePortableMetadata,
-  encodePortableMetadata
+  encodePortableMetadata,
+  type PortableLibraryManifestV1
 } from "./portableMetadataCodec.js";
 import type { PortableMetadataRepository } from "./portableMetadataRepository.js";
 import { isPathInside } from "./pathContainment.js";
@@ -32,6 +34,9 @@ export type ActiveLibraryMetadataStore = {
   getLibraryId: () => string | null;
   getMetadata: () => LibraryMetadata;
   getStatus: () => LibraryMetadataStatus;
+  getDataStatus: () => LibraryDataStatus;
+  exportManifest: () => PortableLibraryManifestV1;
+  restoreManifest: (value: unknown) => Promise<LibraryMetadata>;
   toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
   setTags: (modelPath: string, tags: string[]) => Promise<LibraryMetadata>;
   setNotes: (modelPath: string, notes: string) => Promise<LibraryMetadata>;
@@ -56,6 +61,7 @@ export function createActiveLibraryMetadataStore({
   let activeRoot: string | null = null;
   let libraryId = "";
   let currentMetadata = createDefaultLibraryMetadata();
+  let updatedAt: string | null = null;
   let corruptPrimaryPath: string | null = null;
   let status: LibraryMetadataStatus = unavailableStatus("Nenhuma biblioteca está conectada.");
   let mutationTail: Promise<void> = Promise.resolve();
@@ -81,6 +87,7 @@ export function createActiveLibraryMetadataStore({
     activeRoot = null;
     libraryId = "";
     currentMetadata = createDefaultLibraryMetadata();
+    updatedAt = null;
     corruptPrimaryPath = null;
     status = unavailableStatus("Nenhuma biblioteca está conectada.");
 
@@ -93,6 +100,7 @@ export function createActiveLibraryMetadataStore({
       if (cached) {
         currentMetadata = cloneLibraryMetadata(cached.metadata);
         libraryId = cached.libraryId;
+        updatedAt = cached.updatedAt;
         status = {
           availability: "unavailable",
           writable: false,
@@ -113,6 +121,7 @@ export function createActiveLibraryMetadataStore({
       if (cached) {
         currentMetadata = cloneLibraryMetadata(cached.metadata);
         libraryId = cached.libraryId;
+        updatedAt = cached.updatedAt;
       }
       status = {
         availability: "read-only",
@@ -129,6 +138,7 @@ export function createActiveLibraryMetadataStore({
       const decoded = decodePortableMetadata(activeRoot, loaded.manifest);
       libraryId = decoded.libraryId;
       currentMetadata = decoded.metadata;
+      updatedAt = decoded.updatedAt;
       corruptPrimaryPath = loaded.corruptPrimaryPath;
       status = {
         availability: writable ? "ready" : "read-only",
@@ -159,6 +169,7 @@ export function createActiveLibraryMetadataStore({
     const manifest = encodePortableMetadata(activeRoot, libraryId, currentMetadata, now());
     try {
       await repository.save(activeRoot, manifest);
+      updatedAt = manifest.updatedAt;
       status = {
         availability: "ready",
         writable: true,
@@ -190,6 +201,7 @@ export function createActiveLibraryMetadataStore({
       const manifest = encodePortableMetadata(activeRoot!, libraryId, nextMetadata, now());
       await repository.save(activeRoot!, manifest, { corruptPrimaryPath });
       currentMetadata = cloneLibraryMetadata(nextMetadata);
+      updatedAt = manifest.updatedAt;
       corruptPrimaryPath = null;
       status = {
         availability: "ready",
@@ -224,12 +236,76 @@ export function createActiveLibraryMetadataStore({
     }
   }
 
+  function exportManifest(): PortableLibraryManifestV1 {
+    const rootPath = activeRoot ?? requestedRoot;
+    if (!rootPath || !libraryId) {
+      throw new Error("Os dados da biblioteca não estão disponíveis para exportação.");
+    }
+
+    return encodePortableMetadata(
+      rootPath,
+      libraryId,
+      currentMetadata,
+      updatedAt ?? now()
+    );
+  }
+
+  function restoreManifest(value: unknown): Promise<LibraryMetadata> {
+    const operation = mutationTail.then(async () => {
+      assertWritable();
+      const rootPath = activeRoot!;
+      const decoded = decodePortableMetadata(rootPath, value);
+      const replacementManifest = encodePortableMetadata(
+        rootPath,
+        libraryId,
+        decoded.metadata,
+        now()
+      );
+      const currentManifest = encodePortableMetadata(
+        rootPath,
+        libraryId,
+        currentMetadata,
+        updatedAt ?? now()
+      );
+
+      await repository.restoreBackup(rootPath, currentManifest, replacementManifest);
+      currentMetadata = cloneLibraryMetadata(decoded.metadata);
+      updatedAt = replacementManifest.updatedAt;
+      corruptPrimaryPath = null;
+      status = {
+        availability: "ready",
+        writable: true,
+        source: "primary",
+        message: null
+      };
+      await updateMirror(replacementManifest.updatedAt);
+      return cloneLibraryMetadata(currentMetadata);
+    });
+
+    mutationTail = operation.then(
+      () => undefined,
+      () => undefined
+    );
+    return operation;
+  }
+
   return {
     open,
     retry: () => open(requestedRoot),
     getLibraryId: () => libraryId || null,
     getMetadata: () => cloneLibraryMetadata(currentMetadata),
     getStatus: () => ({ ...status }),
+    getDataStatus: () => ({
+      libraryId: libraryId || null,
+      updatedAt,
+      availability: status.availability,
+      writable: status.writable,
+      source: status.source,
+      modelCount: Object.keys(currentMetadata.models).length,
+      tagCount: currentMetadata.tagCatalog.length
+    }),
+    exportManifest,
+    restoreManifest,
     toggleFavorite: (modelPath) =>
       enqueueMutation((reducer) => reducer.toggleFavorite(modelPath), [modelPath]),
     setTags: (modelPath, tags) =>

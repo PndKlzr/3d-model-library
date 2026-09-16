@@ -6,6 +6,8 @@ import type {
   FileDragRequest,
   FileRestorePair,
   FileDragStatus,
+  LibraryBackupActionResult,
+  LibraryDataStatus,
   LibraryMetadata,
   LibraryMetadataStatus,
   LibraryActivationResult,
@@ -87,6 +89,9 @@ export type ModelLibraryApi = {
   restoreLibraryPaths: (pathPairs: FileRestorePair[]) => Promise<FileOperationResult>;
   getLibraryMetadata: () => Promise<LibraryMetadata>;
   getLibraryMetadataStatus: () => Promise<LibraryMetadataStatus>;
+  getLibraryDataStatus: () => Promise<LibraryDataStatus>;
+  exportLibraryBackup: (session: LibrarySessionRef) => Promise<LibraryBackupActionResult>;
+  restoreLibraryBackup: (session: LibrarySessionRef) => Promise<LibraryBackupActionResult>;
   retryLibraryMetadata: () => Promise<LibraryMetadataStatus>;
   toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
   setModelTags: (modelPath: string, tags: string[]) => Promise<LibraryMetadata>;
