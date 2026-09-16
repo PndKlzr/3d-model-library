@@ -11,7 +11,7 @@ import {
 import { readFile, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { TranslationKey } from "../src/i18n/catalog.js";
 import { translate, type TranslationParams } from "../src/i18n/translate.js";
 import type {
@@ -83,6 +83,7 @@ import {
   createBenchmarkLibraryContext,
   type BenchmarkLibraryContext
 } from "./services/benchmarkLibraryContext.js";
+import { configureWindowSecurity } from "./services/windowSecurity.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -970,6 +971,8 @@ async function createWindow() {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
+      navigateOnDragDrop: false,
       backgroundThrottling: !benchmarkEnvironment
     }
   });
@@ -992,12 +995,18 @@ async function createWindow() {
     if (benchmarkEnvironment) failBenchmark(new Error("Renderer became unresponsive"));
   });
 
+  const rendererEntry = benchmarkEnvironment && benchmarkFailureProbe === "load"
+    ? path.join(__dirname, "missing-benchmark-renderer.html")
+    : path.join(__dirname, "..", "..", "dist-renderer", "index.html");
+  const rendererUrl = isDev && !benchmarkEnvironment
+    ? "http://127.0.0.1:5173/"
+    : pathToFileURL(rendererEntry).href;
+
+  configureWindowSecurity(window.webContents, rendererUrl);
+
   if (isDev && !benchmarkEnvironment) {
-    await window.loadURL("http://127.0.0.1:5173");
+    await window.loadURL(rendererUrl);
   } else {
-    const rendererEntry = benchmarkEnvironment && benchmarkFailureProbe === "load"
-      ? path.join(__dirname, "missing-benchmark-renderer.html")
-      : path.join(__dirname, "..", "..", "dist-renderer", "index.html");
     await window.loadFile(rendererEntry);
   }
 }

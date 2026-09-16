@@ -81,4 +81,17 @@ describe("Electron preload contract", () => {
     expect(preloadSource).toContain('ipcRenderer.invoke("system:copy-text"');
     expect(preloadSource).not.toContain("import ");
   });
+
+  it("isolates the renderer and prevents navigation-based privilege changes", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+    const htmlSource = await readFile("index.html", "utf8");
+
+    expect(mainSource).toContain("sandbox: true");
+    expect(mainSource).toContain("navigateOnDragDrop: false");
+    expect(mainSource).toContain("configureWindowSecurity(window.webContents, rendererUrl)");
+    expect(htmlSource).toMatch(/http-equiv=["']Content-Security-Policy["']/);
+    expect(htmlSource).toContain("object-src 'none'");
+    expect(htmlSource).toContain("frame-src 'none'");
+    expect(htmlSource).toContain("base-uri 'none'");
+  });
 });
