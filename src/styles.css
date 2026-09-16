@@ -550,7 +550,7 @@ button:disabled {
 
 .toolbar {
   display: flex;
-  min-height: 112px;
+  min-height: 104px;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -566,7 +566,9 @@ button:disabled {
 }
 
 .library-heading {
+  display: grid;
   min-width: 0;
+  gap: 8px;
 }
 
 .library-heading h2 {
@@ -812,10 +814,19 @@ button:disabled {
 
 .breadcrumb-row {
   display: flex;
+  width: fit-content;
+  max-width: min(100%, 680px);
   min-width: 0;
   align-items: center;
   gap: 5px;
-  margin-top: 10px;
+  overflow: hidden;
+}
+
+.breadcrumb-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
   overflow: hidden;
 }
 
@@ -826,7 +837,7 @@ button:disabled {
 .breadcrumbs {
   display: flex;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   flex-wrap: nowrap;
   align-items: center;
   gap: 3px;
@@ -2660,7 +2671,9 @@ button:disabled {
 .settings-content {
   min-height: 0;
   overflow-y: auto;
-  padding-right: 4px;
+  padding: 0 8px 20px 0;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 .performance-diagnostics {
@@ -3706,13 +3719,29 @@ button:disabled {
   }
 }
 
+@media (max-height: 640px) {
+  .settings-dialog {
+    max-height: calc(100dvh - 24px);
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+
+  .settings-tabs {
+    padding: 8px 0;
+  }
+
+  .settings-section {
+    padding: 14px 0;
+  }
+}
+
 @media (max-width: 720px) {
   .dialog-backdrop {
     padding: 12px;
   }
 
   .settings-dialog {
-    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
     padding: 14px;
   }
 

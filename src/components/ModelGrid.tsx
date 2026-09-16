@@ -419,24 +419,26 @@ export function ModelGrid({
             >
               <ChevronRight size={15} />
             </button>
-            <Breadcrumb
-              selectedFolder={selectedFolder}
-              dragOverFolder={dragOverFolder}
-              pointerDragOverFolder={pointerDragOverFolder}
-              onOpenFolder={onOpenFolder}
-              onDragOverFolder={allowFolderDrop}
-              onDropOnFolder={dropOnFolder}
-              onDragLeaveFolder={() => setDragOverFolder(null)}
-            />
-            <button
-              className="icon-only small-icon breadcrumb-copy-button"
-              type="button"
-              onClick={onCopyCurrentFolderPath}
-              aria-label={t("library.copyFolderPath")}
-              title={t("library.copyFolderPath")}
-            >
-              <Copy size={14} />
-            </button>
+            <div className="breadcrumb-actions">
+              <Breadcrumb
+                selectedFolder={selectedFolder}
+                dragOverFolder={dragOverFolder}
+                pointerDragOverFolder={pointerDragOverFolder}
+                onOpenFolder={onOpenFolder}
+                onDragOverFolder={allowFolderDrop}
+                onDropOnFolder={dropOnFolder}
+                onDragLeaveFolder={() => setDragOverFolder(null)}
+              />
+              <button
+                className="icon-only small-icon breadcrumb-copy-button"
+                type="button"
+                onClick={onCopyCurrentFolderPath}
+                aria-label={t("library.copyFolderPath")}
+                title={t("library.copyFolderPath")}
+              >
+                <Copy size={14} />
+              </button>
+            </div>
           </div>
         </div>
         <div className="toolbar-actions">

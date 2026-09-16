@@ -141,6 +141,26 @@ describe("layout scroll contract", () => {
     expect(css).toContain("@media (max-width: 899px)");
   });
 
+  it("keeps the current path controls together instead of stretching the copy action away", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain('className="breadcrumb-actions"');
+    expect(css).toMatch(/\.breadcrumb-actions\s*\{[\s\S]*?display:\s*flex;/);
+    expect(css).toMatch(/\.breadcrumbs\s*\{[\s\S]*?flex:\s*0 1 auto;/);
+    expect(css).toMatch(/\.breadcrumb-row\s*\{[\s\S]*?max-width:\s*min\(100%, 680px\);/);
+  });
+
+  it("keeps settings navigation fixed while the panel content scrolls with bottom clearance", async () => {
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(css).toMatch(/\.settings-dialog\s*\{[\s\S]*?grid-template-rows:\s*auto auto minmax\(0, 1fr\);/);
+    expect(css).toMatch(/\.settings-content\s*\{[\s\S]*?overflow-y:\s*auto;/);
+    expect(css).toMatch(/\.settings-content\s*\{[\s\S]*?padding:\s*0 8px 20px 0;/);
+    expect(css).toMatch(/\.settings-content\s*\{[\s\S]*?scrollbar-gutter:\s*stable;/);
+    expect(css).toMatch(/@media \(max-height: 640px\)[\s\S]*?\.settings-dialog\s*\{[\s\S]*?max-height:\s*calc\(100dvh - 24px\);/);
+  });
+
   it("keeps a persisted pinned folder column at narrow widths", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const folderSource = await readFile("src/components/FolderTree.tsx", "utf8");
