@@ -12,6 +12,12 @@ import {
 
 let tempRoot: string;
 
+async function createTestSevenZip(): Promise<string> {
+  const executablePath = path.join(tempRoot, "7z.exe");
+  await writeFile(executablePath, "test executable");
+  return executablePath;
+}
+
 beforeEach(async () => {
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "model-archives-"));
 });
@@ -139,7 +145,7 @@ describe("archiveManager", () => {
     const calls: string[][] = [];
 
     const result = await listArchiveEntries(tempRoot, archivePath, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async (args) => {
         calls.push(args);
         return {
@@ -170,7 +176,7 @@ Folder = -
     const calls: string[][] = [];
 
     const result = await listArchiveEntries(tempRoot, archivePath, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async (args) => {
         calls.push(args);
         return {
@@ -210,7 +216,7 @@ Folder = -
     await writeFile(archivePath, "not readable by fflate");
 
     const result = await listArchiveEntries(tempRoot, archivePath, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async () => {
         throw Object.assign(new Error("Warnings while listing archive"), {
           stdout: `
@@ -272,7 +278,7 @@ Folder = -
       ["folder/part.stl"],
       undefined,
       {
-        extractorPath: process.execPath,
+        extractorPath: await createTestSevenZip(),
         runSevenZip: async (args) => {
           calls.push(args);
           return { stdout: "Everything is Ok", stderr: "" };
@@ -281,7 +287,10 @@ Folder = -
     );
 
     const destinationRoot = path.join(tempRoot, "archives", "pack");
-    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(calls).toEqual([
+      ["l", "-slt", archivePath],
+      ["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]
+    ]);
     expect(result.paths).toEqual([path.join(destinationRoot, "folder", "part.stl")]);
   });
 
@@ -297,7 +306,7 @@ Folder = -
       ["folder/part.stl"],
       undefined,
       {
-        extractorPath: process.execPath,
+        extractorPath: await createTestSevenZip(),
         runSevenZip: async (args) => {
           calls.push(args);
           return { stdout: "Everything is Ok", stderr: "" };
@@ -306,7 +315,10 @@ Folder = -
     );
 
     const destinationRoot = path.join(tempRoot, "archives", "external");
-    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(calls).toEqual([
+      ["l", "-slt", archivePath],
+      ["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]
+    ]);
     expect(result.paths).toEqual([path.join(destinationRoot, "folder", "part.stl")]);
   });
 
@@ -429,7 +441,7 @@ Folder = -
     await writeFile(archivePath, "fake rar");
 
     const result = await listArchiveEntries(tempRoot, archivePath, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async () => ({
         stdout: `
 Path = part.stl
@@ -467,7 +479,7 @@ Folder = -
     const calls: string[][] = [];
 
     const result = await extractArchiveEntries(tempRoot, archivePath, ["folder/part.stl"], undefined, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async (args) => {
         calls.push(args);
         return { stdout: "Everything is Ok", stderr: "" };
@@ -475,7 +487,10 @@ Folder = -
     });
 
     const destinationRoot = path.join(tempRoot, "archives", "pack");
-    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(calls).toEqual([
+      ["l", "-slt", archivePath],
+      ["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]
+    ]);
     expect(result).toEqual({
       ok: true,
       message: "1 arquivo extraido.",
@@ -493,14 +508,14 @@ Folder = -
 
     await expect(
       extractArchiveEntries(tempRoot, archivePath, ["folder/part.stl"], undefined, {
-        extractorPath: process.execPath,
+        extractorPath: await createTestSevenZip(),
         runSevenZip: async (args) => {
           calls.push(args);
           return { stdout: "Everything is Ok", stderr: "" };
         }
       })
     ).rejects.toThrow("Ja existe um arquivo extraido com esse nome");
-    expect(calls).toEqual([]);
+    expect(calls).toEqual([["l", "-slt", archivePath]]);
     await expect(readFile(existingPath, "utf8")).resolves.toBe("existing model");
   });
 });

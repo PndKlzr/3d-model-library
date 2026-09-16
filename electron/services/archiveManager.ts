@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { unzipSync } from "fflate";
+import { unzip } from "fflate";
 import type {
   ArchiveEntry,
   ArchiveExtractionMode,
@@ -14,6 +14,15 @@ import {
   toSupportedFileExtension
 } from "../../src/shared/fileCapabilities.js";
 import { isPathAtOrInside, isPathInside } from "./pathContainment.js";
+import {
+  ArchiveSafetyError,
+  BUILTIN_ARCHIVE_LIMITS,
+  BUILTIN_MAX_COMPRESSED_BYTES,
+  createArchiveEntryValidator,
+  resolveSevenZipExecutable,
+  SEVEN_ZIP_ARCHIVE_LIMITS,
+  validateArchiveEntries
+} from "./archiveSafety.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -41,13 +50,14 @@ export async function listArchiveEntries(
 
   try {
     return await listWithSevenZip(safeArchivePath, options);
-  } catch {
+  } catch (error) {
+    if (error instanceof ArchiveSafetyError) throw error;
     // ZIPs can still be handled without 7-Zip, but prefer 7-Zip when it is
     // available so large archives are listed without decompressing every entry.
   }
 
   try {
-    const files = unzipSync(new Uint8Array(await readFile(safeArchivePath)));
+    const files = await unzipBounded(safeArchivePath);
     const entries = Object.entries(files)
       .map(([entryPath, bytes]) => createArchiveEntry(entryPath, bytes.length))
       .filter((entry): entry is ArchiveEntry => Boolean(entry))
@@ -58,7 +68,8 @@ export async function listArchiveEntries(
       archivePath: safeArchivePath,
       entries
     };
-  } catch {
+  } catch (error) {
+    if (error instanceof ArchiveSafetyError) throw error;
     return listWithSevenZip(safeArchivePath, options);
   }
 }
@@ -89,15 +100,20 @@ export async function extractArchiveEntries(
       destinationRelativeFolder,
       options
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof ArchiveSafetyError) throw error;
     // Fall back to the built-in ZIP reader when 7-Zip is not installed or not configured.
   }
 
   let files: Record<string, Uint8Array>;
 
   try {
-    files = unzipSync(new Uint8Array(await readFile(safeArchivePath)));
-  } catch {
+    files = await unzipBounded(
+      safeArchivePath,
+      new Set(entryPaths.map(normalizeArchiveEntryPath))
+    );
+  } catch (error) {
+    if (error instanceof ArchiveSafetyError) throw error;
     return extractWithSevenZip(rootPath, safeArchivePath, entryPaths, destinationRelativeFolder, options);
   }
 
@@ -190,10 +206,10 @@ export function parseSevenZipListOutput(output: string): ArchiveEntry[] {
       return;
     }
 
-    const sizeBytes = Number.parseInt(current.Size ?? "0", 10);
+    const sizeBytes = Number.parseInt(current.Size ?? "", 10);
     const entry = createArchiveEntry(
       entryPath,
-      Number.isFinite(sizeBytes) ? sizeBytes : 0,
+      sizeBytes,
       current.Folder === "+"
     );
 
@@ -233,13 +249,15 @@ async function listWithSevenZip(
   options: ArchiveToolOptions
 ): Promise<ArchiveListResult> {
   const output = await runSevenZipCommand(["l", "-slt", archivePath], options);
+  const entries = parseSevenZipListOutput(output.stdout).sort((left, right) =>
+    left.path.localeCompare(right.path)
+  );
+  validateArchiveEntries(entries, SEVEN_ZIP_ARCHIVE_LIMITS);
 
   return {
     ok: true,
     archivePath,
-    entries: parseSevenZipListOutput(output.stdout).sort((left, right) =>
-      left.path.localeCompare(right.path)
-    )
+    entries
   };
 }
 
@@ -251,6 +269,7 @@ async function extractWithSevenZip(
   options: ArchiveToolOptions
 ): Promise<FileOperationResult> {
   const normalizedEntries = entryPaths.map(normalizeArchiveEntryPath);
+  await listWithSevenZip(archivePath, options);
   const destinationRoot = resolveExtractionRoot(rootPath, archivePath, destinationRelativeFolder);
   const extractedPaths: string[] = [];
 
@@ -346,66 +365,49 @@ function outputToString(output: unknown): string {
   return "";
 }
 
-async function resolveSevenZipExecutable(configuredPath?: string): Promise<string> {
-  const trimmedPath = configuredPath?.trim();
-
-  if (trimmedPath) {
-    if (await isExistingFile(trimmedPath)) {
-      return trimmedPath;
-    }
-
-    throw new Error("O 7-Zip configurado nao foi encontrado. Confira o caminho nas configuracoes.");
+async function unzipBounded(
+  archivePath: string,
+  selectedPaths?: Set<string>
+): Promise<Record<string, Uint8Array>> {
+  const archiveStat = await stat(archivePath);
+  if (!Number.isSafeInteger(archiveStat.size) || archiveStat.size > BUILTIN_MAX_COMPRESSED_BYTES) {
+    throw new ArchiveSafetyError("Archive file is too large for the built-in ZIP reader.");
   }
 
-  const commonPaths = [
-    "C:\\Program Files\\7-Zip\\7z.exe",
-    "C:\\Program Files (x86)\\7-Zip\\7z.exe"
-  ];
+  const bytes = new Uint8Array(await readFile(archivePath));
+  const validateEntry = createArchiveEntryValidator(BUILTIN_ARCHIVE_LIMITS);
 
-  for (const candidatePath of commonPaths) {
-    if (await isExistingFile(candidatePath)) {
-      return candidatePath;
-    }
-  }
+  return new Promise((resolve, reject) => {
+    let settled = false;
 
-  const pathCandidate = await findSevenZipOnPath();
-
-  if (pathCandidate) {
-    return pathCandidate;
-  }
-
-  throw new Error(
-    "RAR e 7Z precisam do 7-Zip. Instale o 7-Zip ou configure o caminho do 7z.exe nas configuracoes."
-  );
-}
-
-async function findSevenZipOnPath(): Promise<string | null> {
-  const command = process.platform === "win32" ? "where.exe" : "which";
-  const candidates = process.platform === "win32" ? ["7z.exe", "7zz.exe", "7za.exe"] : ["7z", "7zz", "7za"];
-
-  for (const candidate of candidates) {
     try {
-      const result = await execFileAsync(command, [candidate], { windowsHide: true });
-      const firstPath = result.stdout.split(/\r?\n/).find(Boolean)?.trim();
-
-      if (firstPath && (await isExistingFile(firstPath))) {
-        return firstPath;
+      unzip(bytes, {
+        filter: (file) => {
+          try {
+            validateEntry({ path: file.name, sizeBytes: file.originalSize });
+            return !selectedPaths || selectedPaths.has(normalizeArchiveEntryPath(file.name));
+          } catch (error) {
+            settled = true;
+            reject(error);
+            return false;
+          }
+        }
+      }, (error, files) => {
+        if (settled) return;
+        settled = true;
+        if (error) {
+          reject(error);
+        } else {
+          resolve(files);
+        }
+      });
+    } catch (error) {
+      if (!settled) {
+        settled = true;
+        reject(error);
       }
-    } catch {
-      continue;
     }
-  }
-
-  return null;
-}
-
-async function isExistingFile(candidatePath: string): Promise<boolean> {
-  try {
-    const candidateStat = await stat(candidatePath);
-    return candidateStat.isFile();
-  } catch {
-    return false;
-  }
+  });
 }
 
 async function assertAvailableExtractionDestination(destinationPath: string): Promise<void> {
