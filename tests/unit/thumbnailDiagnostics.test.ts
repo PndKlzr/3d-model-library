@@ -200,6 +200,25 @@ describe("thumbnailDiagnostics", () => {
     expect(report).not.toContain("modelBytes");
   });
 
+  it("reports the actual active library session when supplied", () => {
+    const diagnostics = createThumbnailDiagnostics(() => 10);
+    const report = JSON.parse(formatThumbnailDiagnosticReport(
+      diagnostics.getSnapshot(),
+      {
+        appVersion: "0.1.0",
+        electronVersion: "33.2.1",
+        chromiumVersion: "130"
+      },
+      {
+        generation: 4,
+        rootPath: "F:\\STLs",
+        libraryId: "library-f"
+      }
+    ));
+
+    expect(report.library).toEqual({ rootPath: "F:\\STLs", libraryId: "library-f" });
+  });
+
   it("records browser long tasks without retaining entry attribution", () => {
     const diagnostics = createThumbnailDiagnostics(() => 10);
     const disconnect = vi.fn();

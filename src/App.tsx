@@ -399,7 +399,7 @@ function LibraryApp() {
   useEffect(() => {
     const unsubscribeChanged = window.modelLibrary.onLibraryChanged((payload) => {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, payload.session)) return;
-      setLibraryMetadata(payload.metadata);
+      if (payload.metadata) setLibraryMetadata(payload.metadata);
       void scanLibrarySession(payload.session);
     });
     const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((payload) => {
@@ -1415,7 +1415,7 @@ function LibraryApp() {
         return null;
       }
       const nextScanResult = versionedResult.result;
-      setLibraryMetadata(versionedResult.metadata);
+      if (versionedResult.metadata) setLibraryMetadata(versionedResult.metadata);
       setScanResult(nextScanResult);
       setVerifiedHealthScan(null);
       setHealthCheckedAt(null);
@@ -2464,6 +2464,7 @@ function LibraryApp() {
             ? readLocalizedErrorMessage(new Error(metadataStatus.message))
             : null}
           thumbnailDiagnostics={thumbnailDiagnostics}
+          librarySession={activeLibrarySessionRef.current}
           onClose={() => setIsSettingsOpen(false)}
           onSaveSettings={saveSettings}
           onChooseLibraryFolder={chooseFolder}

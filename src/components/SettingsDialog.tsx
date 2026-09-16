@@ -7,6 +7,7 @@ import type {
   AppSettings,
   LibraryDataStatus,
   LibraryHealthSnapshot,
+  LibrarySessionRef,
   SlicerConfig
 } from "../shared/types";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
@@ -29,6 +30,7 @@ type SettingsDialogProps = {
   metadataWritable: boolean;
   metadataMessage: string | null;
   thumbnailDiagnostics: ThumbnailDiagnosticsSnapshot;
+  librarySession: LibrarySessionRef | null;
   onClose: () => void;
   onSaveSettings: (mutation: AppSettingsMutation) => Promise<void>;
   onChooseLibraryFolder: () => Promise<void>;
@@ -64,6 +66,7 @@ export function SettingsDialog({
   metadataWritable,
   metadataMessage,
   thumbnailDiagnostics,
+  librarySession,
   onClose,
   onSaveSettings,
   onChooseLibraryFolder,
@@ -186,7 +189,10 @@ export function SettingsDialog({
         ) : null}
 
         {activeTab === "diagnostics" ? (
-          <PerformanceDiagnostics snapshot={thumbnailDiagnostics} />
+          <PerformanceDiagnostics
+            snapshot={thumbnailDiagnostics}
+            librarySession={librarySession}
+          />
         ) : null}
 
         {activeTab === "maintenance" ? (

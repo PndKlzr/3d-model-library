@@ -68,7 +68,8 @@ export function createThumbnailDiagnostics(now: () => number = () => performance
 
 export function formatThumbnailDiagnosticReport(
   snapshot: ThumbnailDiagnosticsSnapshot,
-  runtime: { appVersion: string; electronVersion: string; chromiumVersion: string }
+  runtime: { appVersion: string; electronVersion: string; chromiumVersion: string },
+  library?: { rootPath: string; libraryId: string } | null
 ): string {
   return JSON.stringify({
     generatedAt: new Date().toISOString(),
@@ -77,6 +78,9 @@ export function formatThumbnailDiagnosticReport(
       electronVersion: runtime.electronVersion,
       chromiumVersion: runtime.chromiumVersion
     },
+    ...(library ? {
+      library: { rootPath: library.rootPath, libraryId: library.libraryId }
+    } : {}),
     thumbnail: sanitizeThumbnailSnapshot(snapshot)
   }, null, 2);
 }

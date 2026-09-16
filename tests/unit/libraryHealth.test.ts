@@ -86,4 +86,39 @@ describe("libraryHealth", () => {
 
     expect(health.issues.map((issue) => issue.relativePath)).toEqual(["favorite.stl"]);
   });
+
+  it("distinguishes protected metadata for a possibly relocated file", () => {
+    const modelPath = "C:\\Models\\renamed-elsewhere.stl";
+    const health = buildLibraryHealthSnapshot({
+      rootPath: "C:\\Models",
+      checkedAt: null,
+      scanResult: { rootPath: "C:\\Models", models: [], folders: [], errors: [] },
+      metadata: {
+        models: {
+          [modelPath]: { favorite: true, tags: ["keep"], notes: "important" }
+        },
+        tagCatalog: ["keep"],
+        slicerHistory: [],
+        fileIdentities: {
+          [modelPath]: {
+            algorithm: "sha256",
+            digest: "f".repeat(64),
+            sizeBytes: 100,
+            modifiedAt: "2026-09-16T10:00:00.000Z"
+          }
+        }
+      },
+      metadataStatus: { availability: "ready", writable: true, source: "primary", message: null },
+      sessionIssues: [],
+      monitoringError: null,
+      unavailableSlicerIds: []
+    });
+
+    expect(health.issues).toEqual([
+      expect.objectContaining({
+        code: "metadata-file-relocation-unresolved",
+        relativePath: "renamed-elsewhere.stl"
+      })
+    ]);
+  });
 });

@@ -158,6 +158,7 @@ export type LibraryHealthIssueCode =
   | "metadata-read-only"
   | "metadata-unavailable"
   | "metadata-file-missing"
+  | "metadata-file-relocation-unresolved"
   | "scan-error"
   | "thumbnail-failed"
   | "archive-read-failed"

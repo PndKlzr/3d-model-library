@@ -45,6 +45,7 @@ const issueLabels: Record<LibraryHealthIssueCode, TranslationKey> = {
   "metadata-read-only": "maintenance.issueMetadataReadOnly",
   "metadata-unavailable": "maintenance.issueMetadataUnavailable",
   "metadata-file-missing": "maintenance.issueMetadataMissing",
+  "metadata-file-relocation-unresolved": "maintenance.issueMetadataRelocation",
   "scan-error": "maintenance.issueScan",
   "thumbnail-failed": "maintenance.issueThumbnail",
   "archive-read-failed": "maintenance.issueArchive",

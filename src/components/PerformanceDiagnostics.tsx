@@ -5,12 +5,14 @@ import {
   type ThumbnailDiagnosticsSnapshot
 } from "../lib/thumbnailDiagnostics";
 import { useI18n } from "../i18n/I18nProvider";
+import type { LibrarySessionRef } from "../shared/types";
 
 type PerformanceDiagnosticsProps = {
   snapshot: ThumbnailDiagnosticsSnapshot;
+  librarySession: LibrarySessionRef | null;
 };
 
-export function PerformanceDiagnostics({ snapshot }: PerformanceDiagnosticsProps) {
+export function PerformanceDiagnostics({ snapshot, librarySession }: PerformanceDiagnosticsProps) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const { t } = useI18n();
 
@@ -23,7 +25,9 @@ export function PerformanceDiagnostics({ snapshot }: PerformanceDiagnosticsProps
   async function copyDiagnostics() {
     try {
       const runtime = await window.modelLibrary.getRuntimeVersions();
-      await window.modelLibrary.copyText(formatThumbnailDiagnosticReport(snapshot, runtime));
+      await window.modelLibrary.copyText(
+        formatThumbnailDiagnosticReport(snapshot, runtime, librarySession)
+      );
       setCopyState("copied");
     } catch {
       setCopyState("failed");

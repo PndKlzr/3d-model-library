@@ -38,8 +38,15 @@ export function buildLibraryHealthSnapshot(input: LibraryHealthInput): LibraryHe
   for (const [modelPath, metadata] of Object.entries(input.metadata.models)) {
     if (!metadata.favorite && metadata.tags.length === 0 && !metadata.notes.trim()) continue;
     if (!currentPaths.has(normalize(modelPath))) {
+      const hasIdentity = Object.keys(input.metadata.fileIdentities ?? {}).some(
+        (identityPath) => normalize(identityPath) === normalize(modelPath)
+      );
       add({
-        ...issue("metadata-file-missing", "warning", `missing:${normalize(modelPath)}`),
+        ...issue(
+          hasIdentity ? "metadata-file-relocation-unresolved" : "metadata-file-missing",
+          "warning",
+          `missing:${normalize(modelPath)}`
+        ),
         relativePath: toRelativePath(input.rootPath, modelPath)
       });
     }
