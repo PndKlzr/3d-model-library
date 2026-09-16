@@ -440,6 +440,24 @@ describe("interaction flow contract", () => {
     expect(requireLibraryPath).not.toContain("settingsStore.getSettings()");
   });
 
+  it("canonicalizes privileged model reads against the active library", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(mainSource).toContain("resolveCanonicalLibraryFile");
+    expect(mainSource).toMatch(
+      /ipcMain\.handle\("model:metadata"[\s\S]*?resolveCanonicalLibraryFile[\s\S]*?readModelMetadata/
+    );
+    expect(mainSource).toMatch(
+      /ipcMain\.handle\("model:thumbnail"[\s\S]*?resolveCanonicalLibraryFile[\s\S]*?readEmbeddedThumbnail/
+    );
+    expect(mainSource).toMatch(
+      /ipcMain\.handle\("model:read-file"[\s\S]*?resolveCanonicalLibraryFile[\s\S]*?readFile/
+    );
+    expect(mainSource).toMatch(
+      /ipcMain\.handle\("model:show-in-folder"[\s\S]*?resolveCanonicalLibraryFile[\s\S]*?showItemInFolder/
+    );
+  });
+
   it("activates a changed library before persisting its settings", async () => {
     const mainSource = await readFile("electron/main.ts", "utf8");
     const saveHandler = mainSource.match(

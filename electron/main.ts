@@ -84,6 +84,7 @@ import {
   type BenchmarkLibraryContext
 } from "./services/benchmarkLibraryContext.js";
 import { configureWindowSecurity } from "./services/windowSecurity.js";
+import { resolveCanonicalLibraryFile } from "./services/libraryFileAccess.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -376,13 +377,13 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("model:metadata", async (_event, absolutePath: string) => {
-    assertPathInsideLibrary(absolutePath);
-    return readModelMetadata(absolutePath);
+    const canonicalPath = await resolveCanonicalLibraryFile(requireLibraryPath(), absolutePath);
+    return readModelMetadata(canonicalPath);
   });
 
   ipcMain.handle("model:thumbnail", async (_event, absolutePath: string) => {
-    assertPathInsideLibrary(absolutePath);
-    return readEmbeddedThumbnail(absolutePath);
+    const canonicalPath = await resolveCanonicalLibraryFile(requireLibraryPath(), absolutePath);
+    return readEmbeddedThumbnail(canonicalPath);
   });
 
   ipcMain.handle("image:read-data-url", (
@@ -444,16 +445,22 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("model:hashes", async (_event, models: ModelHashInput[]) => {
-    for (const model of models) {
-      assertPathInsideLibrary(model.absolutePath);
-    }
+    const libraryPath = requireLibraryPath();
+    const canonicalModels = await Promise.all(models.map(async (model) => ({
+      ...model,
+      absolutePath: await resolveCanonicalLibraryFile(libraryPath, model.absolutePath)
+    })));
+    const canonicalHashes = await modelHashStore.getHashes(canonicalModels);
 
-    return modelHashStore.getHashes(models);
+    return Object.fromEntries(models.map((model, index) => [
+      model.absolutePath,
+      canonicalHashes[canonicalModels[index].absolutePath]
+    ]));
   });
 
-  ipcMain.handle("model:show-in-folder", (_event, absolutePath: string) => {
-    assertPathInsideLibrary(absolutePath);
-    shell.showItemInFolder(absolutePath);
+  ipcMain.handle("model:show-in-folder", async (_event, absolutePath: string) => {
+    const canonicalPath = await resolveCanonicalLibraryFile(requireLibraryPath(), absolutePath);
+    shell.showItemInFolder(canonicalPath);
   });
 
   ipcMain.handle("library:show-folder", (
@@ -562,9 +569,8 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle("model:read-file", async (_event, absolutePath: string) => {
-    assertPathInsideLibrary(absolutePath);
-
-    const buffer = await readFile(absolutePath);
+    const canonicalPath = await resolveCanonicalLibraryFile(requireLibraryPath(), absolutePath);
+    const buffer = await readFile(canonicalPath);
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   });
 }
@@ -617,8 +623,8 @@ function registerBenchmarkIpcHandlers(
     failBenchmark(new Error(typeof message === "string" ? message.slice(0, 512) : "Renderer failed"));
   });
   ipcMain.handle("model:thumbnail", async (_event, absolutePath: string) => {
-    assertPathInsideLibrary(absolutePath);
-    return readEmbeddedThumbnail(absolutePath);
+    const canonicalPath = await resolveCanonicalLibraryFile(requireLibraryPath(), absolutePath);
+    return readEmbeddedThumbnail(canonicalPath);
   });
   ipcMain.handle("image:read-data-url", (
     _event,
@@ -649,8 +655,8 @@ function registerBenchmarkIpcHandlers(
     await thumbnailCache.write(model, dataUrl);
   });
   ipcMain.handle("model:read-file", async (_event, absolutePath: string) => {
-    assertPathInsideLibrary(absolutePath);
-    const buffer = await readFile(absolutePath);
+    const canonicalPath = await resolveCanonicalLibraryFile(requireLibraryPath(), absolutePath);
+    const buffer = await readFile(canonicalPath);
     return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
   });
   ipcMain.handle("benchmark:submit-report", async (_event, submittedReport: unknown) => {
