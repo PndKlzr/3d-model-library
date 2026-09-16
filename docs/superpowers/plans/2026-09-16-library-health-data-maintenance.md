@@ -734,7 +734,7 @@ git commit -m "Add library data maintenance settings"
 - Consumes: completed Tasks 1-7.
 - Produces: user-facing recovery instructions and final verification evidence.
 
-- [ ] **Step 1: Document exact backup and maintenance behavior**
+- [x] **Step 1: Document exact backup and maintenance behavior**
 
 Document:
 
@@ -747,19 +747,19 @@ Document:
 - that model files are never modified by maintenance;
 - that package fuses/signing remain installer work.
 
-- [ ] **Step 2: Run static privacy and repository checks**
+- [x] **Step 2: Run static privacy and repository checks**
 
 Run:
 
 ```powershell
 git diff --check
-rg -n "C:\\Users\\Pnd|AppData\\Roaming\\model-library|BEGIN (RSA |OPENSSH )?PRIVATE KEY|api[_-]?key|token" README.md docs electron src tests
+rg -n "AppData\\Roaming\\model-library|BEGIN (RSA |OPENSSH )?PRIVATE KEY|api[_-]?key|token" README.md docs electron src tests
 git status --short
 ```
 
 Expected: no personal library path, credential, generated binary, or unrelated staged file. Leave `.superpowers/` untracked and untouched.
 
-- [ ] **Step 3: Run complete automated verification**
+- [x] **Step 3: Run complete automated verification**
 
 Run:
 
@@ -785,7 +785,7 @@ Ask the user to verify these actions in the launched development app:
 8. Drag a file to Explorer/Desktop.
 9. Move a model to an internal folder.
 
-- [ ] **Step 5: Commit documentation and verification evidence**
+- [x] **Step 5: Commit documentation and verification evidence**
 
 ```powershell
 git add README.md docs/security/release-readiness-2026-09-16.md docs/maintenance/library-data-recovery.md

@@ -90,14 +90,17 @@ O catálogo usado para acelerar a abertura também fica nessa pasta, mas pode se
 ```
 
 - Ao copiar ou fazer backup da biblioteca, leve a pasta `.3d-model-library` junto com todos os arquivos da biblioteca.
-- O arquivo com final `.bak` é uma recuperação automática do último estado válido; ele não representa uma segunda biblioteca.
+- O arquivo com final `.bak` é uma cópia automática do último estado válido; ele não representa uma segunda biblioteca.
+- Antes de uma restauração manual, o aplicativo cria `3D_LIBRARY_DATA_RECOVERY_<data>.json` na mesma pasta e mantém somente as cinco cópias de recuperação mais recentes.
 - `3D_LIBRARY_DATA_DO_NOT_DELETE.json` contém dados duráveis. Não o apague para tentar corrigir uma indexação: isso remove a fonte portátil de notas, tags e favoritos.
 - `LIBRARY_INDEX_DO_NOT_DELETE.json` contém somente o catálogo reconstruível. Se o catálogo estiver corrompido, feche o aplicativo, apague somente esse arquivo e abra a biblioteca novamente para refazer a varredura.
 - Caminhos dos slicers, tema e miniaturas continuam locais ao Windows porque pertencem àquele computador ou podem ser recriados. Preferências visuais por biblioteca, como tipos visíveis e pastas excluídas, também são locais ao aplicativo.
 - Se a biblioteca estiver desconectada ou sem permissão de escrita, notas, tags e favoritos ficam bloqueados para evitar alterações que aparentem estar salvas.
 - A migração mantém o arquivo antigo de metadados no AppData; ele não é apagado automaticamente.
 
-Para recuperar o ambiente em outro computador, restaure a biblioteca inteira incluindo `.3d-model-library`, escolha essa pasta no aplicativo e aguarde a reconciliação. Se apenas o índice reconstruível estiver danificado, preserve o arquivo de dados duráveis e remova somente `LIBRARY_INDEX_DO_NOT_DELETE.json`.
+Para recuperar o ambiente em outro computador, restaure a biblioteca inteira incluindo `.3d-model-library`, escolha essa pasta no aplicativo e aguarde a reconciliação. Também é possível usar **Configurações > Dados e manutenção > Exportar backup** e restaurar o JSON exportado em outra cópia da biblioteca. O backup contém caminhos relativos, tags, notas, favoritos e histórico de slicer; não contém modelos, miniaturas, executáveis, caminhos absolutos nem configurações do computador.
+
+Na aba **Dados e manutenção** também é possível verificar a biblioteca, abrir a pasta de dados, reconstruir apenas o índice descartável e limpar somente miniaturas obsoletas pertencentes à biblioteca ativa. Essas ações não alteram STL, 3MF, OBJ, imagens ou arquivos compactados. Consulte o [guia de backup e recuperação](docs/maintenance/library-data-recovery.md) antes de uma restauração.
 
 Na aba **Info** do item selecionado, a linha **Localização** mostra o caminho dentro da biblioteca e oferece ações para copiar o caminho completo ou revelar o arquivo no Explorer. O menu de contexto das pastas também pode revelar a raiz ou uma subpasta.
 
