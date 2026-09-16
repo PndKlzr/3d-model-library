@@ -44,6 +44,16 @@ describe("parseThreeMfPreview", () => {
     );
   });
 
+  it("rejects malformed 3MF XML before building geometry", () => {
+    const zipped = zipSync({
+      "3D/3dmodel.model": strToU8(
+        '<model><resources><object id="1"><mesh></object></resources></model>'
+      )
+    });
+
+    expect(() => parseThreeMfPreview(zipped.buffer as ArrayBuffer)).toThrow("XML 3MF inválido");
+  });
+
   it("loads meshes from nested 3MF object model files", () => {
     const rootXml = `<?xml version="1.0" encoding="UTF-8"?>
 <model unit="millimeter" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">

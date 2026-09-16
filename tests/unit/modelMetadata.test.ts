@@ -98,6 +98,21 @@ endsolid cube`
       previewError: null
     });
   });
+
+  it("returns a readable error for malformed 3MF XML", async () => {
+    const filePath = path.join(tempRoot, "malformed.3mf");
+    await writeFile(filePath, zipSync({
+      "3D/3dmodel.model": strToU8(
+        '<model><resources><object id="1"><mesh></object></resources></model>'
+      )
+    }));
+
+    const metadata = await readModelMetadata(filePath);
+
+    expect(metadata.dimensionsMm).toBeNull();
+    expect(metadata.objectCount).toBeNull();
+    expect(metadata.previewError).toContain("3MF file could not be parsed");
+  });
 });
 
 function createBinaryStl(vertices: Array<[number, number, number]>): Buffer {

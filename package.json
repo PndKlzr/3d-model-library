@@ -19,7 +19,7 @@
     "@tanstack/react-virtual": "^3.14.11",
     "chokidar": "^4.0.3",
     "electron-store": "^10.0.0",
-    "fast-xml-parser": "^4.5.1",
+    "fast-xml-parser": "^5.11.1",
     "fflate": "^0.8.2",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
@@ -33,13 +33,11 @@
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.0",
     "electron": "^44.4.1",
     "jsdom": "^29.1.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
-    "vitest": "^2.1.8",
-    "wait-on": "^8.0.1"
+    "vitest": "^2.1.8"
   },
   "allowScripts": {
     "electron@44.4.1": true,
