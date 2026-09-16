@@ -56,6 +56,7 @@ import { localizeErrorMessage } from "../shared/appError";
 
 type ModelGridProps = {
   models: ModelFile[];
+  scopeModelCount: number;
   thumbnailModels?: ModelFile[];
   folderCards: GridFolderCard[];
   scanErrors: Array<{ path: string; message: string }>;
@@ -130,6 +131,7 @@ type CollectionItem =
 
 export function ModelGrid({
   models,
+  scopeModelCount,
   thumbnailModels = models,
   folderCards,
   scanErrors,
@@ -495,6 +497,15 @@ export function ModelGrid({
             <Settings size={17} />
           </button>
           <div className="toolbar-statuses">
+            <span className="result-count">
+              {hasActiveFilters
+                ? t("library.filteredModelCount", {
+                    count: scopeModelCount,
+                    visible: models.length,
+                    total: scopeModelCount
+                  })
+                : t("library.modelCount", { count: scopeModelCount })}
+            </span>
             <ThumbnailQueueStatus snapshot={thumbnailDiagnostics} warmup={displayedThumbnailWarmup} />
             <span
               className={`library-status ${isScanning ? "scanning" : monitorStatus}`}

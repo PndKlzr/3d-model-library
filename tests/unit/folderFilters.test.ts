@@ -3,6 +3,7 @@ import type { ModelFile } from "../../src/shared/types";
 import {
   ALL_FOLDERS_ID,
   filterModels,
+  getFolderScopeModels,
   isFolderExcluded,
   reconcileExcludedFolders
 } from "../../src/lib/folderFilters";
@@ -206,6 +207,27 @@ describe("filterModels", () => {
       ...options,
       tagMatchMode: "exclude"
     }).map((item) => item.name)).toEqual(["tree.stl", "visor.3mf"]);
+  });
+});
+
+describe("getFolderScopeModels", () => {
+  it("returns every model for the recursive All view", () => {
+    expect(getFolderScopeModels(models, ALL_FOLDERS_ID, true)).toEqual(models);
+  });
+
+  it("returns only root models for the non-recursive All view", () => {
+    expect(getFolderScopeModels(models, ALL_FOLDERS_ID, false).map((item) => item.name))
+      .toEqual(["root.stl"]);
+  });
+
+  it("returns a folder and its descendants when recursive", () => {
+    expect(getFolderScopeModels(models, "cosplay", true).map((item) => item.name))
+      .toEqual(["helmet.stl", "visor.3mf"]);
+  });
+
+  it("returns only exact folder members when non-recursive", () => {
+    expect(getFolderScopeModels(models, "cosplay", false).map((item) => item.name))
+      .toEqual(["helmet.stl"]);
   });
 });
 

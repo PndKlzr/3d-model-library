@@ -610,6 +610,14 @@ button:disabled {
   gap: 10px;
 }
 
+.result-count {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .thumbnail-queue-status {
   position: relative;
   display: inline-flex;

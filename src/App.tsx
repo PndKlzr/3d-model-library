@@ -25,6 +25,7 @@ import { buildFolderTree, type FolderNode } from "./lib/folderTree";
 import {
   ALL_FOLDERS_ID,
   filterModels,
+  getFolderScopeModels,
   isFolderExcluded,
   reconcileExcludedFolders,
   type ModelSortMode,
@@ -2007,6 +2008,10 @@ function LibraryApp() {
     () => (settings?.slicers ?? []).filter((slicer) => slicer.enabled && slicer.executablePath),
     [settings?.slicers]
   );
+  const scopeModels = useMemo(
+    () => getFolderScopeModels(models, selectedFolder, includeSubfolders),
+    [includeSubfolders, models, selectedFolder]
+  );
   const filteredModels = useMemo(
     () =>
       filterModels(models, selectedFolder, includeSubfolders, deferredSearchQuery, {
@@ -2116,6 +2121,7 @@ function LibraryApp() {
       />
       <ModelGrid
         models={filteredModels}
+        scopeModelCount={scopeModels.length}
         thumbnailModels={models}
         folderCards={folderCards}
         scanErrors={scanResult?.errors ?? []}

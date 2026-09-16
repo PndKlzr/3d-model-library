@@ -3,7 +3,9 @@ import { fireEvent, render } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ModelGrid } from "../../src/components/ModelGrid";
+import { I18nProvider } from "../../src/i18n/I18nProvider";
 import { SUPPORTED_FILE_EXTENSIONS } from "../../src/shared/fileCapabilities";
+import type { AppLocale, ModelFile } from "../../src/shared/types";
 
 class ResizeObserverMock {
   observe() {}
@@ -143,12 +145,45 @@ describe("ModelGrid filters", () => {
     fireEvent.scroll(panel);
     expect(onScrollTopChange).toHaveBeenLastCalledWith(480);
   });
+
+  it("shows visible and scoped model counts when filters are active", () => {
+    const view = renderGrid({
+      models: createModels(3),
+      scopeModelCount: 12,
+      searchQuery: "part"
+    });
+
+    expect(view.getByText("3 de 12 modelos")).toBeVisible();
+  });
+
+  it("shows only the scoped total when filters are inactive", () => {
+    const view = renderGrid({
+      models: createModels(12),
+      scopeModelCount: 12
+    });
+
+    expect(view.getByText("12 modelos")).toBeVisible();
+  });
+
+  it("localizes the filtered count in English", () => {
+    const view = renderGrid({
+      models: createModels(3),
+      scopeModelCount: 12,
+      onlyFavorites: true
+    }, "en");
+
+    expect(view.getByText("3 of 12 models")).toBeVisible();
+  });
 });
 
-function renderGrid(overrides: Partial<ComponentProps<typeof ModelGrid>> = {}) {
+function renderGrid(
+  overrides: Partial<ComponentProps<typeof ModelGrid>> = {},
+  locale: AppLocale = "pt-BR"
+) {
   const noop = vi.fn();
   const props: ComponentProps<typeof ModelGrid> = {
     models: [],
+    scopeModelCount: 0,
     folderCards: [],
     scanErrors: [],
     selectedModelId: null,
@@ -231,5 +266,20 @@ function renderGrid(overrides: Partial<ComponentProps<typeof ModelGrid>> = {}) {
     ...overrides
   };
 
-  return render(<ModelGrid {...props} />);
+  return render(<I18nProvider locale={locale}><ModelGrid {...props} /></I18nProvider>);
+}
+
+function createModels(count: number): ModelFile[] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `model-${index}`,
+    name: `part-${index}.stl`,
+    extension: ".stl",
+    absolutePath: `C:\\Library\\part-${index}.stl`,
+    relativeFolder: "",
+    sizeBytes: index + 1,
+    modifiedAt: "2026-09-16T00:00:00.000Z",
+    dimensionsMm: null,
+    objectCount: null,
+    previewError: null
+  }));
 }

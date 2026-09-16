@@ -18,6 +18,7 @@ export function translate(
   const catalog = locale === "en" ? en : ptBR;
   const pluralKeys: TranslationKey[] = [
     "library.modelCount",
+    "library.filteredModelCount",
     "library.selectedCount",
     "library.folderModelCount",
     "library.childFolderCount",

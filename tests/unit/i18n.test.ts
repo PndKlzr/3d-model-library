@@ -16,6 +16,10 @@ describe("i18n", () => {
       .toBe("Thumbnails - 3 remaining");
     expect(translate("pt-BR", "library.modelCount", { count: 1 })).toBe("1 modelo");
     expect(translate("en", "library.modelCount", { count: 2 })).toBe("2 models");
+    expect(translate("pt-BR", "library.filteredModelCount", { count: 12, visible: 3, total: 12 }))
+      .toBe("3 de 12 modelos");
+    expect(translate("en", "library.filteredModelCount", { count: 12, visible: 3, total: 12 }))
+      .toBe("3 of 12 models");
   });
 
   it("translates settings and performance diagnostics", () => {

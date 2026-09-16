@@ -65,6 +65,8 @@ export const ptBR = {
   "library.manual": "Atualização manual",
   "library.modelCount.one": "{count} modelo",
   "library.modelCount.other": "{count} modelos",
+  "library.filteredModelCount.one": "{visible} de {total} modelo",
+  "library.filteredModelCount.other": "{visible} de {total} modelos",
   "library.selectedCount.one": "{count} selecionado",
   "library.selectedCount.other": "{count} selecionados",
   "library.dragExternalCue": "Copiar para outro programa",
@@ -382,6 +384,7 @@ export const ptBR = {
 export type TranslationKey =
   | keyof typeof ptBR
   | "library.modelCount"
+  | "library.filteredModelCount"
   | "library.selectedCount"
   | "library.folderModelCount"
   | "library.childFolderCount"
@@ -459,6 +462,8 @@ export const en: Record<keyof typeof ptBR, string> = {
   "library.manual": "Manual refresh",
   "library.modelCount.one": "{count} model",
   "library.modelCount.other": "{count} models",
+  "library.filteredModelCount.one": "{visible} of {total} model",
+  "library.filteredModelCount.other": "{visible} of {total} models",
   "library.selectedCount.one": "{count} selected",
   "library.selectedCount.other": "{count} selected",
   "library.dragExternalCue": "Copy to another program",

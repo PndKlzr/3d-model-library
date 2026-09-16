@@ -76,6 +76,8 @@ describe("layout scroll contract", () => {
 
     expect(gridSource).toContain("ThumbnailQueueStatus");
     expect(gridSource).toContain('className="toolbar-statuses"');
+    expect(gridSource).toContain('className="result-count"');
+    expect(css).toMatch(/\.result-count\s*\{[\s\S]*?white-space:\s*nowrap;/);
     expect(css).toMatch(/\.thumbnail-queue-status\.idle\s*\{\s*display:\s*none;/);
     expect(css).toMatch(/\.thumbnail-queue-status\.complete i\s*\{[\s\S]*?background:\s*var\(--accent\);/);
     expect(css).toMatch(/\.thumbnail-queue-status\.failed\s*\{[\s\S]*?color:\s*var\(--warn\);/);

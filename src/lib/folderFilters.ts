@@ -33,7 +33,6 @@ export function filterModels(
   searchQuery: string,
   options: ModelFilterOptions = {}
 ): ModelFile[] {
-  const normalizedSelectedFolder = normalizeFolder(selectedFolder);
   const normalizedSearch = searchQuery.trim().toLowerCase();
   const visibleExtensions = options.visibleExtensions;
   const excludedFolders = options.excludedFolders ?? [];
@@ -46,19 +45,9 @@ export function filterModels(
   const openedPaths = getOpenedPaths(options.slicerHistory ?? []);
   const recentlyOpenedPaths = getRecentlyOpenedPaths(options.slicerHistory ?? [], options.now ?? Date.now());
 
-  const filteredModels = models.filter((model) => {
+  const filteredModels = getFolderScopeModels(models, selectedFolder, includeSubfolders).filter((model) => {
     const normalizedModelFolder = normalizeFolder(model.relativeFolder);
     const modelMetadata = metadataByPath.get(normalizeModelPath(model.absolutePath));
-    const folderMatches =
-      normalizedSelectedFolder === ALL_FOLDERS_ID
-        ? includeSubfolders || normalizedModelFolder === ""
-        : includeSubfolders
-          ? isFolderOrDescendant(normalizedModelFolder, normalizedSelectedFolder)
-          : normalizedModelFolder === normalizedSelectedFolder;
-
-    if (!folderMatches) {
-      return false;
-    }
 
     if (isFolderExcluded(normalizedModelFolder, excludedFolders)) {
       return false;
@@ -112,6 +101,25 @@ export function filterModels(
   });
 
   return filteredModels.sort((left, right) => sortModels(left, right, sortMode));
+}
+
+export function getFolderScopeModels(
+  models: ModelFile[],
+  selectedFolder: string,
+  includeSubfolders: boolean
+): ModelFile[] {
+  const normalizedSelectedFolder = normalizeFolder(selectedFolder);
+
+  return models.filter((model) => {
+    const normalizedModelFolder = normalizeFolder(model.relativeFolder);
+    if (normalizedSelectedFolder === ALL_FOLDERS_ID) {
+      return includeSubfolders || normalizedModelFolder === "";
+    }
+
+    return includeSubfolders
+      ? isFolderOrDescendant(normalizedModelFolder, normalizedSelectedFolder)
+      : normalizedModelFolder === normalizedSelectedFolder;
+  });
 }
 
 export function isFolderExcluded(
