@@ -125,6 +125,23 @@ describe("activeLibrarySession", () => {
     expect(harness.saves).toEqual([]);
   });
 
+  it("reconciles external metadata moves before publishing a watcher batch", async () => {
+    const sourcePath = path.join(tmpdir(), "library-session-first", "old.stl");
+    const destinationPath = path.join(tmpdir(), "library-session-first", "renamed.stl");
+    const reconcileExternalMoves = vi.fn(async () => [{ sourcePath, destinationPath }]);
+    const changed: Array<{ session: LibrarySessionRef; events: LibraryWatchEvent[]; metadata?: LibraryMetadata }> = [];
+    const harness = createHarness({
+      reconcileExternalMoves,
+      onChanged: (payload) => changed.push(payload)
+    });
+    await harness.session.activate(harness.firstRoot, true);
+
+    await harness.watchers[0].onBatch([{ type: "add", absolutePath: destinationPath }]);
+
+    expect(harness.metadataMoves).toEqual([[{ sourcePath, destinationPath }]]);
+    expect(changed[0].metadata).toEqual(harness.metadata());
+  });
+
   it("drops a watcher batch that becomes stale while events are being applied", async () => {
     const applicationStarted = createDeferred<void>();
     const applicationResult = createDeferred<LibraryScanResult>();
@@ -481,6 +498,7 @@ type HarnessOptions = {
     result: LibraryScanResult,
     saveNumber: number
   ) => Promise<void>;
+  reconcileExternalMoves?: ActiveLibrarySessionOptions["reconcileExternalMoves"];
 };
 
 function createHarness(options: HarnessOptions = {}) {
@@ -500,13 +518,18 @@ function createHarness(options: HarnessOptions = {}) {
   }> = [];
   let metadataRoot: string | null = null;
   let firstMetadataOpenCount = 0;
-  let metadata: LibraryMetadata = { models: {}, tagCatalog: [], slicerHistory: [] };
+  let metadata: LibraryMetadata = {
+    models: {}, tagCatalog: [], slicerHistory: [], fileIdentities: {}
+  };
+  const metadataMoves: Array<Array<{ sourcePath: string; destinationPath: string }>> = [];
   const metadataStore = {
     async open(rootPath: string | null) {
       metadataRoot = rootPath;
       const label = rootPath ? path.basename(rootPath).replace("library-session-", "") : "none";
       if (label === "first") firstMetadataOpenCount += 1;
-      metadata = { models: {}, tagCatalog: rootPath ? [label] : [], slicerHistory: [] };
+      metadata = {
+        models: {}, tagCatalog: rootPath ? [label] : [], slicerHistory: [], fileIdentities: {}
+      };
       order.push(`metadata:${label}`);
       if (options.failMetadataRoot === label) {
         throw new Error("cannot open metadata");
@@ -524,7 +547,14 @@ function createHarness(options: HarnessOptions = {}) {
     setNotes: async () => metadata,
     addCatalogTag: async () => metadata,
     removeCatalogTag: async () => metadata,
+    setFileIdentity: async () => metadata,
     movePathMetadata: async () => metadata,
+    movePathMetadataBatch: async (moves: Array<{ sourcePath: string; destinationPath: string }>) => {
+      metadataMoves.push(structuredClone(moves));
+      return structuredClone(metadata);
+    },
+    ensureFileIdentities: async () => undefined,
+    identifyFile: async () => null,
     recordSlicerOpen: async () => metadata
   };
   const indexStore = {
@@ -577,6 +607,7 @@ function createHarness(options: HarnessOptions = {}) {
     indexStore,
     scanLibrary: options.scan ?? (async (rootPath) => scanResult(rootPath)),
     applyWatchEvents: options.applyEvents ?? (async (current) => structuredClone(current)),
+    reconcileExternalMoves: options.reconcileExternalMoves,
     createWatcher,
     onChanged: options.onChanged,
     onMonitoringError: options.onMonitoringError
@@ -591,6 +622,8 @@ function createHarness(options: HarnessOptions = {}) {
     savedResults,
     invalidations,
     watchers,
+    metadataMoves,
+    metadata: () => structuredClone(metadata),
     catalogFor: (rootPath: string) => catalogs.get(rootPath)
   };
 }

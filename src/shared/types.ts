@@ -92,11 +92,13 @@ export type LibraryActivationResult = {
 export type VersionedLibraryScanResult = {
   session: LibrarySessionRef;
   result: LibraryScanResult;
+  metadata: LibraryMetadata;
 };
 
 export type VersionedLibraryWatchEvents = {
   session: LibrarySessionRef;
   events: LibraryWatchEvent[];
+  metadata: LibraryMetadata;
 };
 
 export type VersionedLibraryMonitoringError = {

@@ -399,6 +399,7 @@ function LibraryApp() {
   useEffect(() => {
     const unsubscribeChanged = window.modelLibrary.onLibraryChanged((payload) => {
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, payload.session)) return;
+      setLibraryMetadata(payload.metadata);
       void scanLibrarySession(payload.session);
     });
     const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((payload) => {
@@ -1414,6 +1415,7 @@ function LibraryApp() {
         return null;
       }
       const nextScanResult = versionedResult.result;
+      setLibraryMetadata(versionedResult.metadata);
       setScanResult(nextScanResult);
       setVerifiedHealthScan(null);
       setHealthCheckedAt(null);

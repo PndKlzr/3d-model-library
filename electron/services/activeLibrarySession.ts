@@ -11,6 +11,10 @@ import type { ActiveLibraryMetadataStore } from "./activeLibraryMetadataStore.js
 import type { LibraryIndexStore } from "./libraryIndexStore.js";
 import { applyLibraryWatchEvents, scanLibrary } from "./libraryScanner.js";
 import { createLibraryWatcher, type LibraryWatcherHandle } from "./libraryWatcher.js";
+import {
+  reconcileExternalMetadataMoves,
+  type MetadataPathMove
+} from "./externalMetadataReconciler.js";
 
 export type ActiveLibrarySession = {
   activate(rootPath: string | null, monitoring: boolean): Promise<LibraryActivationResult | null>;
@@ -31,6 +35,8 @@ export type ActiveLibrarySessionOptions = {
   scanLibrary?: typeof scanLibrary;
   applyWatchEvents?: typeof applyLibraryWatchEvents;
   createWatcher?: typeof createLibraryWatcher;
+  reconcileExternalMoves?: (input: Parameters<typeof reconcileExternalMetadataMoves>[0]) =>
+    Promise<MetadataPathMove[]>;
   onChanged?: (payload: VersionedLibraryWatchEvents) => void;
   onMonitoringError?: (payload: VersionedLibraryMonitoringError) => void;
 };
@@ -42,6 +48,7 @@ export function createActiveLibrarySession({
   scanLibrary: scanRoot = scanLibrary,
   applyWatchEvents: applyEvents = applyLibraryWatchEvents,
   createWatcher = createLibraryWatcher,
+  reconcileExternalMoves = reconcileExternalMetadataMoves,
   onChanged = () => undefined,
   onMonitoringError = () => undefined
 }: ActiveLibrarySessionOptions): ActiveLibrarySession {
@@ -111,9 +118,16 @@ export function createActiveLibrarySession({
           if (!isCurrent(captured)) return;
           const result = await applyEvents(current, events);
           if (!isCurrent(captured)) return;
+          await reconcileCatalog(captured, current, result);
+          if (!isCurrent(captured)) return;
           await indexStore.save(captured.rootPath, captured.libraryId, result);
           if (!isCurrent(captured)) return;
-          onChanged(structuredClone({ session: captured, events }));
+          void metadataStore.ensureFileIdentities(result.models);
+          onChanged(structuredClone({
+            session: captured,
+            events,
+            metadata: metadataStore.getMetadata()
+          }));
         });
       },
       onError: (error) => {
@@ -132,6 +146,26 @@ export function createActiveLibrarySession({
 
   function startWatcher(session: LibrarySessionRef) {
     watcher = buildWatcher(session);
+  }
+
+  async function reconcileCatalog(
+    expected: LibrarySessionRef,
+    previousScan: LibraryScanResult | null,
+    nextScan: LibraryScanResult
+  ) {
+    try {
+      const moves = await reconcileExternalMoves({
+        rootPath: expected.rootPath,
+        previousScan,
+        nextScan,
+        metadata: metadataStore.getMetadata(),
+        identifyFile: metadataStore.identifyFile
+      });
+      assertCurrent(expected);
+      if (moves.length > 0) await metadataStore.movePathMetadataBatch(moves);
+    } catch (error) {
+      console.error("[metadata] external path reconciliation failed", error);
+    }
   }
 
   return {
@@ -162,6 +196,7 @@ export function createActiveLibrarySession({
           const nextWatcher = monitoring ? buildWatcher(session) : null;
           setActive(session);
           watcher = nextWatcher;
+          if (cachedResult) void metadataStore.ensureFileIdentities(cachedResult.models);
 
           return structuredClone({
             session,
@@ -234,9 +269,18 @@ export function createActiveLibrarySession({
         assertCurrent(expected);
         const result = await scanRoot(expected.rootPath);
         assertCurrent(expected);
+        const previous = await indexStore.load(expected.rootPath, expected.libraryId);
+        assertCurrent(expected);
+        await reconcileCatalog(expected, previous, result);
+        assertCurrent(expected);
         await indexStore.save(expected.rootPath, expected.libraryId, result);
         assertCurrent(expected);
-        return structuredClone({ session: expected, result });
+        void metadataStore.ensureFileIdentities(result.models);
+        return structuredClone({
+          session: expected,
+          result,
+          metadata: metadataStore.getMetadata()
+        });
       });
     },
 
@@ -246,7 +290,11 @@ export function createActiveLibrarySession({
         assertCurrent(expected);
         const result = await scanRoot(expected.rootPath);
         assertCurrent(expected);
-        return structuredClone({ session: expected, result });
+        return structuredClone({
+          session: expected,
+          result,
+          metadata: metadataStore.getMetadata()
+        });
       });
     },
 
@@ -254,13 +302,22 @@ export function createActiveLibrarySession({
       assertCurrent(expected);
       return enqueueCatalogMutation(async () => {
         assertCurrent(expected);
+        const previous = await indexStore.load(expected.rootPath, expected.libraryId);
+        assertCurrent(expected);
         await indexStore.invalidate(expected.rootPath, expected.libraryId);
         assertCurrent(expected);
         const result = await scanRoot(expected.rootPath);
         assertCurrent(expected);
+        await reconcileCatalog(expected, previous, result);
+        assertCurrent(expected);
         await indexStore.save(expected.rootPath, expected.libraryId, result);
         assertCurrent(expected);
-        return structuredClone({ session: expected, result });
+        void metadataStore.ensureFileIdentities(result.models);
+        return structuredClone({
+          session: expected,
+          result,
+          metadata: metadataStore.getMetadata()
+        });
       });
     },
 

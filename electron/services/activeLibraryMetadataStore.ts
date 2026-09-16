@@ -58,6 +58,7 @@ export type ActiveLibraryMetadataStore = {
     moves: Array<{ sourcePath: string; destinationPath: string }>
   ) => Promise<LibraryMetadata>;
   ensureFileIdentities: (models: ModelHashInput[]) => Promise<void>;
+  identifyFile: (modelPath: string) => Promise<FileContentIdentity | null>;
   recordSlicerOpen: (
     modelPath: string,
     slicerId: string,
@@ -410,6 +411,7 @@ export function createActiveLibraryMetadataStore({
         moves.flatMap(({ sourcePath, destinationPath }) => [sourcePath, destinationPath])
       ),
     ensureFileIdentities,
+    identifyFile: (modelPath) => identityService.identify(modelPath),
     recordSlicerOpen: (modelPath, slicerId, openedAt) =>
       mutateModelAndScheduleIdentity(
         modelPath,
