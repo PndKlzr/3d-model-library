@@ -34,7 +34,7 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.0",
-    "electron": "^33.2.1",
+    "electron": "^44.4.1",
     "jsdom": "^29.1.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
@@ -42,7 +42,7 @@
     "wait-on": "^8.0.1"
   },
   "allowScripts": {
-    "electron@33.2.1": true,
+    "electron@44.4.1": true,
     "esbuild@0.25.12": true,
     "esbuild@0.21.5": true
   }
