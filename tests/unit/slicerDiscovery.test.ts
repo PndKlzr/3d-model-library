@@ -123,6 +123,31 @@ HKEY_CURRENT_USER\Software\Broken
       "C:\\Apps\\old.exe"
     ]);
   });
+
+  it("discovers versioned Cura folders and prefers the newest installed version", async () => {
+    const result = await discoverWindowsSlicers({
+      platform: "win32",
+      execute: async () => "",
+      stat: async () => ({ isFile: () => true }),
+      realpath: async (filePath) => filePath,
+      env: { ProgramFiles: "C:\\Program Files" },
+      knownCandidates: [],
+      startMenuCandidates: [],
+      readdir: async () => [
+        { name: "UltiMaker Cura 5.11.0", isDirectory: () => true },
+        { name: "UltiMaker Cura 5.13.0", isDirectory: () => true },
+        { name: "Cura Theme", isDirectory: () => true }
+      ]
+    });
+
+    expect(result.filter((item) => item.builtInKey === "cura").map((item) => item.executablePath)).toEqual([
+      "C:\\Program Files\\UltiMaker Cura 5.13.0\\UltiMaker-Cura.exe",
+      "C:\\Program Files\\UltiMaker Cura 5.13.0\\Cura.exe",
+      "C:\\Program Files\\UltiMaker Cura 5.11.0\\UltiMaker-Cura.exe",
+      "C:\\Program Files\\UltiMaker Cura 5.11.0\\Cura.exe"
+    ]);
+    expect(result.some((item) => item.executablePath.includes("Cura Theme"))).toBe(false);
+  });
 });
 
 function candidate(

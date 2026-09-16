@@ -15,12 +15,14 @@ import type {
 export type { SlicerCandidate, SlicerEvidence } from "../../src/shared/types.js";
 
 type FileStat = { isFile: () => boolean };
+type DirectoryEntry = { name: string; isDirectory: () => boolean };
 
 export type SlicerDiscoveryOptions = {
   platform?: NodeJS.Platform | string;
   execute?: (file: string, args: readonly string[]) => Promise<string>;
   stat?: (filePath: string) => Promise<FileStat>;
   realpath?: (filePath: string) => Promise<string>;
+  readdir?: (directoryPath: string) => Promise<DirectoryEntry[]>;
   env?: NodeJS.ProcessEnv;
   knownCandidates?: SlicerCandidate[];
   startMenuCandidates?: SlicerCandidate[];
@@ -100,6 +102,8 @@ export async function discoverWindowsSlicers(
   const execute = options.execute ?? executeFile;
   const stat = options.stat ?? fs.stat;
   const realpath = options.realpath ?? fs.realpath;
+  const readdir = options.readdir ?? ((directoryPath: string) =>
+    fs.readdir(directoryPath, { withFileTypes: true }));
   const registryCandidates: SlicerCandidate[] = [];
 
   for (const registryPath of REGISTRY_QUERIES) {
@@ -113,11 +117,15 @@ export async function discoverWindowsSlicers(
 
   const knownCandidates = options.knownCandidates
     ?? createKnownDirectoryCandidates(options.env ?? process.env);
+  const versionedDirectoryCandidates = options.knownCandidates === undefined || options.readdir
+    ? await discoverVersionedDirectoryCandidates(options.env ?? process.env, readdir)
+    : [];
   const startMenuCandidates = options.startMenuCandidates
     ?? await discoverStartMenuCandidates(execute);
   const candidates = mergeSlicerCandidates([
     ...registryCandidates,
     ...startMenuCandidates,
+    ...versionedDirectoryCandidates,
     ...knownCandidates
   ]);
   const validated: SlicerCandidate[] = [];
@@ -137,8 +145,75 @@ export async function discoverWindowsSlicers(
     }
   }
 
-  return mergeSlicerCandidates(validated).sort((left, right) =>
-    EVIDENCE_PRIORITY[right.evidence] - EVIDENCE_PRIORITY[left.evidence]);
+  return mergeSlicerCandidates(validated).sort(compareSlicerCandidates);
+}
+
+async function discoverVersionedDirectoryCandidates(
+  env: NodeJS.ProcessEnv,
+  readdir: (directoryPath: string) => Promise<DirectoryEntry[]>
+): Promise<SlicerCandidate[]> {
+  const roots = [env.ProgramFiles, env["ProgramFiles(x86)"], env.LOCALAPPDATA].filter(
+    (value): value is string => Boolean(value)
+  );
+  const candidates: SlicerCandidate[] = [];
+
+  for (const root of new Set(roots)) {
+    let entries: DirectoryEntry[];
+    try {
+      entries = await readdir(root);
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const normalizedName = entry.name.toLowerCase();
+      const definition = BUILT_IN_SLICERS.find((item) =>
+        item.aliases.some((alias) => normalizedName.startsWith(`${alias.toLowerCase()} `))
+      );
+      if (!definition || !extractVersion(entry.name)) continue;
+
+      for (const executableName of definition.executableNames) {
+        candidates.push({
+          builtInKey: definition.key,
+          executablePath: path.win32.join(root, entry.name, executableName),
+          version: extractVersion(entry.name) ?? undefined,
+          evidence: "known-directory"
+        });
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function compareSlicerCandidates(left: SlicerCandidate, right: SlicerCandidate): number {
+  if (left.builtInKey === right.builtInKey) {
+    const versionOrder = compareVersions(
+      extractVersion(right.version ?? right.executablePath),
+      extractVersion(left.version ?? left.executablePath)
+    );
+    if (versionOrder !== 0) return versionOrder;
+  }
+  return EVIDENCE_PRIORITY[right.evidence] - EVIDENCE_PRIORITY[left.evidence];
+}
+
+function compareVersions(left: string | null, right: string | null): number {
+  if (!left && !right) return 0;
+  if (!left) return -1;
+  if (!right) return 1;
+  const leftParts = left.split(".").map(Number);
+  const rightParts = right.split(".").map(Number);
+  const length = Math.max(leftParts.length, rightParts.length);
+  for (let index = 0; index < length; index += 1) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return 0;
+}
+
+function extractVersion(value: string): string | null {
+  return value.match(/\d+(?:\.\d+)+/)?.[0] ?? null;
 }
 
 function findDefinition(
