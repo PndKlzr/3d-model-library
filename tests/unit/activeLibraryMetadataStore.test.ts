@@ -271,6 +271,61 @@ describe("activeLibraryMetadataStore", () => {
     expect(harness.store.getMetadata().models[destinationSecond].notes).toBe("B");
   });
 
+  it("backfills an identity only for a model with durable metadata", async () => {
+    const root = path.resolve("C:/library");
+    const modelPath = path.join(root, "part.stl");
+    const identity = {
+      algorithm: "sha256" as const,
+      digest: "d".repeat(64),
+      sizeBytes: 25,
+      modifiedAt: "2026-09-16T10:00:00.000Z"
+    };
+    const identifyFile = vi.fn(async () => identity);
+    const harness = createHarness({ identifyFile });
+    await harness.store.open(root);
+    await harness.store.setNotes(modelPath, "important");
+
+    await harness.store.ensureFileIdentities([{
+      absolutePath: modelPath,
+      sizeBytes: 25,
+      modifiedAt: identity.modifiedAt
+    }]);
+
+    expect(identifyFile).toHaveBeenCalledTimes(1);
+    expect(harness.store.getMetadata().fileIdentities[modelPath]).toEqual(identity);
+  });
+
+  it("discards an identity that finishes after switching libraries", async () => {
+    const firstRoot = path.resolve("C:/library-a");
+    const secondRoot = path.resolve("C:/library-b");
+    const modelPath = path.join(firstRoot, "part.stl");
+    const deferred = createDeferred<{
+      algorithm: "sha256";
+      digest: string;
+      sizeBytes: number;
+      modifiedAt: string;
+    } | null>();
+    const harness = createHarness({ identifyFile: () => deferred.promise });
+    await harness.store.open(firstRoot);
+    await harness.store.setNotes(modelPath, "library A");
+    const pending = harness.store.ensureFileIdentities([{
+      absolutePath: modelPath,
+      sizeBytes: 25,
+      modifiedAt: "2026-09-16T10:00:00.000Z"
+    }]);
+
+    await harness.store.open(secondRoot);
+    deferred.resolve({
+      algorithm: "sha256",
+      digest: "e".repeat(64),
+      sizeBytes: 25,
+      modifiedAt: "2026-09-16T10:00:00.000Z"
+    });
+    await pending;
+
+    expect(harness.store.getMetadata().fileIdentities).toEqual({});
+  });
+
   it("serializes restore after pending edits and adopts the active library identity", async () => {
     const root = path.resolve("C:/library");
     const modelPath = path.join(root, "part.stl");
@@ -328,6 +383,7 @@ type HarnessOptions = {
   mirrorRecords?: LibraryMetadataMirrorRecord[];
   saveDelayMs?: number;
   createLibraryId?: () => string;
+  identifyFile?: ActiveLibraryMetadataStoreOptions["identifyFile"];
 };
 
 function createHarness(options: HarnessOptions = {}) {
@@ -458,7 +514,8 @@ function createHarness(options: HarnessOptions = {}) {
     mirror,
     legacyStore,
     createLibraryId: options.createLibraryId ?? (() => "generated-id"),
-    now: () => "2026-09-09T12:00:00.000Z"
+    now: () => "2026-09-09T12:00:00.000Z",
+    identifyFile: options.identifyFile
   });
 
   return { store, repository, mirror, legacyStore };
@@ -472,4 +529,12 @@ function metadataWithNote(modelPath: string, notes: string): LibraryMetadata {
     tagCatalog: [],
     slicerHistory: []
   };
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+  return { promise, resolve };
 }

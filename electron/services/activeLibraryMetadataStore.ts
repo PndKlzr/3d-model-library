@@ -4,7 +4,8 @@ import type {
   FileContentIdentity,
   LibraryDataStatus,
   LibraryMetadata,
-  LibraryMetadataStatus
+  LibraryMetadataStatus,
+  ModelHashInput
 } from "../../src/shared/types.js";
 import {
   cloneLibraryMetadata,
@@ -20,6 +21,10 @@ import {
 } from "./portableMetadataCodec.js";
 import type { PortableMetadataRepository } from "./portableMetadataRepository.js";
 import { isPathInside } from "./pathContainment.js";
+import {
+  computeStableFileIdentity,
+  createFileIdentityService
+} from "./fileIdentityService.js";
 
 export type ActiveLibraryMetadataStoreOptions = {
   repository: PortableMetadataRepository;
@@ -27,6 +32,7 @@ export type ActiveLibraryMetadataStoreOptions = {
   legacyStore: LibraryMetadataStore;
   createLibraryId?: () => string;
   now?: () => string;
+  identifyFile?: (modelPath: string) => Promise<FileContentIdentity | null>;
 };
 
 export type ActiveLibraryMetadataStore = {
@@ -51,6 +57,7 @@ export type ActiveLibraryMetadataStore = {
   movePathMetadataBatch: (
     moves: Array<{ sourcePath: string; destinationPath: string }>
   ) => Promise<LibraryMetadata>;
+  ensureFileIdentities: (models: ModelHashInput[]) => Promise<void>;
   recordSlicerOpen: (
     modelPath: string,
     slicerId: string,
@@ -63,7 +70,8 @@ export function createActiveLibraryMetadataStore({
   mirror,
   legacyStore,
   createLibraryId = randomUUID,
-  now = () => new Date().toISOString()
+  now = () => new Date().toISOString(),
+  identifyFile = computeStableFileIdentity
 }: ActiveLibraryMetadataStoreOptions): ActiveLibraryMetadataStore {
   let requestedRoot: string | null = null;
   let activeRoot: string | null = null;
@@ -73,6 +81,9 @@ export function createActiveLibraryMetadataStore({
   let corruptPrimaryPath: string | null = null;
   let status: LibraryMetadataStatus = unavailableStatus("Nenhuma biblioteca está conectada.");
   let mutationTail: Promise<void> = Promise.resolve();
+  let identityGeneration = 0;
+  const identityService = createFileIdentityService({ computeIdentity: identifyFile });
+  const identityJobs = new Map<string, Promise<void>>();
 
   async function updateMirror(updatedAt: string) {
     if (!activeRoot) return;
@@ -90,6 +101,8 @@ export function createActiveLibraryMetadataStore({
   }
 
   async function open(rootPath: string | null) {
+    identityGeneration += 1;
+    identityJobs.clear();
     await mutationTail;
     requestedRoot = rootPath;
     activeRoot = null;
@@ -197,9 +210,11 @@ export function createActiveLibraryMetadataStore({
 
   function enqueueMutation(
     mutate: (reducer: LibraryMetadataStore) => LibraryMetadata,
-    pathsToValidate: string[] = []
+    pathsToValidate: string[] = [],
+    guard: () => boolean = () => true
   ): Promise<LibraryMetadata> {
     const operation = mutationTail.then(async () => {
+      if (!guard()) return cloneLibraryMetadata(currentMetadata);
       assertWritable();
       for (const modelPath of pathsToValidate) assertPathInsideActiveRoot(modelPath);
 
@@ -226,6 +241,63 @@ export function createActiveLibraryMetadataStore({
       () => undefined
     );
     return operation;
+  }
+
+  function scheduleIdentity(model: ModelHashInput): Promise<void> {
+    const modelPath = path.resolve(model.absolutePath);
+    const key = modelPath.toLowerCase();
+    const existing = identityJobs.get(key);
+    if (existing) return existing;
+
+    const capturedGeneration = identityGeneration;
+    const capturedRoot = activeRoot;
+    const operation = identityService.identify(modelPath)
+      .then(async (identity) => {
+        if (!identity || !capturedRoot) return;
+        if (model.sizeBytes >= 0 && identity.sizeBytes !== model.sizeBytes) return;
+        if (model.modifiedAt && identity.modifiedAt !== model.modifiedAt) return;
+        const isCurrent = () =>
+          identityGeneration === capturedGeneration &&
+          activeRoot !== null &&
+          activeRoot.toLowerCase() === capturedRoot.toLowerCase() &&
+          hasDurableModelData(currentMetadata, modelPath);
+        if (!isCurrent()) return;
+        await enqueueMutation(
+          (reducer) => reducer.setFileIdentity(modelPath, identity),
+          [modelPath],
+          isCurrent
+        );
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (identityJobs.get(key) === operation) identityJobs.delete(key);
+      });
+    identityJobs.set(key, operation);
+    return operation;
+  }
+
+  async function ensureFileIdentities(models: ModelHashInput[]) {
+    const pending = models
+      .filter((model) => {
+        if (!hasDurableModelData(currentMetadata, model.absolutePath)) return false;
+        const existing = currentMetadata.fileIdentities[model.absolutePath];
+        return !existing ||
+          existing.sizeBytes !== model.sizeBytes ||
+          existing.modifiedAt !== model.modifiedAt;
+      })
+      .map(scheduleIdentity);
+    await Promise.all(pending);
+  }
+
+  async function mutateModelAndScheduleIdentity(
+    modelPath: string,
+    mutate: (reducer: LibraryMetadataStore) => LibraryMetadata
+  ) {
+    const metadata = await enqueueMutation(mutate, [modelPath]);
+    if (hasDurableModelData(metadata, modelPath)) {
+      void scheduleIdentity({ absolutePath: modelPath, sizeBytes: -1, modifiedAt: "" });
+    }
+    return metadata;
   }
 
   function assertWritable() {
@@ -315,11 +387,11 @@ export function createActiveLibraryMetadataStore({
     exportManifest,
     restoreManifest,
     toggleFavorite: (modelPath) =>
-      enqueueMutation((reducer) => reducer.toggleFavorite(modelPath), [modelPath]),
+      mutateModelAndScheduleIdentity(modelPath, (reducer) => reducer.toggleFavorite(modelPath)),
     setTags: (modelPath, tags) =>
-      enqueueMutation((reducer) => reducer.setTags(modelPath, tags), [modelPath]),
+      mutateModelAndScheduleIdentity(modelPath, (reducer) => reducer.setTags(modelPath, tags)),
     setNotes: (modelPath, notes) =>
-      enqueueMutation((reducer) => reducer.setNotes(modelPath, notes), [modelPath]),
+      mutateModelAndScheduleIdentity(modelPath, (reducer) => reducer.setNotes(modelPath, notes)),
     addCatalogTag: (tag) => enqueueMutation((reducer) => reducer.addCatalogTag(tag)),
     removeCatalogTag: (tag) => enqueueMutation((reducer) => reducer.removeCatalogTag(tag)),
     setFileIdentity: (modelPath, identity) =>
@@ -337,10 +409,11 @@ export function createActiveLibraryMetadataStore({
         (reducer) => reducer.movePathMetadataBatch(moves),
         moves.flatMap(({ sourcePath, destinationPath }) => [sourcePath, destinationPath])
       ),
+    ensureFileIdentities,
     recordSlicerOpen: (modelPath, slicerId, openedAt) =>
-      enqueueMutation(
-        (reducer) => reducer.recordSlicerOpen(modelPath, slicerId, openedAt),
-        [modelPath]
+      mutateModelAndScheduleIdentity(
+        modelPath,
+        (reducer) => reducer.recordSlicerOpen(modelPath, slicerId, openedAt)
       )
   };
 }
@@ -369,6 +442,20 @@ function hasDurableMetadata(metadata: LibraryMetadata): boolean {
     metadata.tagCatalog.length > 0 ||
     metadata.slicerHistory.length > 0 ||
     Object.keys(metadata.models).length > 0
+  );
+}
+
+function hasDurableModelData(metadata: LibraryMetadata, modelPath: string): boolean {
+  const entry = Object.entries(metadata.models).find(([candidate]) =>
+    path.resolve(candidate).toLowerCase() === path.resolve(modelPath).toLowerCase()
+  )?.[1];
+  return Boolean(
+    entry?.favorite ||
+    entry?.tags.length ||
+    entry?.notes.trim() ||
+    metadata.slicerHistory.some((history) =>
+      path.resolve(history.modelPath).toLowerCase() === path.resolve(modelPath).toLowerCase()
+    )
   );
 }
 
