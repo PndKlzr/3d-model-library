@@ -55,5 +55,23 @@ function renderSettings(onClose: () => void) {
     onRemoveCatalogTag={vi.fn(async () => undefined)}
     themeMode="light"
     onThemeModeChange={vi.fn()}
+    libraryDataStatus={{
+      libraryId: "library-a",
+      updatedAt: null,
+      availability: "ready",
+      writable: true,
+      source: "primary",
+      modelCount: 0,
+      tagCount: 0
+    }}
+    libraryHealth={{ checkedAt: null, counts: { warning: 0, error: 0 }, issues: [] }}
+    maintenanceBusyAction={null}
+    onExportLibraryBackup={vi.fn(async () => undefined)}
+    onRestoreLibraryBackup={vi.fn(async () => undefined)}
+    onOpenLibraryDataFolder={vi.fn(async () => undefined)}
+    onVerifyLibrary={vi.fn(async () => undefined)}
+    onRebuildLibraryIndex={vi.fn(async () => undefined)}
+    onCleanUnusedThumbnails={vi.fn(async () => undefined)}
+    onRetryThumbnailPath={vi.fn()}
   /></I18nProvider>);
 }

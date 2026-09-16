@@ -644,7 +644,7 @@ git commit -m "Add bounded library health tracking"
 - Consumes: backup APIs from Task 3, index/data-folder APIs from Task 4, cache cleanup from Task 5, and health snapshot from Task 6.
 - Produces: one responsive Settings tab with no healthy-state main-toolbar clutter.
 
-- [ ] **Step 1: Write failing component behavior tests**
+- [x] **Step 1: Write failing component behavior tests**
 
 ```tsx
 it("shows a calm healthy state and groups maintenance actions", async () => {
@@ -662,13 +662,13 @@ it("confirms index rebuild and disables only its own conflicting actions", async
 });
 ```
 
-- [ ] **Step 2: Run UI tests and confirm RED**
+- [x] **Step 2: Run UI tests and confirm RED**
 
 Run: `npm test -- --run tests/unit/LibraryMaintenanceSettings.test.tsx tests/unit/layoutContract.test.ts tests/unit/localizedRendererContract.test.ts`
 
 Expected: FAIL because the component and translations do not exist.
 
-- [ ] **Step 3: Add the settings tab and focused component**
+- [x] **Step 3: Add the settings tab and focused component**
 
 Extend `SettingsTab` with `"maintenance"` and use a `DatabaseBackup` or `ShieldCheck` Lucide icon. `LibraryMaintenanceSettings` receives data only through props:
 
@@ -689,21 +689,21 @@ type LibraryMaintenanceSettingsProps = {
 
 Render three unframed settings sections. Use compact status rows, ordinary command buttons, and confirmation dialogs for restore and index rebuild. Do not nest cards and do not add permanent explanatory banners.
 
-- [ ] **Step 4: Wire operations in `App` with session guards**
+- [x] **Step 4: Wire operations in `App` with session guards**
 
 Each handler captures `activeLibrarySessionRef.current`, sets one `busyAction`, calls the preload method, checks `isCurrentLibraryResult`, updates only returned state, and sets the existing operation message. `finally` clears the busy action only if the same operation still owns it.
 
 After restore, replace renderer metadata/status from the result. After rebuild, replace the scan result and preserve valid selection/scroll using the existing committed-update helpers. After cleanup, report removed count and reclaimed size without clearing mounted valid thumbnails.
 
-- [ ] **Step 5: Add Portuguese and English copy**
+- [x] **Step 5: Add Portuguese and English copy**
 
 Add matching keys for tab label, section titles, healthy/read-only/error states, backup actions, confirmation text, maintenance actions, issue categories, progress, cancel, and success/error summaries. Keep button labels short enough for the 760 px minimum window.
 
-- [ ] **Step 6: Add responsive styling and attention indicator**
+- [x] **Step 6: Add responsive styling and attention indicator**
 
 At narrow dialog widths, stack action rows and keep buttons full-width without overlap. The Settings toolbar button receives a small semantic attention dot only when `health.counts.error > 0` or a writable recovery action is required. The dot has an accessible label and is absent in healthy and warning-only states.
 
-- [ ] **Step 7: Run UI tests, full tests, and build**
+- [x] **Step 7: Run UI tests, full tests, and build**
 
 Run: `npm test -- --run tests/unit/LibraryMaintenanceSettings.test.tsx tests/unit/layoutContract.test.ts tests/unit/localizedRendererContract.test.ts`
 
@@ -713,7 +713,7 @@ Run: `npm run build`
 
 Expected: all pass with no missing translation contract entries.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```powershell
 git add src/components/LibraryMaintenanceSettings.tsx src/components/SettingsDialog.tsx src/App.tsx src/i18n/catalog.ts src/styles.css tests/unit/LibraryMaintenanceSettings.test.tsx tests/unit/layoutContract.test.ts tests/unit/localizedRendererContract.test.ts

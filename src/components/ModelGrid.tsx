@@ -123,6 +123,7 @@ type ModelGridProps = {
   onOpenSettings: () => void;
   onToggleFolders: () => void;
   onToggleDetails: () => void;
+  settingsNeedsAttention?: boolean;
 };
 
 type CollectionItem =
@@ -197,7 +198,8 @@ export function ModelGrid({
   onRefresh,
   onOpenSettings,
   onToggleFolders,
-  onToggleDetails
+  onToggleDetails,
+  settingsNeedsAttention = false
 }: ModelGridProps) {
   const { locale, t } = useI18n();
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
@@ -488,13 +490,19 @@ export function ModelGrid({
             </button>
           </div>
           <button
-            className="icon-only"
+            className="icon-only settings-toolbar-button"
             type="button"
             onClick={onOpenSettings}
             aria-label={t("common.settings")}
             title={t("common.settings")}
           >
             <Settings size={17} />
+            {settingsNeedsAttention ? (
+              <span
+                className="settings-attention-dot"
+                aria-label={t("maintenance.needsAttention")}
+              />
+            ) : null}
           </button>
           <div className="toolbar-statuses">
             <span className="result-count">

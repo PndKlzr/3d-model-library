@@ -16,6 +16,7 @@ import { FirstRun } from "./components/FirstRun";
 import { FolderTree } from "./components/FolderTree";
 import { ModelGrid } from "./components/ModelGrid";
 import { SettingsDialog } from "./components/SettingsDialog";
+import type { MaintenanceAction } from "./components/LibraryMaintenanceSettings";
 import { TagSelector } from "./components/TagSelector";
 import { TextInputDialog, type TextInputDialogOptions } from "./components/TextInputDialog";
 import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
@@ -98,6 +99,7 @@ import type {
   FileDragBehavior,
   FileRestorePair,
   LibraryActionLogEntry,
+  LibraryDataStatus,
   LibraryMetadata,
   LibraryMetadataStatus,
   LibraryScanResult,
@@ -227,6 +229,17 @@ function LibraryApp() {
   const [monitoringError, setMonitoringError] = useState<string | null>(null);
   const [verifiedHealthScan, setVerifiedHealthScan] = useState<LibraryScanResult | null>(null);
   const [healthCheckedAt, setHealthCheckedAt] = useState<string | null>(null);
+  const [libraryDataStatus, setLibraryDataStatus] = useState<LibraryDataStatus>({
+    libraryId: null,
+    updatedAt: null,
+    availability: "unavailable",
+    writable: false,
+    source: "empty",
+    modelCount: 0,
+    tagCount: 0
+  });
+  const [maintenanceBusyAction, setMaintenanceBusyAction] =
+    useState<MaintenanceAction | null>(null);
   const locale = settings?.locale ?? "pt-BR";
   const t = (key: TranslationKey, params?: TranslationParams) =>
     translate(locale, key, params);
@@ -325,6 +338,7 @@ function LibraryApp() {
   const [confirmationDialog, setConfirmationDialog] = useState<ConfirmDialogOptions | null>(null);
   const confirmationResolver = useRef<((value: boolean) => void) | null>(null);
   const activeLibrarySessionRef = useRef<LibrarySessionRef | null>(null);
+  const maintenanceActionRef = useRef<MaintenanceAction | null>(null);
   const activationRequestRef = useRef(0);
   const settingsMutationQueueRef = useRef<SettingsMutationQueue<AppSettings> | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -376,6 +390,11 @@ function LibraryApp() {
       });
     return () => { cancelled = true; };
   }, [settings?.slicers]);
+
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+    void refreshLibraryDataStatus();
+  }, [isSettingsOpen]);
 
   useEffect(() => {
     const longTaskObserver = observeThumbnailLongTasks(modelThumbnailService);
@@ -1114,6 +1133,7 @@ function LibraryApp() {
       setScanResult(activation.cachedResult);
       setMonitorStatus(monitoring ? "active" : "disabled");
       setMonitoringError(null);
+      void refreshLibraryDataStatus(activation.session);
       void scanLibrarySession(activation.session);
       return activation;
     } catch (error) {
@@ -1159,7 +1179,35 @@ function LibraryApp() {
     setMonitoringError(null);
     setVerifiedHealthScan(null);
     setHealthCheckedAt(null);
+    setLibraryDataStatus({
+      libraryId: null,
+      updatedAt: null,
+      availability: "unavailable",
+      writable: false,
+      source: "empty",
+      modelCount: 0,
+      tagCount: 0
+    });
+    maintenanceActionRef.current = null;
+    setMaintenanceBusyAction(null);
     librarySessionIssueRegistry.reset();
+  }
+
+  async function refreshLibraryDataStatus(
+    expectedSession = activeLibrarySessionRef.current
+  ) {
+    if (!expectedSession) return null;
+    try {
+      const status = await window.modelLibrary.getLibraryDataStatus();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return null;
+      setLibraryDataStatus(status);
+      return status;
+    } catch (error) {
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
+      return null;
+    }
   }
 
   async function verifyLibraryHealth() {
@@ -1174,6 +1222,113 @@ function LibraryApp() {
     setUnavailableSlicerIds(unavailable);
     setHealthCheckedAt(new Date().toISOString());
     return verified.result;
+  }
+
+  async function runMaintenanceAction(
+    action: MaintenanceAction,
+    operation: (session: LibrarySessionRef) => Promise<void>
+  ) {
+    const session = activeLibrarySessionRef.current;
+    if (!session) {
+      setOperationMessage(t("message.libraryInactive"));
+      return;
+    }
+    if (maintenanceActionRef.current) return;
+
+    maintenanceActionRef.current = action;
+    setMaintenanceBusyAction(action);
+    try {
+      await operation(session);
+    } catch (error) {
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
+    } finally {
+      if (maintenanceActionRef.current === action) {
+        maintenanceActionRef.current = null;
+        setMaintenanceBusyAction(null);
+      }
+    }
+  }
+
+  function exportLibraryBackup() {
+    return runMaintenanceAction("export-backup", async (session) => {
+      const result = await window.modelLibrary.exportLibraryBackup(session);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return;
+      if (result.state === "exported") setOperationMessage(t("maintenance.exported"));
+    });
+  }
+
+  function restoreLibraryBackup() {
+    return runMaintenanceAction("restore-backup", async (session) => {
+      const result = await window.modelLibrary.restoreLibraryBackup(session);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return;
+      if (result.state !== "restored") return;
+      if (result.metadata) setLibraryMetadata(result.metadata);
+      if (result.metadataStatus) setMetadataStatus(result.metadataStatus);
+      await refreshLibraryDataStatus(session);
+      setOperationMessage(t("maintenance.restored"));
+    });
+  }
+
+  function openLibraryDataFolder() {
+    return runMaintenanceAction("open-data-folder", async (session) => {
+      await window.modelLibrary.showLibraryDataFolder(session);
+    });
+  }
+
+  function verifyLibraryMaintenance() {
+    return runMaintenanceAction("verify", async (session) => {
+      await verifyLibraryHealth();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return;
+      setOperationMessage(t("maintenance.verified"));
+    });
+  }
+
+  function rebuildLibraryIndex() {
+    return runMaintenanceAction("rebuild-index", async (session) => {
+      const rebuilt = await window.modelLibrary.rebuildLibraryIndex(session);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, rebuilt.session)) return;
+
+      setScanResult(rebuilt.result);
+      setVerifiedHealthScan(null);
+      setHealthCheckedAt(null);
+      setSelectedModelIds((currentIds) => new Set(
+        rebuilt.result.models
+          .filter((model) => currentIds.has(model.id))
+          .map((model) => model.id)
+      ));
+      setSelectedModel((currentModel) => currentModel
+        ? rebuilt.result.models.find((model) => model.id === currentModel.id) ?? null
+        : null);
+      setLastSelectedModelId((currentId) => currentId &&
+        rebuilt.result.models.some((model) => model.id === currentId) ? currentId : null);
+      setOperationMessage(t("maintenance.indexRebuilt"));
+    });
+  }
+
+  function cleanUnusedThumbnails() {
+    return runMaintenanceAction("clean-thumbnails", async (session) => {
+      const result = await window.modelLibrary.cleanUnusedThumbnails(
+        session,
+        scanResult?.models ?? []
+      );
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return;
+      setOperationMessage(t("maintenance.thumbnailsCleaned", {
+        count: result.removedFiles,
+        size: formatBytes(result.reclaimedBytes)
+      }));
+    });
+  }
+
+  function retryThumbnailByRelativePath(relativePath: string) {
+    const normalizedTarget = normalizeLibraryRelativePath(relativePath);
+    const model = scanResult?.models.find((candidate) =>
+      normalizeLibraryRelativePath(
+        [candidate.relativeFolder, candidate.name].filter(Boolean).join("/")
+      ) === normalizedTarget
+    );
+    if (model) void retryModelThumbnail(model);
   }
 
   async function restorePreviousLibrary(
@@ -1233,6 +1388,7 @@ function LibraryApp() {
       setLibraryMetadata(restored.metadata);
       setMetadataStatus(restored.metadataStatus);
       setMonitorStatus(isPriorRoot ? previous.monitorStatus : "disabled");
+      void refreshLibraryDataStatus(restored.session);
       void scanLibrarySession(restored.session);
     } catch (restoreError) {
       if (activationRequestRef.current === requestId) {
@@ -2248,6 +2404,9 @@ function LibraryApp() {
         onDragEndModel={clearDraggedModels}
         onRefresh={() => scanCurrentLibrary()}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        settingsNeedsAttention={libraryHealth.counts.error > 0 || (
+          libraryDataStatus.availability !== "unavailable" && !libraryDataStatus.writable
+        )}
         onToggleFolders={() =>
           setResponsivePanel((current) => toggleResponsivePanel(current, "folders"))
         }
@@ -2314,6 +2473,16 @@ function LibraryApp() {
           onRemoveCatalogTag={removeCatalogTag}
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
+          libraryDataStatus={libraryDataStatus}
+          libraryHealth={libraryHealth}
+          maintenanceBusyAction={maintenanceBusyAction}
+          onExportLibraryBackup={exportLibraryBackup}
+          onRestoreLibraryBackup={restoreLibraryBackup}
+          onOpenLibraryDataFolder={openLibraryDataFolder}
+          onVerifyLibrary={verifyLibraryMaintenance}
+          onRebuildLibraryIndex={rebuildLibraryIndex}
+          onCleanUnusedThumbnails={cleanUnusedThumbnails}
+          onRetryThumbnailPath={retryThumbnailByRelativePath}
         />
       ) : null}
       {undoToast ? (
@@ -2666,6 +2835,16 @@ function buildFolderPath(libraryPath: string, folderId: string): string {
   const normalizedFolder = folderId.replaceAll("/", "\\").replace(/^[\\/]+|[\\/]+$/g, "");
 
   return normalizedFolder ? `${normalizedRoot}\\${normalizedFolder}` : normalizedRoot;
+}
+
+function normalizeLibraryRelativePath(value: string): string {
+  return value.replace(/\\/g, "/").replace(/^\/+/, "").toLocaleLowerCase();
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function getContextMenuStyle(

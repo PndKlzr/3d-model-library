@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("layout scroll contract", () => {
+  it("keeps maintenance action rows responsive", async () => {
+    const styles = await readFile("src/styles.css", "utf8");
+    expect(styles).toContain(".maintenance-actions");
+    expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*\.maintenance-actions/);
+    expect(styles).toContain(".settings-attention-dot");
+  });
   it("keeps the main shell fixed with independent panel scrolling", async () => {
     const css = await readFile("src/styles.css", "utf8");
 
@@ -83,7 +89,7 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.thumbnail-queue-status\.failed\s*\{[\s\S]*?color:\s*var\(--warn\);/);
     expect(css).toMatch(/\.thumbnail-queue-status\.failed i\s*\{[\s\S]*?background:\s*var\(--warn\);/);
     expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.diagnostics-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/);
-    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations" | "diagnostics"');
+    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations" | "maintenance" | "diagnostics"');
     expect(settingsSource).toContain('t("settings.tabPerformance")');
     expect(appSource).toContain("modelThumbnailService.subscribe(setThumbnailDiagnostics)");
     expect(appSource).toContain("observeThumbnailLongTasks(modelThumbnailService)");

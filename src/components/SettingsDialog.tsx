@@ -1,9 +1,14 @@
-import { Activity, Archive, FolderOpen, Plug, Tags } from "lucide-react";
+import { Activity, Archive, FolderOpen, Plug, ShieldCheck, Tags } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { DialogHeader } from "./DialogHeader";
 import { DialogShell } from "./DialogShell";
 import type { ThemeMode } from "../lib/viewPreferences";
-import type { AppSettings, SlicerConfig } from "../shared/types";
+import type {
+  AppSettings,
+  LibraryDataStatus,
+  LibraryHealthSnapshot,
+  SlicerConfig
+} from "../shared/types";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 import {
   setDefaultSlicer,
@@ -13,6 +18,10 @@ import {
 import { PerformanceDiagnostics } from "./PerformanceDiagnostics";
 import { useI18n } from "../i18n/I18nProvider";
 import { SlicerIntegrationList } from "./SlicerIntegrationList";
+import {
+  LibraryMaintenanceSettings,
+  type MaintenanceAction
+} from "./LibraryMaintenanceSettings";
 
 type SettingsDialogProps = {
   settings: AppSettings;
@@ -35,9 +44,19 @@ type SettingsDialogProps = {
   onRemoveCatalogTag: (tag: string) => Promise<void>;
   themeMode: ThemeMode;
   onThemeModeChange: (themeMode: ThemeMode) => void;
+  libraryDataStatus: LibraryDataStatus;
+  libraryHealth: LibraryHealthSnapshot;
+  maintenanceBusyAction: MaintenanceAction | null;
+  onExportLibraryBackup: () => Promise<void>;
+  onRestoreLibraryBackup: () => Promise<void>;
+  onOpenLibraryDataFolder: () => Promise<void>;
+  onVerifyLibrary: () => Promise<void>;
+  onRebuildLibraryIndex: () => Promise<void>;
+  onCleanUnusedThumbnails: () => Promise<void>;
+  onRetryThumbnailPath: (relativePath: string) => void;
 };
 
-type SettingsTab = "library" | "organization" | "integrations" | "diagnostics";
+type SettingsTab = "library" | "organization" | "integrations" | "maintenance" | "diagnostics";
 
 export function SettingsDialog({
   settings,
@@ -59,7 +78,17 @@ export function SettingsDialog({
   onAddCatalogTag,
   onRemoveCatalogTag,
   themeMode,
-  onThemeModeChange
+  onThemeModeChange,
+  libraryDataStatus,
+  libraryHealth,
+  maintenanceBusyAction,
+  onExportLibraryBackup,
+  onRestoreLibraryBackup,
+  onOpenLibraryDataFolder,
+  onVerifyLibrary,
+  onRebuildLibraryIndex,
+  onCleanUnusedThumbnails,
+  onRetryThumbnailPath
 }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("library");
   const [openSlicerMenuId, setOpenSlicerMenuId] = useState<string | null>(null);
@@ -101,6 +130,12 @@ export function SettingsDialog({
           icon={<Plug size={16} />}
           label={t("settings.tabIntegrations")}
           onClick={() => selectTab("integrations")}
+        />
+        <SettingsTabButton
+          active={activeTab === "maintenance"}
+          icon={<ShieldCheck size={16} />}
+          label={t("settings.tabMaintenance")}
+          onClick={() => selectTab("maintenance")}
         />
         <SettingsTabButton
           active={activeTab === "diagnostics"}
@@ -152,6 +187,21 @@ export function SettingsDialog({
 
         {activeTab === "diagnostics" ? (
           <PerformanceDiagnostics snapshot={thumbnailDiagnostics} />
+        ) : null}
+
+        {activeTab === "maintenance" ? (
+          <LibraryMaintenanceSettings
+            dataStatus={libraryDataStatus}
+            health={libraryHealth}
+            busyAction={maintenanceBusyAction}
+            onExportBackup={onExportLibraryBackup}
+            onRestoreBackup={onRestoreLibraryBackup}
+            onOpenDataFolder={onOpenLibraryDataFolder}
+            onVerify={onVerifyLibrary}
+            onRebuildIndex={onRebuildLibraryIndex}
+            onCleanThumbnails={onCleanUnusedThumbnails}
+            onRetryThumbnail={onRetryThumbnailPath}
+          />
         ) : null}
       </div>
     </DialogShell>

@@ -2625,7 +2625,7 @@ button:disabled {
 
 .settings-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 4px;
   border-bottom: 1px solid var(--line);
   padding: 10px 0;
@@ -2977,6 +2977,115 @@ button:disabled {
 .settings-section:last-child {
   border-bottom: 0;
   padding-bottom: 0;
+}
+
+.library-maintenance-settings {
+  display: grid;
+}
+
+.maintenance-status-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  border-left: 3px solid var(--accent);
+  background: rgba(40, 124, 120, 0.07);
+  padding: 10px 12px;
+}
+
+.maintenance-status-row[data-state="attention"] {
+  border-left-color: var(--warn);
+  background: rgba(181, 94, 47, 0.08);
+}
+
+.maintenance-status-row > span,
+.maintenance-issue > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.maintenance-status-row small,
+.maintenance-issue small {
+  overflow-wrap: anywhere;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.maintenance-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.maintenance-actions > button,
+.maintenance-issue > button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid #b7c6ca;
+  border-radius: var(--radius);
+  background: white;
+  padding: 8px 10px;
+  color: #273033;
+  font-weight: 800;
+}
+
+.maintenance-actions > button:disabled,
+.maintenance-issue > button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.maintenance-issues {
+  display: grid;
+  gap: 0;
+  border-block: 1px solid var(--line);
+}
+
+.maintenance-issues > strong {
+  padding: 10px 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.maintenance-issue {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  padding: 10px 0;
+}
+
+.maintenance-issue[data-severity="error"] > span > strong {
+  color: var(--warn);
+}
+
+.maintenance-issue > button {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding-block: 6px;
+}
+
+.settings-toolbar-button {
+  position: relative;
+}
+
+.settings-attention-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--panel);
+  border-radius: 50%;
+  background: var(--warn);
 }
 
 .path-row,
@@ -3437,6 +3546,21 @@ button:disabled {
   color: var(--accent-strong);
 }
 
+[data-theme="dark"] .maintenance-status-row {
+  background: rgba(66, 183, 170, 0.12);
+}
+
+[data-theme="dark"] .maintenance-status-row[data-state="attention"] {
+  background: rgba(226, 160, 124, 0.12);
+}
+
+[data-theme="dark"] .maintenance-actions > button,
+[data-theme="dark"] .maintenance-issue > button {
+  border-color: #465754;
+  background: #202827;
+  color: #e9f0ef;
+}
+
 @media (max-width: 1179px) {
   .app-shell {
     grid-template-columns: clamp(220px, 25vw, 260px) minmax(0, 1fr);
@@ -3593,6 +3717,23 @@ button:disabled {
     flex-direction: column;
     gap: 3px;
     font-size: 11px;
+  }
+
+  .maintenance-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .maintenance-actions > button {
+    width: 100%;
+  }
+
+  .maintenance-issue {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .maintenance-issue > button {
+    align-self: flex-start;
   }
 
   .path-row,
