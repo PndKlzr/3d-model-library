@@ -479,6 +479,7 @@ button:disabled {
 .library-panel {
   --library-padding: 22px;
   position: relative;
+  overflow-x: hidden;
   padding: var(--library-padding);
 }
 
@@ -3578,7 +3579,7 @@ button:disabled {
   color: #e9f0ef;
 }
 
-@media (max-width: 1179px) {
+@media (max-width: 1360px) {
   .app-shell {
     grid-template-columns: clamp(220px, 25vw, 260px) minmax(0, 1fr);
   }

@@ -120,7 +120,7 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?z-index:\s*20;/);
     expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?isolation:\s*isolate;/);
     expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?background:\s*var\(--panel\);/);
-    expect(css).toMatch(/@media \(max-width: 1179px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?justify-content:\s*flex-start;/);
+    expect(css).toMatch(/@media \(max-width: 1360px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?justify-content:\s*flex-start;/);
   });
 
   it("reflows the library header without overlapping labels or controls", async () => {
@@ -134,11 +134,19 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.library-heading h2\s*\{[\s\S]*?font-size:\s*24px;/);
     expect(css).toMatch(/\.toolbar-actions\s*\{[\s\S]*?min-width:\s*0;/);
     expect(css).toMatch(/\.responsive-panel-controls \.icon-only\s*\{[\s\S]*?width:\s*36px;/);
-    expect(css).toContain("@media (max-width: 1179px)");
+    expect(css).toContain("@media (max-width: 1360px)");
     expect(css).toMatch(
-      /@media \(max-width: 1179px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?flex-wrap:\s*wrap;/
+      /@media \(max-width: 1360px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?flex-wrap:\s*wrap;/
     );
     expect(css).toContain("@media (max-width: 899px)");
+  });
+
+  it("moves details into a drawer before the three-column shell crushes the library", async () => {
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(css).toMatch(/\.library-panel\s*\{[\s\S]*?overflow-x:\s*hidden;/);
+    expect(css).toMatch(/@media \(max-width: 1360px\)[\s\S]*?\.app-shell\s*\{[\s\S]*?grid-template-columns:\s*clamp\(220px, 25vw, 260px\) minmax\(0, 1fr\);/);
+    expect(css).toMatch(/@media \(max-width: 1360px\)[\s\S]*?\.details-panel\s*\{[\s\S]*?position:\s*fixed;/);
   });
 
   it("keeps the current path controls together instead of stretching the copy action away", async () => {
