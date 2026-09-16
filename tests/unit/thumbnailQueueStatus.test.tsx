@@ -132,24 +132,21 @@ describe("PerformanceDiagnostics", () => {
   });
 
   it("copies only runtime versions and aggregate diagnostics", async () => {
-    const writeText = vi.fn(async (_text: string) => undefined);
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: { writeText }
-    });
+    const copyText = vi.fn(async (_text: string) => undefined);
     window.modelLibrary = {
       getRuntimeVersions: vi.fn(async () => ({
         appVersion: "0.1.0",
         electronVersion: "33.2.1",
         chromiumVersion: "130"
-      }))
+      })),
+      copyText
     } as unknown as Window["modelLibrary"];
 
     const { getByRole } = render(<PerformanceDiagnostics snapshot={idleSnapshot()} />);
     fireEvent.click(getByRole("button", { name: "Copiar diagnóstico" }));
 
-    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
-    const report = JSON.parse(writeText.mock.calls[0][0]);
+    await waitFor(() => expect(copyText).toHaveBeenCalledOnce());
+    const report = JSON.parse(copyText.mock.calls[0][0]);
     expect(report.runtime).toEqual({
       appVersion: "0.1.0",
       electronVersion: "33.2.1",

@@ -40,7 +40,7 @@
 - Produces: `denyUnusedPermissions(session)`.
 - Consumes later: every production IPC registration in `electron/main.ts` uses the trusted wrapper.
 
-- [ ] **Step 1: Write failing IPC-origin and permission-policy tests**
+- [x] **Step 1: Write failing IPC-origin and permission-policy tests**
 
 ```ts
 it("rejects an invoke from a frame outside the active renderer", async () => {
@@ -65,13 +65,13 @@ it("denies every browser permission request", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused tests and confirm RED**
+- [x] **Step 2: Run the focused tests and confirm RED**
 
 Run: `npm test -- --run tests/unit/ipcSecurity.test.ts tests/unit/preloadContract.test.ts tests/unit/windowSecurity.test.ts`
 
 Expected: FAIL because `ipcSecurity.ts` and the trusted registration wrapper do not exist.
 
-- [ ] **Step 3: Implement the centralized trust boundary**
+- [x] **Step 3: Implement the centralized trust boundary**
 
 ```ts
 export function isTrustedIpcSender(
@@ -112,7 +112,7 @@ export function denyUnusedPermissions(targetSession: PermissionSession): void {
 
 Export the existing exact-URL comparison from `windowSecurity.ts` or move it into `ipcSecurity.ts` so navigation and IPC use one rule. Store the renderer URL before registering production handlers. Keep benchmark handlers behind a wrapper configured with the benchmark renderer URL.
 
-- [ ] **Step 4: Route every production `ipcMain.handle/on` registration through the wrapper**
+- [x] **Step 4: Route every production `ipcMain.handle/on` registration through the wrapper**
 
 Replace direct registrations inside `registerIpcHandlers()` only. Do not alter handler bodies or channel names. Apply the deny policy to `session.defaultSession` after `app.whenReady()` and before creating the window.
 
@@ -124,7 +124,7 @@ await window.modelLibrary.copyText(formatThumbnailDiagnosticReport(snapshot, run
 
 Remove the `navigator.clipboard.writeText` call.
 
-- [ ] **Step 5: Run security tests, full tests, and build**
+- [x] **Step 5: Run security tests, full tests, and build**
 
 Run: `npm test -- --run tests/unit/ipcSecurity.test.ts tests/unit/preloadContract.test.ts tests/unit/windowSecurity.test.ts`
 
@@ -134,7 +134,7 @@ Run: `npm run build`
 
 Expected: all tests and build pass; drag implementation files are unchanged.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```powershell
 git add electron/services/ipcSecurity.ts electron/services/windowSecurity.ts electron/main.ts src/components/PerformanceDiagnostics.tsx tests/unit/ipcSecurity.test.ts tests/unit/preloadContract.test.ts tests/unit/windowSecurity.test.ts

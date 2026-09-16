@@ -23,7 +23,7 @@ export function PerformanceDiagnostics({ snapshot }: PerformanceDiagnosticsProps
   async function copyDiagnostics() {
     try {
       const runtime = await window.modelLibrary.getRuntimeVersions();
-      await navigator.clipboard.writeText(formatThumbnailDiagnosticReport(snapshot, runtime));
+      await window.modelLibrary.copyText(formatThumbnailDiagnosticReport(snapshot, runtime));
       setCopyState("copied");
     } catch {
       setCopyState("failed");

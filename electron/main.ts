@@ -3,8 +3,9 @@ import {
   BrowserWindow,
   clipboard,
   dialog,
-  ipcMain,
+  ipcMain as electronIpcMain,
   nativeImage,
+  session,
   shell,
   type WebContents
 } from "electron";
@@ -85,6 +86,7 @@ import {
 } from "./services/benchmarkLibraryContext.js";
 import { configureWindowSecurity } from "./services/windowSecurity.js";
 import { resolveCanonicalLibraryFile } from "./services/libraryFileAccess.js";
+import { createTrustedIpc, denyUnusedPermissions } from "./services/ipcSecurity.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -114,6 +116,11 @@ let benchmarkCachedGridVisibleMs = 0;
 let benchmarkLibraryReconciliationSettledMs = 0;
 let benchmarkReconciliationPromise: Promise<void> | null = null;
 let benchmarkStartupStartedAt = 0;
+let trustedRendererUrl = "";
+const ipcMain = createTrustedIpc(electronIpcMain, () => {
+  if (!trustedRendererUrl) throw new Error("Trusted renderer URL is not ready");
+  return trustedRendererUrl;
+});
 const dragIcon = createFileDragIcon();
 
 function mainT(key: TranslationKey, params?: TranslationParams) {
@@ -1008,6 +1015,7 @@ async function createWindow() {
     ? "http://127.0.0.1:5173/"
     : pathToFileURL(rendererEntry).href;
 
+  trustedRendererUrl = rendererUrl;
   configureWindowSecurity(window.webContents, rendererUrl);
 
   if (isDev && !benchmarkEnvironment) {
@@ -1018,6 +1026,8 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  denyUnusedPermissions(session.defaultSession);
+
   if (benchmarkEnvironment) {
     const context = benchmarkLibraryContext!;
     thumbnailCache = createThumbnailCache({
