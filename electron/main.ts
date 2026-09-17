@@ -1130,8 +1130,10 @@ async function createWindow() {
     }
   });
 
-  window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
-    console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
+  window.webContents.on("console-message", (details) => {
+    console.log(
+      `[renderer:${details.level}] ${details.message} (${details.sourceId}:${details.lineNumber})`
+    );
   });
 
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {

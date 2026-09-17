@@ -11,7 +11,10 @@ export type LibrarySessionIssueRegistry = {
   subscribe: (listener: (issues: LibrarySessionIssueFact[]) => void) => () => void;
 };
 
-export function createLibrarySessionIssueRegistry(limit = 250): LibrarySessionIssueRegistry {
+export function createLibrarySessionIssueRegistry(
+  limit = 250,
+  reportIssue?: (issue: LibrarySessionIssueFact) => void
+): LibrarySessionIssueRegistry {
   const boundedLimit = Math.max(1, Math.min(250, Math.floor(limit)));
   const issues = new Map<string, LibrarySessionIssueFact>();
   const listeners = new Set<(issues: LibrarySessionIssueFact[]) => void>();
@@ -28,13 +31,15 @@ export function createLibrarySessionIssueRegistry(limit = 250): LibrarySessionIs
   return {
     record(kind, modelPath, error) {
       const key = `${kind}\0${modelPath}`;
-      issues.delete(key);
-      issues.set(key, {
+      const issue = {
         kind,
         modelPath,
         detail: (error instanceof Error ? error.message : String(error)).slice(0, 500)
-      });
+      } satisfies LibrarySessionIssueFact;
+      issues.delete(key);
+      issues.set(key, issue);
       while (issues.size > boundedLimit) issues.delete(issues.keys().next().value!);
+      reportIssue?.({ ...issue });
       publish();
     },
     resolve(kind, modelPath) {
@@ -54,4 +59,6 @@ export function createLibrarySessionIssueRegistry(limit = 250): LibrarySessionIs
   };
 }
 
-export const librarySessionIssueRegistry = createLibrarySessionIssueRegistry();
+export const librarySessionIssueRegistry = createLibrarySessionIssueRegistry(250, (issue) => {
+  console.error(`[library-issue] ${JSON.stringify(issue)}`);
+});

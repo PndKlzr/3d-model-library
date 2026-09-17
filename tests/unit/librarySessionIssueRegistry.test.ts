@@ -28,4 +28,17 @@ describe("librarySessionIssueRegistry", () => {
     registry.reset();
     expect(registry.getSnapshot()).toEqual([]);
   });
+
+  it("reports the bounded issue fact to diagnostics when a failure is recorded", () => {
+    const reportIssue = vi.fn();
+    const registry = createLibrarySessionIssueRegistry(250, reportIssue);
+
+    registry.record("thumbnail", "C:\\Models\\part.stl", new Error("render failed"));
+
+    expect(reportIssue).toHaveBeenCalledWith({
+      kind: "thumbnail",
+      modelPath: "C:\\Models\\part.stl",
+      detail: "render failed"
+    });
+  });
 });

@@ -26,4 +26,20 @@ describe("dev script contract", () => {
     expect(viteConfig).toContain('server.middlewares.use("/__model_library_dev_identity"');
     expect(viteConfig).toContain("createProjectId");
   });
+
+  it("persists bounded diagnostics from the desktop development launcher", async () => {
+    const devScript = await readFile("scripts/electron-dev.cjs", "utf8");
+
+    expect(devScript).toContain("development.log");
+    expect(devScript).toContain("MAX_LOG_BYTES");
+    expect(devScript).toContain("appendFileSync");
+    expect(devScript).toContain('stdio: ["ignore", "pipe", "pipe"]');
+  });
+
+  it("uses the current Electron console-message details object", async () => {
+    const main = await readFile("electron/main.ts", "utf8");
+
+    expect(main).toContain('on("console-message", (details) =>');
+    expect(main).not.toContain('on("console-message", (_event, level, message, line, sourceId) =>');
+  });
 });

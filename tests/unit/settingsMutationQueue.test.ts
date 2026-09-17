@@ -4,6 +4,7 @@ import {
   addCustomSlicer,
   applyDetectedSlicers,
   removeCustomSlicer,
+  resetSlicerToAutomatic,
   renameCustomSlicer,
   setDefaultSlicer,
   setSlicerEnabled,
@@ -169,6 +170,24 @@ describe("settingsMutationQueue", () => {
     expect(next.defaultSlicerId).toBe("cura");
     expect(next.slicers[0]).toMatchObject({ executablePath: "C:\\Manual\\Cura.exe", pathSource: "manual" });
     expect(next.slicers[1]).toMatchObject({ executablePath: "C:\\Detected\\Orca.exe", pathSource: "detected", enabled: true });
+  });
+
+  it("removes only a built-in slicer's manual override before automatic detection", () => {
+    const current = {
+      ...settings(),
+      defaultSlicerId: "cura",
+      slicers: [
+        { id: "cura", name: "Cura", kind: "built-in" as const, builtInKey: "cura" as const,
+          executablePath: "C:\\Manual\\Cura.exe", enabled: true, pathSource: "manual" as const },
+        { id: "custom", name: "Custom", kind: "custom" as const,
+          executablePath: "C:\\Manual\\Custom.exe", enabled: true, pathSource: "manual" as const }
+      ]
+    };
+
+    const next = resetSlicerToAutomatic("cura")(current);
+    expect(next.defaultSlicerId).toBe("cura");
+    expect(next.slicers[0]).toMatchObject({ executablePath: "", enabled: false, pathSource: null });
+    expect(resetSlicerToAutomatic("custom")(next).slicers[1]).toEqual(current.slicers[1]);
   });
 });
 

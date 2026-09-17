@@ -14,7 +14,7 @@ const slicers: SlicerConfig[] = [
 function renderList(locale: "pt-BR" | "en" = "pt-BR") {
   const callbacks = {
     onDetect: vi.fn(), onAdd: vi.fn(), onEnable: vi.fn(), onDefault: vi.fn(),
-    onChooseExecutable: vi.fn(), onRename: vi.fn(), onRemove: vi.fn()
+    onChooseExecutable: vi.fn(), onUseAutomatic: vi.fn(), onRename: vi.fn(), onRemove: vi.fn()
   };
   render(<I18nProvider locale={locale}><SlicerIntegrationList
     slicers={slicers} defaultSlicerId="cura" detecting={false} {...callbacks}
@@ -34,7 +34,7 @@ describe("SlicerIntegrationList", () => {
   it("shows a configured but missing executable as unavailable", () => {
     const callbacks = {
       onDetect: vi.fn(), onAdd: vi.fn(), onEnable: vi.fn(), onDefault: vi.fn(),
-      onChooseExecutable: vi.fn(), onRename: vi.fn(), onRemove: vi.fn()
+      onChooseExecutable: vi.fn(), onUseAutomatic: vi.fn(), onRename: vi.fn(), onRemove: vi.fn()
     };
     render(<I18nProvider locale="pt-BR"><SlicerIntegrationList
       slicers={slicers} defaultSlicerId="cura" detecting={false}
@@ -71,5 +71,12 @@ describe("SlicerIntegrationList", () => {
     fireEvent.click(screen.getByRole("button", { name: "Ações de Meu Programa" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Remover" }));
     expect(callbacks.onRemove).toHaveBeenCalledWith("custom-one");
+  });
+
+  it("lets a built-in slicer return from a manual override to automatic detection", () => {
+    const callbacks = renderList();
+    fireEvent.click(screen.getByRole("button", { name: "Ações de Cura" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Voltar para detecção automática" }));
+    expect(callbacks.onUseAutomatic).toHaveBeenCalledWith("cura");
   });
 });

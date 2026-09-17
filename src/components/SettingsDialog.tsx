@@ -12,6 +12,7 @@ import type {
 } from "../shared/types";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
 import {
+  resetSlicerToAutomatic,
   setDefaultSlicer,
   setSlicerEnabled,
   type AppSettingsMutation
@@ -448,6 +449,10 @@ function IntegrationSettings({
           onEnable={(id, enabled) => void onSaveSettings(setSlicerEnabled(id, enabled))}
           onDefault={(id) => void onSaveSettings(setDefaultSlicer(id))}
           onChooseExecutable={(id) => void onChooseSlicerExecutable(id)}
+          onUseAutomatic={(id) => void (async () => {
+            await onSaveSettings(resetSlicerToAutomatic(id));
+            await onDetectSlicers();
+          })()}
           onRename={(id) => void onRenameSlicer(id)}
           onRemove={(id) => void onRemoveSlicer(id)}
         />

@@ -15,6 +15,7 @@ type Props = {
   onEnable: (id: string, enabled: boolean) => void;
   onDefault: (id: string) => void;
   onChooseExecutable: (id: string) => void;
+  onUseAutomatic: (id: string) => void;
   onRename: (id: string) => void;
   onRemove: (id: string) => void;
 };
@@ -22,7 +23,7 @@ type Props = {
 export function SlicerIntegrationList({
   slicers, defaultSlicerId, detecting, unavailableSlicerIds = [], openMenuId, onOpenMenuChange,
   onDetect, onAdd, onEnable, onDefault,
-  onChooseExecutable, onRename, onRemove
+  onChooseExecutable, onUseAutomatic, onRename, onRemove
 }: Props) {
   const { t } = useI18n();
   const [localMenuId, setLocalMenuId] = useState<string | null>(null);
@@ -94,6 +95,11 @@ export function SlicerIntegrationList({
                     <button type="button" role="menuitem" onClick={() => {
                       setMenuId(null); onChooseExecutable(slicer.id);
                     }}>{t("slicer.chooseExecutable")}</button>
+                    {slicer.kind === "built-in" && slicer.pathSource === "manual" ? (
+                      <button type="button" role="menuitem" onClick={() => {
+                        setMenuId(null); onUseAutomatic(slicer.id);
+                      }}>{t("slicer.useAutomatic")}</button>
+                    ) : null}
                     {slicer.kind === "custom" ? <>
                       <button type="button" role="menuitem" onClick={() => {
                         setMenuId(null); onRename(slicer.id);

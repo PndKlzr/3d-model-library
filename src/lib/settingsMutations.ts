@@ -28,6 +28,17 @@ export function setSlicerExecutable(
   });
 }
 
+export function resetSlicerToAutomatic(slicerId: string): AppSettingsMutation {
+  return (current) => ({
+    ...current,
+    slicers: current.slicers.map((slicer) =>
+      slicer.id === slicerId && slicer.kind === "built-in"
+        ? { ...slicer, executablePath: "", enabled: false, pathSource: null }
+        : slicer
+    )
+  });
+}
+
 export function setDefaultSlicer(slicerId: string | null): AppSettingsMutation {
   return (current) => ({
     ...current,
