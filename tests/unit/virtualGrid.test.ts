@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildVirtualRows, findVirtualRowIndex } from "../../src/lib/virtualGrid";
+import {
+  buildVirtualRows,
+  findVirtualRowIndex,
+  shouldHandleRevealRequest
+} from "../../src/lib/virtualGrid";
 
 describe("virtualGrid", () => {
   it("finds the row that contains a requested item", () => {
@@ -21,5 +25,11 @@ describe("virtualGrid", () => {
 
   it("returns no rows for an empty collection", () => {
     expect(buildVirtualRows([], 4)).toEqual([]);
+  });
+
+  it("handles each reveal request only once after it has been consumed", () => {
+    expect(shouldHandleRevealRequest(null, 1)).toBe(true);
+    expect(shouldHandleRevealRequest(1, 1)).toBe(false);
+    expect(shouldHandleRevealRequest(1, 2)).toBe(true);
   });
 });

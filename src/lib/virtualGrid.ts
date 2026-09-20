@@ -18,3 +18,10 @@ export function findVirtualRowIndex(
   if (itemIndex < 0) return null;
   return Math.floor(itemIndex / Math.max(1, Math.floor(columns)));
 }
+
+export function shouldHandleRevealRequest(
+  lastHandledKey: number | null,
+  requestKey: number
+): boolean {
+  return lastHandledKey !== requestKey;
+}

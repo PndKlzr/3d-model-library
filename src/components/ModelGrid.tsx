@@ -46,7 +46,11 @@ import {
 } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
-import { buildVirtualRows, findVirtualRowIndex } from "../lib/virtualGrid";
+import {
+  buildVirtualRows,
+  findVirtualRowIndex,
+  shouldHandleRevealRequest
+} from "../lib/virtualGrid";
 import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
 import { isArchive, SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } from "../shared/fileCapabilities";
 import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
@@ -849,6 +853,7 @@ function VirtualizedRows({
   renderItem
 }: VirtualizedRowsProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lastHandledRevealKeyRef = useRef<number | null>(null);
   const [columns, setColumns] = useState(mode === "grid" ? 4 : 1);
   const [scrollMargin, setScrollMargin] = useState(0);
   const rows = useMemo(
@@ -888,13 +893,19 @@ function VirtualizedRows({
   }, [columns, mode, rowVirtualizer, rows.length, scrollMargin]);
 
   useLayoutEffect(() => {
-    if (!modelRevealRequest) return;
+    if (!modelRevealRequest || !shouldHandleRevealRequest(
+      lastHandledRevealKeyRef.current,
+      modelRevealRequest.key
+    )) return;
     const rowIndex = findVirtualRowIndex(
       items.map((item) => item.id),
       mode === "grid" ? columns : 1,
       `model:${modelRevealRequest.modelId}`
     );
-    if (rowIndex !== null) rowVirtualizer.scrollToIndex(rowIndex, { align: "center" });
+    if (rowIndex !== null) {
+      lastHandledRevealKeyRef.current = modelRevealRequest.key;
+      rowVirtualizer.scrollToIndex(rowIndex, { align: "center" });
+    }
   }, [columns, items, mode, modelRevealRequest, rowVirtualizer]);
 
   return (
