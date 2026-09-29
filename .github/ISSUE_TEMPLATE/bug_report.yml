@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible problem in 3D Model Library
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Remove personal paths, model names, notes, tags, and slicer configuration from logs and screenshots.
+  - type: input
+    id: version
+    attributes:
+      label: App version or commit
+      placeholder: 0.1.0 or a commit hash
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: List the smallest reliable sequence that triggers the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: Relevant file format
+      options:
+        - Not file-specific
+        - STL
+        - 3MF
+        - OBJ
+        - Image
+        - ZIP / RAR / 7Z
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Do not include personal paths, private filenames, tokens, or model files without redistribution permission.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed personal and private information from this report.
+          required: true

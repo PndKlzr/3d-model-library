@@ -6,6 +6,8 @@ A local-first Windows desktop app for browsing, previewing, and organizing large
 
 ![Library overview](docs/assets/library-overview.png)
 
+The model files and reference images visible in screenshots are demonstration content and are not included in this repository.
+
 ## Why It Exists
 
 Large STL and 3MF collections quickly become difficult to recognize in Windows Explorer. 3D Model Library adds visual previews, fast navigation, tags, notes, archive tools, and slicer integration while keeping the original folder structure as the source of truth.
@@ -107,3 +109,11 @@ Reports contain aggregate counts and timings only. They do not contain model nam
 - Do not commit model libraries, slicer executables, API keys, tokens, `.env` files, or personal filesystem paths.
 
 For vulnerability reporting and dependency policy, read [SECURITY.md](SECURITY.md).
+
+## Contributing
+
+Bug reports, feature ideas, documentation improvements, and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting logs, screenshots, or model files.
+
+## License
+
+Copyright (c) 2026 PndKlzr. This project is licensed under the [GNU General Public License v3.0](LICENSE). Distributed versions and derivatives must preserve the license and provide the corresponding source code as required by GPL-3.0.
