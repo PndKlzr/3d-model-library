@@ -68,7 +68,7 @@ O projeto está em desenvolvimento ativo e ainda não possui instalador assinado
 
 ### Executar Localmente
 
-No Windows, a forma mais simples é abrir `setup-windows.cmd` com dois cliques. Ele verifica o Node.js, instala exatamente as dependências travadas no projeto e cria um atalho na Área de Trabalho. O script não pede acesso de administrador nem baixa nada fora do npm.
+No Windows, a forma mais simples é abrir `setup-windows.cmd` com dois cliques. Ele verifica o Node.js, instala exatamente as dependências travadas no projeto, prepara o runtime do Electron e cria um atalho na Área de Trabalho. O script não pede acesso de administrador nem baixa nada fora do npm e do instalador oficial do pacote Electron.
 
 Depois da preparação, use o atalho da Área de Trabalho ou abra `start-3d-model-library.cmd` com dois cliques.
 

@@ -20,6 +20,10 @@ echo Installing the exact dependencies from package-lock.json...
 call npm ci
 if errorlevel 1 goto :install_failed
 
+echo Preparing the Electron runtime for the first launch...
+call npm exec -- install-electron
+if errorlevel 1 goto :electron_failed
+
 echo Creating a desktop shortcut...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\create-development-shortcut.ps1" -ProjectRoot "%~dp0"
 if errorlevel 1 goto :shortcut_failed
@@ -51,6 +55,13 @@ exit /b 1
 :install_failed
 echo.
 echo Dependency installation failed. Review the npm error above; no global package was installed.
+echo.
+pause
+exit /b 1
+
+:electron_failed
+echo.
+echo Electron could not be prepared. Check your internet connection or antivirus, then run this setup again.
 echo.
 pause
 exit /b 1

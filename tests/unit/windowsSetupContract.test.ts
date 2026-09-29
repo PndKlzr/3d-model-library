@@ -9,6 +9,7 @@ describe("Windows development setup", () => {
     const setup = readFileSync(resolve(projectRoot, "setup-windows.cmd"), "utf8");
 
     expect(setup).toContain("npm ci");
+    expect(setup).toContain("npm exec -- install-electron");
     expect(setup).toContain("create-development-shortcut.ps1");
     expect(setup).not.toMatch(/Invoke-WebRequest|curl|wget/i);
   });
