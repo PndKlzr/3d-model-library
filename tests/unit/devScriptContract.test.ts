@@ -2,22 +2,44 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("dev script contract", () => {
-  it("keeps Vite on the same fixed port Electron loads", async () => {
+  it("keeps a stable renderer origin so visual preferences survive restarts", async () => {
     const packageJson = JSON.parse(await readFile("package.json", "utf8"));
     const devScript = await readFile("scripts/electron-dev.cjs", "utf8");
+    const mainSource = await readFile("electron/main.ts", "utf8");
 
     expect(packageJson.scripts.dev).toContain("--strictPort");
     expect(packageJson.scripts["electron:dev"]).toBe("node scripts/electron-dev.cjs");
-    expect(devScript).toContain("http://127.0.0.1:5173");
+    expect(devScript).toContain('const VITE_URL = "http://127.0.0.1:5173"');
+    expect(devScript).toContain("MODEL_LIBRARY_DEV_SERVER_URL");
     expect(devScript).toContain("ready in");
     expect(devScript).toContain("Vite exited before Electron started");
+    expect(mainSource).toContain("process.env.MODEL_LIBRARY_DEV_SERVER_URL");
   });
 
-  it("starts Electron when the fixed Vite URL is already running", async () => {
+  it("reuses the stable port only when it belongs to the same checkout", async () => {
+    const devScript = await readFile("scripts/electron-dev.cjs", "utf8");
+    const viteConfig = await readFile("vite.config.ts", "utf8");
+
+    expect(devScript).toContain("getRunningProjectId");
+    expect(devScript).toContain("createProjectId");
+    expect(devScript).toContain("Refusing to reuse a Vite server from another checkout");
+    expect(viteConfig).toContain('server.middlewares.use("/__model_library_dev_identity"');
+    expect(viteConfig).toContain("createProjectId");
+  });
+
+  it("persists bounded diagnostics from the desktop development launcher", async () => {
     const devScript = await readFile("scripts/electron-dev.cjs", "utf8");
 
-    expect(devScript).toContain("isViteAlreadyRunning");
-    expect(devScript).toContain("Existing Vite server detected");
-    expect(devScript).toContain("startElectron({ ownsVite: false })");
+    expect(devScript).toContain("development.log");
+    expect(devScript).toContain("MAX_LOG_BYTES");
+    expect(devScript).toContain("appendFileSync");
+    expect(devScript).toContain('stdio: ["ignore", "pipe", "pipe"]');
+  });
+
+  it("uses the current Electron console-message details object", async () => {
+    const main = await readFile("electron/main.ts", "utf8");
+
+    expect(main).toContain('on("console-message", (details) =>');
+    expect(main).not.toContain('on("console-message", (_event, level, message, line, sourceId) =>');
   });
 });

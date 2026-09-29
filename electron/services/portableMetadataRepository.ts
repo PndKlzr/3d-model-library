@@ -1,9 +1,11 @@
 import { execFile } from "node:child_process";
 import {
   copyFile,
+  lstat,
   mkdir,
   open,
   readFile,
+  readdir,
   realpath,
   rename,
   rm,
@@ -17,16 +19,29 @@ import {
   MAX_PORTABLE_METADATA_BYTES,
   PORTABLE_METADATA_DIRECTORY,
   PORTABLE_METADATA_FILENAME,
-  type PortableLibraryManifestV1
+  type PortableLibraryManifest
 } from "./portableMetadataCodec.js";
 
 const execFileAsync = promisify(execFile);
 
 export type PortableMetadataLoadResult = {
-  manifest: PortableLibraryManifestV1 | null;
+  manifest: PortableLibraryManifest | null;
   source: "primary" | "backup" | "empty";
   warning: string | null;
   corruptPrimaryPath: string | null;
+};
+
+export type PortableBackupPreview = {
+  libraryId: string;
+  updatedAt: string;
+  modelCount: number;
+  tagCount: number;
+  historyCount: number;
+};
+
+export type PortableMetadataRestoreResult = {
+  manifest: PortableLibraryManifest;
+  snapshotPath: string;
 };
 
 export type PortableMetadataRepository = {
@@ -35,26 +50,45 @@ export type PortableMetadataRepository = {
   load: (rootPath: string) => Promise<PortableMetadataLoadResult>;
   save: (
     rootPath: string,
-    manifest: PortableLibraryManifestV1,
+    manifest: PortableLibraryManifest,
     options?: { corruptPrimaryPath?: string | null }
   ) => Promise<void>;
+  readExternalBackup: (
+    rootPath: string,
+    filePath: string
+  ) => Promise<{ manifest: PortableLibraryManifest; preview: PortableBackupPreview }>;
+  exportBackup: (
+    rootPath: string,
+    manifest: PortableLibraryManifest,
+    destinationPath: string
+  ) => Promise<void>;
+  restoreBackup: (
+    rootPath: string,
+    currentManifest: PortableLibraryManifest,
+    replacementManifest: PortableLibraryManifest
+  ) => Promise<PortableMetadataRestoreResult>;
+  getDataDirectory: (rootPath: string) => Promise<string>;
 };
 
 type PortableMetadataRepositoryOptions = {
   hideDirectory?: (directoryPath: string) => Promise<void>;
   maximumBytes?: number;
   replaceFile?: (sourcePath: string, destinationPath: string) => Promise<void>;
+  now?: () => Date;
+  recoveryLimit?: number;
 };
 
 type ReadManifestResult =
   | { state: "missing" }
-  | { state: "valid"; manifest: PortableLibraryManifestV1 }
+  | { state: "valid"; manifest: PortableLibraryManifest }
   | { state: "invalid"; error: Error };
 
 export function createPortableMetadataRepository({
   hideDirectory = hideDirectoryOnWindows,
   maximumBytes = MAX_PORTABLE_METADATA_BYTES,
-  replaceFile = rename
+  replaceFile = rename,
+  now = () => new Date(),
+  recoveryLimit = 5
 }: PortableMetadataRepositoryOptions = {}): PortableMetadataRepository {
   async function canonicalizeRoot(rootPath: string) {
     const canonicalRoot = await realpath(rootPath);
@@ -98,7 +132,7 @@ export function createPortableMetadataRepository({
 
       const parsed: unknown = JSON.parse(await readFile(filePath, "utf8"));
       decodePortableMetadata(canonicalRoot, parsed);
-      return { state: "valid", manifest: parsed as PortableLibraryManifestV1 };
+      return { state: "valid", manifest: parsed as PortableLibraryManifest };
     } catch (error) {
       if (isMissingError(error)) {
         return { state: "missing" };
@@ -144,6 +178,16 @@ export function createPortableMetadataRepository({
     }
   }
 
+  async function getDataDirectory(rootPath: string) {
+    const canonicalRoot = await canonicalizeRoot(rootPath);
+    const { metadataDirectory } = getPaths(canonicalRoot);
+    await mkdir(metadataDirectory, { recursive: true });
+    await hideDirectory(metadataDirectory).catch((error) => {
+      console.warn("[portable-metadata] não foi possível ocultar a pasta interna", error);
+    });
+    return metadataDirectory;
+  }
+
   async function load(rootPath: string): Promise<PortableMetadataLoadResult> {
     const canonicalRoot = await canonicalizeRoot(rootPath);
     const { primaryPath, backupPath } = getPaths(canonicalRoot);
@@ -187,7 +231,7 @@ export function createPortableMetadataRepository({
 
   async function save(
     rootPath: string,
-    manifest: PortableLibraryManifestV1,
+    manifest: PortableLibraryManifest,
     options: { corruptPrimaryPath?: string | null } = {}
   ) {
     const canonicalRoot = await canonicalizeRoot(rootPath);
@@ -248,10 +292,136 @@ export function createPortableMetadataRepository({
     }
   }
 
-  return { canonicalizeRoot, checkWritable, load, save };
+  async function readExternalBackup(rootPath: string, filePath: string) {
+    const canonicalRoot = await canonicalizeRoot(rootPath);
+    assertExternalJsonPath(filePath);
+    const sourceInfo = await lstat(filePath);
+    if (sourceInfo.isSymbolicLink() || !sourceInfo.isFile()) {
+      throw new Error("O backup precisa ser um arquivo comum, não um link.");
+    }
+    if (sourceInfo.size > maximumBytes) {
+      throw new Error("O arquivo de backup é grande demais para abrir.");
+    }
+
+    const parsed: unknown = JSON.parse(await readFile(await realpath(filePath), "utf8"));
+    const decoded = decodePortableMetadata(canonicalRoot, parsed);
+    const manifest = parsed as PortableLibraryManifest;
+    return {
+      manifest,
+      preview: {
+        libraryId: decoded.libraryId,
+        updatedAt: decoded.updatedAt,
+        modelCount: Object.keys(decoded.metadata.models).length,
+        tagCount: decoded.metadata.tagCatalog.length,
+        historyCount: decoded.metadata.slicerHistory.length
+      }
+    };
+  }
+
+  async function exportBackup(
+    rootPath: string,
+    manifest: PortableLibraryManifest,
+    destinationPath: string
+  ) {
+    const canonicalRoot = await canonicalizeRoot(rootPath);
+    decodePortableMetadata(canonicalRoot, manifest);
+    assertExternalJsonPath(destinationPath);
+    const canonicalParent = await realpath(path.dirname(destinationPath));
+    const destination = path.join(canonicalParent, path.basename(destinationPath));
+
+    try {
+      const destinationInfo = await lstat(destination);
+      if (destinationInfo.isSymbolicLink() || !destinationInfo.isFile()) {
+        throw new Error("O destino do backup precisa ser um arquivo comum.");
+      }
+    } catch (error) {
+      if (!isMissingError(error)) throw error;
+    }
+
+    await writeManifestAtomically(destination, manifest);
+  }
+
+  async function restoreBackup(
+    rootPath: string,
+    currentManifest: PortableLibraryManifest,
+    replacementManifest: PortableLibraryManifest
+  ) {
+    const canonicalRoot = await canonicalizeRoot(rootPath);
+    decodePortableMetadata(canonicalRoot, currentManifest);
+    decodePortableMetadata(canonicalRoot, replacementManifest);
+    const metadataDirectory = await getDataDirectory(canonicalRoot);
+    const snapshotPath = path.join(
+      metadataDirectory,
+      `3D_LIBRARY_DATA_RECOVERY_${now().toISOString().replaceAll(":", "-")}.json`
+    );
+    await writeManifestAtomically(snapshotPath, currentManifest);
+    await save(canonicalRoot, replacementManifest);
+    await pruneRecoverySnapshots(metadataDirectory);
+    return { manifest: replacementManifest, snapshotPath };
+  }
+
+  async function writeManifestAtomically(
+    destinationPath: string,
+    manifest: PortableLibraryManifest
+  ) {
+    const serialized = `${JSON.stringify(manifest, null, 2)}\n`;
+    if (Buffer.byteLength(serialized, "utf8") > maximumBytes) {
+      throw new Error("O arquivo de dados é grande demais para salvar.");
+    }
+
+    const temporaryPath = path.join(
+      path.dirname(destinationPath),
+      `.${path.basename(destinationPath)}.${randomUUID()}.tmp`
+    );
+    let handle: Awaited<ReturnType<typeof open>> | null = null;
+    try {
+      handle = await open(temporaryPath, "wx");
+      await handle.writeFile(serialized, "utf8");
+      await handle.sync();
+      await handle.close();
+      handle = null;
+      await replaceFile(temporaryPath, destinationPath);
+    } finally {
+      await handle?.close().catch(() => undefined);
+      await rm(temporaryPath, { force: true }).catch(() => undefined);
+    }
+  }
+
+  async function pruneRecoverySnapshots(metadataDirectory: string) {
+    const recoveryPattern = /^3D_LIBRARY_DATA_RECOVERY_\d{4}-\d{2}-\d{2}T.*Z\.json$/;
+    const recoveryNames = (await readdir(metadataDirectory))
+      .filter((name) => recoveryPattern.test(name))
+      .sort()
+      .reverse();
+    await Promise.all(recoveryNames.slice(recoveryLimit).map((name) =>
+      rm(path.join(metadataDirectory, name), { force: true })
+    ));
+  }
+
+  return {
+    canonicalizeRoot,
+    checkWritable,
+    load,
+    save,
+    readExternalBackup,
+    exportBackup,
+    restoreBackup,
+    getDataDirectory
+  };
 }
 
-async function hideDirectoryOnWindows(directoryPath: string): Promise<void> {
+function assertExternalJsonPath(filePath: string) {
+  if (
+    typeof filePath !== "string" ||
+    !path.isAbsolute(filePath) ||
+    filePath.includes("\0") ||
+    path.extname(filePath).toLowerCase() !== ".json"
+  ) {
+    throw new Error("O caminho do backup precisa ser um arquivo JSON absoluto.");
+  }
+}
+
+export async function hideDirectoryOnWindows(directoryPath: string): Promise<void> {
   if (process.platform === "win32") {
     await execFileAsync("attrib", ["+H", directoryPath], { windowsHide: true });
   }

@@ -7,7 +7,7 @@ import {
   createThumbnailCacheKey,
   THUMBNAIL_RENDER_VERSION
 } from "../../electron/services/thumbnailCache";
-import type { ThumbnailSignature } from "../../src/shared/types";
+import type { ThumbnailCacheOwner, ThumbnailSignature } from "../../src/shared/types";
 
 let cacheDirectory: string;
 
@@ -22,8 +22,45 @@ afterEach(async () => {
 });
 
 describe("thumbnailCache", () => {
+  it("invalidates only the requested cached thumbnail even with a valid-looking damaged image", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const target = model();
+    const other = model({ absolutePath: "C:\\Models\\other.stl" });
+    const damaged = `data:image/webp;base64,${Buffer.from("RIFFjunkWEBP").toString("base64")}`;
+    await cache.write(target, damaged);
+    await cache.write(other, damaged);
+    await expect(cache.read(target)).resolves.toBe(damaged);
+
+    await cache.invalidate(target);
+
+    await expect(cache.read(target)).resolves.toBeNull();
+    await expect(cache.read(other)).resolves.toBe(damaged);
+  });
+
+  it("waits for an in-flight write before invalidating its result", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const target = model();
+    const dataUrl = `data:image/webp;base64,${Buffer.from("RIFF0000WEBP").toString("base64")}`;
+    const publicationStarted = deferred<void>();
+    const allowPublication = deferred<void>();
+    const write = cache.write(target, dataUrl, {
+      key: "session-a",
+      async publish(commit) {
+        publicationStarted.resolve();
+        await allowPublication.promise;
+        await commit();
+        return true;
+      }
+    });
+    await publicationStarted.promise;
+    const invalidate = cache.invalidate(target);
+    allowPublication.resolve();
+    await Promise.all([write, invalidate]);
+    await expect(cache.read(target)).resolves.toBeNull();
+  });
+
   it("uses the bed-orientation renderer version", () => {
-    expect(THUMBNAIL_RENDER_VERSION).toBe(2);
+    expect(THUMBNAIL_RENDER_VERSION).toBe(3);
   });
 
   it("changes keys when a model signature or renderer version changes", () => {
@@ -60,6 +97,41 @@ describe("thumbnailCache", () => {
     await expect(cache.read(signature)).resolves.toBe(dataUrl);
   });
 
+  it("withholds a stale session write without deleting the current session entry", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const signature = model();
+    const oldDataUrl = `data:image/webp;base64,${Buffer.from("RIFFold!WEBP").toString("base64")}`;
+    const newDataUrl = `data:image/webp;base64,${Buffer.from("RIFFnew!WEBP").toString("base64")}`;
+    const oldPublicationStarted = deferred<void>();
+    const oldPublicationReady = deferred<void>();
+    let currentSession = "session-a";
+
+    const oldWrite = cache.write(signature, oldDataUrl, {
+      key: "session-a",
+      async publish(commit) {
+        oldPublicationStarted.resolve();
+        await oldPublicationReady.promise;
+        if (currentSession !== "session-a") return false;
+        await commit();
+        return true;
+      }
+    });
+    await oldPublicationStarted.promise;
+    currentSession = "session-b";
+    await cache.write(signature, newDataUrl, {
+      key: "session-b",
+      async publish(commit) {
+        if (currentSession !== "session-b") return false;
+        await commit();
+        return true;
+      }
+    });
+    oldPublicationReady.resolve();
+    await oldWrite;
+
+    await expect(cache.read(signature)).resolves.toBe(newDataUrl);
+  });
+
   it("rejects unsupported or oversized data URLs", async () => {
     const cache = createThumbnailCache({ cacheDirectory, maxImageBytes: 3 });
 
@@ -84,6 +156,71 @@ describe("thumbnailCache", () => {
     await cache.prune();
     await expect(stat(cachePath)).rejects.toThrow();
   });
+
+  it("does not delete temporary files belonging to an active write", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const activeTemporary = path.join(cacheDirectory, "active.tmp");
+    const abandonedTemporary = path.join(cacheDirectory, "abandoned.tmp");
+    await writeFile(activeTemporary, "writing");
+    await writeFile(abandonedTemporary, "abandoned");
+    await utimes(abandonedTemporary, new Date(Date.now() - 2 * 60 * 60 * 1000),
+      new Date(Date.now() - 2 * 60 * 60 * 1000));
+
+    await cache.prune();
+
+    await expect(stat(activeTemporary)).resolves.toMatchObject({ size: 7 });
+    await expect(stat(abandonedTemporary)).rejects.toThrow();
+  });
+
+  it("removes stale entries owned by the active library only", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const oldA = model({ absolutePath: "C:\\Models\\old.stl" });
+    const currentA = model({ absolutePath: "C:\\Models\\current.stl" });
+    const modelB = model({ absolutePath: "D:\\Models\\other.stl" });
+    const image = `data:image/webp;base64,${Buffer.from("RIFF0000WEBP").toString("base64")}`;
+    await cache.write(oldA, image, owner("library-a", "old.stl"));
+    await cache.write(currentA, image, owner("library-a", "current.stl"));
+    await cache.write(modelB, image, owner("library-b", "other.stl"));
+
+    const result = await cache.cleanLibrary("library-a", [currentA]);
+
+    expect(result).toEqual({ removedFiles: 1, reclaimedBytes: 12 });
+    await expect(cache.read(oldA)).resolves.toBeNull();
+    await expect(cache.read(currentA)).resolves.toBe(image);
+    await expect(cache.read(modelB)).resolves.toBe(image);
+  });
+
+  it("preserves legacy entries without ownership records", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const legacyModel = model({ absolutePath: "C:\\Models\\legacy.stl" });
+    const bytes = Buffer.from("RIFF0000WEBP");
+    const key = createThumbnailCacheKey(legacyModel);
+    await writeFile(path.join(cacheDirectory, `${key}.webp`), bytes);
+
+    await expect(cache.cleanLibrary("library-a", [])).resolves.toEqual({
+      removedFiles: 0,
+      reclaimedBytes: 0
+    });
+    await expect(cache.read(legacyModel)).resolves.toBe(
+      `data:image/webp;base64,${bytes.toString("base64")}`
+    );
+  });
+
+  it("removes malformed ownership records without deleting their image", async () => {
+    const cache = createThumbnailCache({ cacheDirectory });
+    const target = model();
+    const bytes = Buffer.from("RIFF0000WEBP");
+    const key = createThumbnailCacheKey(target);
+    const imagePath = path.join(cacheDirectory, `${key}.webp`);
+    const sidecarPath = path.join(cacheDirectory, `${key}.meta.json`);
+    await writeFile(imagePath, bytes);
+    await writeFile(sidecarPath, JSON.stringify({ libraryId: "library-a", relativePath: "../bad" }));
+
+    await cache.cleanLibrary("library-a", []);
+
+    await expect(stat(imagePath)).resolves.toMatchObject({ size: 12 });
+    await expect(stat(sidecarPath)).rejects.toThrow();
+  });
 });
 
 function model(overrides: Partial<ThumbnailSignature> = {}): ThumbnailSignature {
@@ -93,4 +230,16 @@ function model(overrides: Partial<ThumbnailSignature> = {}): ThumbnailSignature 
     modifiedAt: "2026-09-09T00:00:00.000Z",
     ...overrides
   };
+}
+
+function owner(libraryId: string, relativePath: string): ThumbnailCacheOwner {
+  return { libraryId, relativePath };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }

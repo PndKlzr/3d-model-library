@@ -28,27 +28,47 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ModelCardThumbnail } from "./ModelCardThumbnail";
 import { FolderCardThumbnail } from "./FolderCardThumbnail";
+import { ThumbnailQueueStatus } from "./ThumbnailQueueStatus";
+import { ResponsivePanelControls } from "./ResponsivePanelControls";
+import {
+  reconcileThumbnailWarmupProgress,
+  startThumbnailWarmup,
+  type ThumbnailWarmupProgress
+} from "../lib/thumbnailWarmup";
+import { modelThumbnailService } from "../lib/modelThumbnailService";
+import { FileTypeFilter } from "./FileTypeFilter";
 import {
   ALL_FOLDERS_ID,
   type ModelSortMode,
-  type ModelTypeFilter,
   type NotesFilter,
   type TagMatchMode,
   type UsageFilter
 } from "../lib/folderFilters";
 import type { GridFolderCard } from "../lib/gridFolders";
 import type { ModelViewMode } from "../lib/viewPreferences";
-import { buildVirtualRows } from "../lib/virtualGrid";
+import {
+  buildVirtualRows,
+  findVirtualRowIndex,
+  shouldHandleRevealRequest
+} from "../lib/virtualGrid";
 import type { FileDragBehavior, ModelFile, ModelUserMetadata } from "../shared/types";
+import { isArchive, SUPPORTED_FILE_EXTENSIONS, type SupportedFileExtension } from "../shared/fileCapabilities";
+import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
+import type { ResponsivePanel } from "../lib/responsivePanels";
+import { useI18n } from "../i18n/I18nProvider";
+import { localizeErrorMessage } from "../shared/appError";
 
 type ModelGridProps = {
   models: ModelFile[];
+  scopeModelCount: number;
+  thumbnailModels?: ModelFile[];
   folderCards: GridFolderCard[];
   scanErrors: Array<{ path: string; message: string }>;
   selectedModelId: string | null;
   selectedModelIds: Set<string>;
   searchQuery: string;
-  typeFilter: ModelTypeFilter;
+  visibleExtensions: ReadonlySet<SupportedFileExtension>;
+  excludedFolders: readonly string[];
   sortMode: ModelSortMode;
   onlySelected: boolean;
   onlyFavorites: boolean;
@@ -60,6 +80,8 @@ type ModelGridProps = {
   selectedTags: Set<string>;
   metadataByPath: Record<string, ModelUserMetadata>;
   duplicateModelIds: Set<string>;
+  thumbnailRetryGenerations: Record<string, number>;
+  thumbnailDiagnostics: ThumbnailDiagnosticsSnapshot;
   isScanning: boolean;
   monitorStatus: "active" | "disabled" | "error";
   isFilteringStale: boolean;
@@ -71,8 +93,14 @@ type ModelGridProps = {
   fileDragBehavior: FileDragBehavior;
   canNavigateBack: boolean;
   canNavigateForward: boolean;
+  responsivePanel: ResponsivePanel;
+  scrollRestoreRequest?: { key: number; top: number } | null;
+  modelRevealRequest?: { key: number; modelId: string } | null;
+  onScrollTopChange?: (top: number) => void;
   onSearchChange: (query: string) => void;
-  onTypeFilterChange: (type: ModelTypeFilter) => void;
+  onVisibleExtensionsChange: (visibleExtensions: ReadonlySet<SupportedFileExtension>) => void;
+  onRemoveFolderExclusion: (folderId: string) => void;
+  onClearFolderExclusions: () => void;
   onSortModeChange: (sortMode: ModelSortMode) => void;
   onOnlySelectedChange: (onlySelected: boolean) => void;
   onOnlyFavoritesChange: (onlyFavorites: boolean) => void;
@@ -85,17 +113,21 @@ type ModelGridProps = {
   onFileDragBehaviorChange: (behavior: FileDragBehavior) => void;
   onNavigateBack: () => void;
   onNavigateForward: () => void;
+  onCopyCurrentFolderPath: () => void;
   onOpenFolder: (folderId: string) => void;
   onOpenFolderContextMenu: (folderId: string, x: number, y: number) => void;
   onMoveModelsToFolder: (folderId: string) => void;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
-  onOpenDefaultSlicer: (model: ModelFile) => void;
+  onOpenDefaultFile: (model: ModelFile) => void;
   onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile, mode: "external" | "internal") => void;
   onDragEndModel: () => void;
   onRefresh: () => void;
   onOpenSettings: () => void;
+  onToggleFolders: () => void;
+  onToggleDetails: () => void;
+  settingsNeedsAttention?: boolean;
 };
 
 type CollectionItem =
@@ -104,12 +136,15 @@ type CollectionItem =
 
 export function ModelGrid({
   models,
+  scopeModelCount,
+  thumbnailModels = models,
   folderCards,
   scanErrors,
   selectedModelId,
   selectedModelIds,
   searchQuery,
-  typeFilter,
+  visibleExtensions,
+  excludedFolders,
   sortMode,
   onlySelected,
   onlyFavorites,
@@ -121,6 +156,8 @@ export function ModelGrid({
   selectedTags,
   metadataByPath,
   duplicateModelIds,
+  thumbnailRetryGenerations,
+  thumbnailDiagnostics,
   isScanning,
   monitorStatus,
   isFilteringStale,
@@ -132,8 +169,14 @@ export function ModelGrid({
   fileDragBehavior,
   canNavigateBack,
   canNavigateForward,
+  responsivePanel,
+  scrollRestoreRequest = null,
+  modelRevealRequest = null,
+  onScrollTopChange = () => undefined,
   onSearchChange,
-  onTypeFilterChange,
+  onVisibleExtensionsChange,
+  onRemoveFolderExclusion,
+  onClearFolderExclusions,
   onSortModeChange,
   onOnlySelectedChange,
   onOnlyFavoritesChange,
@@ -146,21 +189,61 @@ export function ModelGrid({
   onFileDragBehaviorChange,
   onNavigateBack,
   onNavigateForward,
+  onCopyCurrentFolderPath,
   onOpenFolder,
   onOpenFolderContextMenu,
   onMoveModelsToFolder,
   onOpenModel,
-  onOpenDefaultSlicer,
+  onOpenDefaultFile,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
   onDragEndModel,
   onRefresh,
-  onOpenSettings
+  onOpenSettings,
+  onToggleFolders,
+  onToggleDetails,
+  settingsNeedsAttention = false
 }: ModelGridProps) {
+  const { locale, t } = useI18n();
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [isAdvancedFiltersOpen, setIsAdvancedFiltersOpen] = useState(false);
+  const [thumbnailWarmup, setThumbnailWarmup] = useState<ThumbnailWarmupProgress | null>(null);
+  const supportedThumbnailModels = useMemo(
+    () => thumbnailModels.filter((model) => !isArchive(model.extension)),
+    [thumbnailModels]
+  );
+  const displayedThumbnailWarmup = useMemo(
+    () => thumbnailWarmup
+      ? reconcileThumbnailWarmupProgress(
+          thumbnailWarmup,
+          supportedThumbnailModels,
+          modelThumbnailService.isReady
+        )
+      : null,
+    [thumbnailWarmup, supportedThumbnailModels, thumbnailDiagnostics]
+  );
   const panelRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (scrollRestoreRequest && panelRef.current) {
+      panelRef.current.scrollTop = scrollRestoreRequest.top;
+    }
+  }, [scrollRestoreRequest]);
+  useEffect(() => {
+    if (supportedThumbnailModels.length === 0) {
+      setThumbnailWarmup(null);
+      return;
+    }
+    const warmup = startThumbnailWarmup(
+      supportedThumbnailModels,
+      modelThumbnailService.request,
+      setThumbnailWarmup,
+      modelThumbnailService.isReady
+    );
+    return () => {
+      warmup.stop();
+    };
+  }, [supportedThumbnailModels]);
   const advancedFiltersRef = useRef<HTMLDivElement | null>(null);
   const collectionItems = useMemo<CollectionItem[]>(
     () => [
@@ -171,7 +254,9 @@ export function ModelGrid({
   );
   const hasGridContent = folderCards.length > 0 || models.length > 0;
   const hasActiveFilters =
-    typeFilter !== "all" ||
+    searchQuery.length > 0 ||
+    visibleExtensions.size < SUPPORTED_FILE_EXTENSIONS.length ||
+    excludedFolders.length > 0 ||
     onlySelected ||
     onlyFavorites ||
     onlyDuplicates ||
@@ -279,7 +364,9 @@ export function ModelGrid({
   }
 
   function clearFilters() {
-    onTypeFilterChange("all");
+    onSearchChange("");
+    onVisibleExtensionsChange(new Set(SUPPORTED_FILE_EXTENSIONS));
+    onClearFolderExclusions();
     onOnlySelectedChange(false);
     onOnlyFavoritesChange(false);
     onOnlyDuplicatesChange(false);
@@ -290,33 +377,39 @@ export function ModelGrid({
   }
 
   return (
-    <section className="library-panel" aria-label="Modelos encontrados" ref={panelRef}>
+    <section
+      className="library-panel"
+      aria-label={t("library.region")}
+      ref={panelRef}
+      onScroll={(event) => onScrollTopChange(event.currentTarget.scrollTop)}
+    >
       <div className="external-drag-mode-cue" aria-hidden="true">
         <Copy size={17} />
         <span>
-          <strong>Copiar para outro programa</strong>
-          <small>Cura, Creality Print ou Explorer</small>
+          <strong>{t("library.dragExternalCue")}</strong>
+          <small>{t("library.dragExternalTargets")}</small>
         </span>
       </div>
       <div className="internal-drag-mode-cue" aria-hidden="true">
         <FolderInput size={17} />
         <span>
-          <strong>Organizar dentro da biblioteca</strong>
-          <small>Solte o modelo em uma pasta</small>
+          <strong>{t("library.dragInternalCue")}</strong>
+          <small>{t("library.dragInternalTarget")}</small>
         </span>
       </div>
+      <div className="library-sticky-header">
       <header className="toolbar">
-        <div>
-          <p className="eyebrow">STL / 3MF</p>
-          <h2>Sua biblioteca visual</h2>
-          <div className="breadcrumb-row" aria-label="Caminho da pasta">
+        <div className="library-heading">
+          <p className="eyebrow">{t("library.eyebrow")}</p>
+          <h2>{t("library.title")}</h2>
+          <div className="breadcrumb-row" aria-label={t("library.folderPath")}>
             <button
               className="icon-only small-icon"
               type="button"
               onClick={onNavigateBack}
               disabled={!canNavigateBack}
-              aria-label="Voltar pasta"
-              title="Voltar"
+              aria-label={t("library.backFolder")}
+              title={t("navigation.back")}
             >
               <ChevronLeft size={15} />
             </button>
@@ -325,54 +418,70 @@ export function ModelGrid({
               type="button"
               onClick={onNavigateForward}
               disabled={!canNavigateForward}
-              aria-label="Avançar pasta"
-              title="Avançar"
+              aria-label={t("library.forwardFolder")}
+              title={t("navigation.forward")}
             >
               <ChevronRight size={15} />
             </button>
-            <Breadcrumb
-              selectedFolder={selectedFolder}
-              dragOverFolder={dragOverFolder}
-              pointerDragOverFolder={pointerDragOverFolder}
-              onOpenFolder={onOpenFolder}
-              onDragOverFolder={allowFolderDrop}
-              onDropOnFolder={dropOnFolder}
-              onDragLeaveFolder={() => setDragOverFolder(null)}
-            />
+            <div className="breadcrumb-actions">
+              <Breadcrumb
+                selectedFolder={selectedFolder}
+                dragOverFolder={dragOverFolder}
+                pointerDragOverFolder={pointerDragOverFolder}
+                onOpenFolder={onOpenFolder}
+                onDragOverFolder={allowFolderDrop}
+                onDropOnFolder={dropOnFolder}
+                onDragLeaveFolder={() => setDragOverFolder(null)}
+              />
+              <button
+                className="icon-only small-icon breadcrumb-copy-button"
+                type="button"
+                onClick={onCopyCurrentFolderPath}
+                aria-label={t("library.copyFolderPath")}
+                title={t("library.copyFolderPath")}
+              >
+                <Copy size={14} />
+              </button>
+            </div>
           </div>
         </div>
         <div className="toolbar-actions">
-          <div className="drag-behavior-toggle" role="group" aria-label="Modo de arraste">
+          <ResponsivePanelControls
+            openPanel={responsivePanel}
+            onToggleFolders={onToggleFolders}
+            onToggleDetails={onToggleDetails}
+          />
+          <div className="drag-behavior-toggle" role="group" aria-label={t("library.dragMode")}>
             <button
               className={fileDragBehavior === "organize-default" ? "active" : ""}
               type="button"
               onClick={() => onFileDragBehaviorChange("organize-default")}
               aria-pressed={fileDragBehavior === "organize-default"}
-              aria-label="Organizar na biblioteca"
-              title="Arraste para pastas. Ctrl + arraste envia para outro programa."
+              aria-label={t("library.organize")}
+              title={t("library.organizeHelp")}
             >
               <FolderInput size={15} />
-              Pasta
+              {t("navigation.folders")}
             </button>
             <button
               className={fileDragBehavior === "external-default" ? "active" : ""}
               type="button"
               onClick={() => onFileDragBehaviorChange("external-default")}
               aria-pressed={fileDragBehavior === "external-default"}
-              aria-label="Enviar para outro programa"
-              title="Arraste para Cura, Creality ou Explorer. Shift + arraste organiza."
+              aria-label={t("library.external")}
+              title={t("library.externalHelp")}
             >
               <Copy size={15} />
-              Externo
+              {t("library.externalShort")}
             </button>
           </div>
-          <div className="view-mode-toggle" role="group" aria-label="Modo de visualizacao">
+          <div className="view-mode-toggle" role="group" aria-label={t("library.viewMode")}>
             <button
               className={viewMode === "grid" ? "active" : ""}
               type="button"
               onClick={() => onViewModeChange("grid")}
-              aria-label="Ver em grade"
-              title="Grade"
+              aria-label={t("library.grid")}
+              title={t("library.grid")}
             >
               <LayoutGrid size={16} />
             </button>
@@ -380,45 +489,63 @@ export function ModelGrid({
               className={viewMode === "list" ? "active" : ""}
               type="button"
               onClick={() => onViewModeChange("list")}
-              aria-label="Ver em lista"
-              title="Lista"
+              aria-label={t("library.list")}
+              title={t("library.list")}
             >
               <List size={16} />
             </button>
           </div>
           <button
-            className="icon-only"
+            className="icon-only settings-toolbar-button"
             type="button"
             onClick={onOpenSettings}
-            aria-label="Configurações"
-            title="Configurações"
+            aria-label={t("common.settings")}
+            title={t("common.settings")}
           >
             <Settings size={17} />
+            {settingsNeedsAttention ? (
+              <span
+                className="settings-attention-dot"
+                aria-label={t("maintenance.needsAttention")}
+              />
+            ) : null}
           </button>
-          <span
-            className={`library-status ${isScanning ? "scanning" : monitorStatus}`}
-            title={
-              isScanning
-                ? "Atualizando biblioteca"
+          <div className="toolbar-statuses">
+            <span className="result-count">
+              {hasActiveFilters
+                ? t("library.filteredModelCount", {
+                    count: scopeModelCount,
+                    visible: models.length,
+                    total: scopeModelCount
+                  })
+                : t("library.modelCount", { count: scopeModelCount })}
+            </span>
+            <ThumbnailQueueStatus snapshot={thumbnailDiagnostics} warmup={displayedThumbnailWarmup} />
+            <span
+              className={`library-status ${isScanning ? "scanning" : monitorStatus}`}
+              title={
+                isScanning
+                  ? t("library.updating")
+                  : monitorStatus === "active"
+                    ? t("library.monitoring")
+                    : t("library.manual")
+              }
+            >
+              <i aria-hidden="true" />
+              {isScanning
+                ? t("library.updatingProgress")
                 : monitorStatus === "active"
-                  ? "Monitoramento ativo"
-                  : "Atualização manual"
-            }
-          >
-            <i aria-hidden="true" />
-            {isScanning
-              ? "Atualizando biblioteca..."
-              : monitorStatus === "active"
-                ? "Monitoramento ativo"
-                : "Atualização manual"}
-          </span>
+                  ? t("library.monitoring")
+                  : t("library.manual")}
+            </span>
+          </div>
           <button
             className="icon-only"
             type="button"
             onClick={onRefresh}
             disabled={isScanning}
-            aria-label={isScanning ? "Atualizando biblioteca" : "Atualizar biblioteca"}
-            title={isScanning ? "Atualizando biblioteca" : "Atualizar biblioteca"}
+            aria-label={isScanning ? t("library.updating") : t("common.refresh")}
+            title={isScanning ? t("library.updating") : t("common.refresh")}
           >
             <RotateCw className={isScanning ? "spinning" : ""} size={17} />
           </button>
@@ -430,29 +557,29 @@ export function ModelGrid({
         <input
           value={searchQuery}
           onChange={(event) => onSearchChange(event.currentTarget.value)}
-          placeholder="Buscar por nome, pasta, tag ou nota"
+          placeholder={t("library.search")}
         />
         {searchQuery ? (
           <button
             className="search-clear-button"
             type="button"
             onClick={() => onSearchChange("")}
-            aria-label="Limpar busca"
-            title="Limpar busca"
+            aria-label={t("library.clearSearch")}
+            title={t("library.clearSearch")}
           >
             <X size={15} />
           </button>
         ) : null}
       </label>
 
-      <div className="filter-bar" aria-label="Filtros da biblioteca">
+      <div className="filter-bar" aria-label={t("library.filters")}>
         <div className="advanced-filter-wrap" ref={advancedFiltersRef}>
           <button
             className={`filter-toggle ${advancedFilterCount > 0 ? "active" : ""}`}
             type="button"
             aria-expanded={isAdvancedFiltersOpen}
-            aria-label="Filtros avançados"
-            title="Filtros avançados"
+            aria-label={t("library.advancedFilters")}
+            title={t("library.advancedFilters")}
             onClick={() => setIsAdvancedFiltersOpen((open) => !open)}
           >
             <SlidersHorizontal size={14} />
@@ -460,72 +587,65 @@ export function ModelGrid({
           </button>
           {isAdvancedFiltersOpen ? (
             <div className="advanced-filter-popover">
-              <strong>Filtros avançados</strong>
+              <strong>{t("library.advancedFilters")}</strong>
               <label>
-                Uso
+                {t("library.usage")}
                 <select
                   value={usageFilter}
                   onChange={(event) => onUsageFilterChange(event.currentTarget.value as UsageFilter)}
                 >
-                  <option value="all">Qualquer</option>
-                  <option value="recent">Abertos nos últimos 30 dias</option>
-                  <option value="never">Nunca abertos</option>
+                  <option value="all">{t("library.usageAny")}</option>
+                  <option value="recent">{t("library.usageRecent")}</option>
+                  <option value="never">{t("library.usageNever")}</option>
                 </select>
               </label>
               <label>
-                Notas
+                {t("library.notes")}
                 <select
                   value={notesFilter}
                   onChange={(event) => onNotesFilterChange(event.currentTarget.value as NotesFilter)}
                 >
-                  <option value="all">Com ou sem notas</option>
-                  <option value="with-notes">Com notas</option>
-                  <option value="without-notes">Sem notas</option>
+                  <option value="all">{t("library.notesAny")}</option>
+                  <option value="with-notes">{t("library.notesWith")}</option>
+                  <option value="without-notes">{t("library.notesWithout")}</option>
                 </select>
               </label>
               <label>
-                Tags selecionadas
+                {t("library.selectedTags")}
                 <select
                   value={tagMatchMode}
                   disabled={selectedTags.size === 0}
                   onChange={(event) => onTagMatchModeChange(event.currentTarget.value as TagMatchMode)}
                 >
-                  <option value="all">Todas</option>
-                  <option value="any">Qualquer uma</option>
-                  <option value="exclude">Excluir</option>
+                  <option value="all">{t("library.tagsAll")}</option>
+                  <option value="any">{t("library.tagsAny")}</option>
+                  <option value="exclude">{t("library.tagsExclude")}</option>
                 </select>
               </label>
             </div>
           ) : null}
         </div>
+        <FileTypeFilter
+          visibleExtensions={visibleExtensions}
+          onChange={onVisibleExtensionsChange}
+        />
         <label className="filter-select">
-          Tipo
-          <select
-            value={typeFilter}
-            onChange={(event) => onTypeFilterChange(event.currentTarget.value as ModelTypeFilter)}
-          >
-            <option value="all">Todos</option>
-            <option value=".stl">STL</option>
-            <option value=".3mf">3MF</option>
-          </select>
-        </label>
-        <label className="filter-select">
-          Ordenar
+          {t("library.sort")}
           <select
             value={sortMode}
             onChange={(event) => onSortModeChange(event.currentTarget.value as ModelSortMode)}
           >
-            <option value="name">Nome</option>
-            <option value="modified">Mais recentes</option>
-            <option value="size">Tamanho</option>
+            <option value="name">{t("library.sortName")}</option>
+            <option value="modified">{t("library.sortRecent")}</option>
+            <option value="size">{t("library.sortSize")}</option>
           </select>
         </label>
         <button
           className={`filter-toggle ${onlySelected ? "active" : ""}`}
           type="button"
           aria-pressed={onlySelected}
-          aria-label="Somente selecionados"
-          title="Mostrar somente os modelos selecionados"
+          aria-label={t("library.onlySelected")}
+          title={t("library.onlySelectedHelp")}
           onClick={() => onOnlySelectedChange(!onlySelected)}
         >
           <CheckSquare2 size={14} />
@@ -534,8 +654,8 @@ export function ModelGrid({
           className={`filter-toggle ${onlyFavorites ? "active" : ""}`}
           type="button"
           aria-pressed={onlyFavorites}
-          aria-label="Somente favoritos"
-          title="Mostrar somente favoritos"
+          aria-label={t("library.onlyFavorites")}
+          title={t("library.onlyFavoritesHelp")}
           onClick={() => onOnlyFavoritesChange(!onlyFavorites)}
         >
           <Star size={14} fill={onlyFavorites ? "currentColor" : "none"} />
@@ -544,22 +664,40 @@ export function ModelGrid({
           className={`filter-toggle ${onlyDuplicates ? "active" : ""}`}
           type="button"
           aria-pressed={onlyDuplicates}
-          aria-label="Somente possíveis duplicados"
-          title="Mostrar possíveis arquivos duplicados"
+          aria-label={t("library.onlyDuplicates")}
+          title={t("library.onlyDuplicatesHelp")}
           onClick={() => onOnlyDuplicatesChange(!onlyDuplicates)}
         >
           <Copy size={14} />
         </button>
         {hasActiveFilters ? (
-          <button className="filter-clear" type="button" onClick={clearFilters} title="Limpar filtros">
+          <button className="filter-clear" type="button" onClick={clearFilters} title={t("library.clearFilters")}>
             <X size={14} />
-            Limpar
+            {t("library.clearFilters")}
           </button>
         ) : null}
       </div>
 
+      {excludedFolders.length > 0 ? (
+        <div className="exclusion-filter-row" aria-label={t("library.excludedFolders")}>
+          {excludedFolders.map((folder) => (
+            <span className="exclusion-chip" key={folder}>
+              <span title={folder}>{folder}</span>
+              <button
+                type="button"
+                onClick={() => onRemoveFolderExclusion(folder)}
+                aria-label={t("library.showFolderResults", { name: folder })}
+                title={t("library.removeExclusion")}
+              >
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       {availableTags.length > 0 ? (
-        <div className="tag-filter-row" aria-label="Filtros por tag">
+        <div className="tag-filter-row" aria-label={t("library.tagFilters")}>
           {availableTags.map((tag) => (
             <button
               className={`tag-chip ${selectedTags.has(tag) ? "active" : ""}`}
@@ -572,13 +710,14 @@ export function ModelGrid({
           ))}
         </div>
       ) : null}
+      </div>
 
       {scanErrors.length > 0 ? (
         <div className="scan-errors" role="status">
-          <strong>Alguns itens não puderam ser lidos</strong>
+          <strong>{t("library.scanErrors")}</strong>
           {scanErrors.slice(0, 4).map((error) => (
             <span key={`${error.path}-${error.message}`}>
-              {error.path}: {error.message}
+              {error.path}: {localizeErrorMessage(locale, new Error(error.message))}
             </span>
           ))}
         </div>
@@ -592,21 +731,28 @@ export function ModelGrid({
 
       {isFilteringStale ? (
         <div className="operation-message subtle" role="status">
-          Atualizando resultados...
+          {t("library.filtering")}
         </div>
       ) : null}
 
-      {!hasGridContent ? (
+      {visibleExtensions.size === 0 ? (
+        <div className="empty-state" role="status">
+          <Box size={28} />
+          <strong>{t("library.allTypesHidden")}</strong>
+          <span>{t("library.enableType")}</span>
+        </div>
+      ) : !hasGridContent ? (
         <div className="empty-state">
           <Box size={28} />
-          <strong>Nenhum item nesta visão</strong>
-          <span>Tente outra pasta, limpe a busca ou atualize a biblioteca.</span>
+          <strong>{t("library.empty")}</strong>
+          <span>{t("library.emptyHelp")}</span>
         </div>
       ) : (
         <VirtualizedRows
           items={collectionItems}
           mode={viewMode}
           scrollElementRef={panelRef}
+          modelRevealRequest={modelRevealRequest}
           renderItem={(item) => {
             if (item.kind === "folder") {
               const folderCard = item.folder;
@@ -630,9 +776,9 @@ export function ModelGrid({
                 >
                   <Folder size={20} />
                   <strong title={folderCard.name}>{folderCard.name}</strong>
-                  <span>{folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}</span>
+                  <span>{t("library.folderModelCount", { count: folderCard.modelCount })}</span>
                   <span className="optional-column">
-                    {folderCard.childCount} pasta{folderCard.childCount === 1 ? "" : "s"}
+                    {t("library.childFolderCount", { count: folderCard.childCount })}
                   </span>
                 </button>
               ) : (
@@ -657,9 +803,9 @@ export function ModelGrid({
                   <div className="model-card-meta">
                     <strong title={folderCard.name}>{folderCard.name}</strong>
                     <span>
-                      {folderCard.modelCount} modelo{folderCard.modelCount === 1 ? "" : "s"}
+                      {t("library.folderModelCount", { count: folderCard.modelCount })}
                       {folderCard.childCount > 0
-                        ? ` - ${folderCard.childCount} pasta${folderCard.childCount === 1 ? "" : "s"}`
+                        ? ` - ${t("library.childFolderCount", { count: folderCard.childCount })}`
                         : ""}
                     </span>
                   </div>
@@ -674,9 +820,10 @@ export function ModelGrid({
               isDuplicate: duplicateModelIds.has(model.id),
               isSelected: selectedModelId === model.id,
               isChecked: selectedModelIds.has(model.id),
+              thumbnailRetryGeneration: thumbnailRetryGenerations[model.absolutePath] ?? 0,
               fileDragBehavior,
               onOpenModel,
-              onOpenDefaultSlicer,
+              onOpenDefaultFile,
               onOpenModelContextMenu,
               onToggleModelSelection,
               onDragStartModel,
@@ -694,11 +841,19 @@ type VirtualizedRowsProps = {
   items: CollectionItem[];
   mode: ModelViewMode;
   scrollElementRef: RefObject<HTMLElement>;
+  modelRevealRequest?: { key: number; modelId: string } | null;
   renderItem: (item: CollectionItem) => ReactNode;
 };
 
-function VirtualizedRows({ items, mode, scrollElementRef, renderItem }: VirtualizedRowsProps) {
+function VirtualizedRows({
+  items,
+  mode,
+  scrollElementRef,
+  modelRevealRequest,
+  renderItem
+}: VirtualizedRowsProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const lastHandledRevealKeyRef = useRef<number | null>(null);
   const [columns, setColumns] = useState(mode === "grid" ? 4 : 1);
   const [scrollMargin, setScrollMargin] = useState(0);
   const rows = useMemo(
@@ -736,6 +891,22 @@ function VirtualizedRows({ items, mode, scrollElementRef, renderItem }: Virtuali
     setScrollMargin((current) => current === nextMargin ? current : nextMargin);
     rowVirtualizer.measure();
   }, [columns, mode, rowVirtualizer, rows.length, scrollMargin]);
+
+  useLayoutEffect(() => {
+    if (!modelRevealRequest || !shouldHandleRevealRequest(
+      lastHandledRevealKeyRef.current,
+      modelRevealRequest.key
+    )) return;
+    const rowIndex = findVirtualRowIndex(
+      items.map((item) => item.id),
+      mode === "grid" ? columns : 1,
+      `model:${modelRevealRequest.modelId}`
+    );
+    if (rowIndex !== null) {
+      lastHandledRevealKeyRef.current = modelRevealRequest.key;
+      rowVirtualizer.scrollToIndex(rowIndex, { align: "center" });
+    }
+  }, [columns, items, mode, modelRevealRequest, rowVirtualizer]);
 
   return (
     <div
@@ -784,6 +955,7 @@ function Breadcrumb({
   onDropOnFolder,
   onDragLeaveFolder
 }: BreadcrumbProps) {
+  const { t } = useI18n();
   const parts = selectedFolder === ALL_FOLDERS_ID ? [] : selectedFolder.split("/").filter(Boolean);
 
   return (
@@ -796,12 +968,13 @@ function Breadcrumb({
         }
         data-folder-drop-id={ALL_FOLDERS_ID}
         type="button"
+        title={t("navigation.allModels")}
         onClick={() => onOpenFolder(ALL_FOLDERS_ID)}
         onDragOver={(event) => onDragOverFolder(event, ALL_FOLDERS_ID)}
         onDragLeave={onDragLeaveFolder}
         onDrop={(event) => onDropOnFolder(event, ALL_FOLDERS_ID)}
       >
-        Todos os modelos
+        {t("navigation.allModels")}
       </button>
       {parts.map((part, index) => {
         const folderId = parts.slice(0, index + 1).join("/");
@@ -817,6 +990,7 @@ function Breadcrumb({
               }
               data-folder-drop-id={folderId}
               type="button"
+              title={part}
               onClick={() => onOpenFolder(folderId)}
               onDragOver={(event) => onDragOverFolder(event, folderId)}
               onDragLeave={onDragLeaveFolder}
@@ -837,9 +1011,10 @@ type ModelCardProps = {
   isDuplicate: boolean;
   isSelected: boolean;
   isChecked: boolean;
+  thumbnailRetryGeneration: number;
   fileDragBehavior: FileDragBehavior;
   onOpenModel: (model: ModelFile, modifiers: { ctrlKey: boolean; shiftKey: boolean }) => void;
-  onOpenDefaultSlicer: (model: ModelFile) => void;
+  onOpenDefaultFile: (model: ModelFile) => void;
   onOpenModelContextMenu: (model: ModelFile, x: number, y: number) => void;
   onToggleModelSelection: (model: ModelFile, selected: boolean) => void;
   onDragStartModel: (model: ModelFile, mode: "external" | "internal") => void;
@@ -852,19 +1027,21 @@ function ModelCard({
   isDuplicate,
   isSelected,
   isChecked,
+  thumbnailRetryGeneration,
   fileDragBehavior,
   onOpenModel,
-  onOpenDefaultSlicer,
+  onOpenDefaultFile,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
   onDragEndModel
 }: ModelCardProps) {
+  const { t } = useI18n();
   return (
     <div
       className={`model-card ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
       draggable
-      title={getFileDragHelp(fileDragBehavior)}
+      title={t(fileDragBehavior === "organize-default" ? "library.organizeDragHelp" : "library.externalDragHelp")}
       onDragStart={(event) => {
         if (shouldStartExternalFileDrag(fileDragBehavior, event)) {
           event.preventDefault();
@@ -887,11 +1064,11 @@ function ModelCard({
           type="checkbox"
           checked={isChecked}
           onChange={(event) => onToggleModelSelection(model, event.currentTarget.checked)}
-          aria-label={`Selecionar ${model.name}`}
+          aria-label={t("library.selectModel", { name: model.name })}
         />
       </label>
       {metadata?.favorite ? (
-        <div className="favorite-badge" title="Favorito" aria-label="Favorito">
+        <div className="favorite-badge" title={t("library.favorite")} aria-label={t("library.favorite")}>
           <Star size={15} fill="currentColor" />
         </div>
       ) : null}
@@ -907,19 +1084,19 @@ function ModelCard({
             shiftKey: event.shiftKey
           })
         }
-        onDoubleClick={() => void onOpenDefaultSlicer(model)}
+        onDoubleClick={() => void onOpenDefaultFile(model)}
       >
         <div className="model-thumb">
-          <ModelCardThumbnail model={model} />
+          <ModelCardThumbnail model={model} selected={isSelected} key={thumbnailRetryGeneration} />
         </div>
         <div className="model-card-meta">
           <strong title={model.name}>{model.name}</strong>
-          <span title={model.relativeFolder || "Raiz"}>
-            {model.relativeFolder || "Raiz"} - {formatBytes(model.sizeBytes)}
+          <span title={model.relativeFolder || t("common.root")}>
+            {model.relativeFolder || t("common.root")} - {formatBytes(model.sizeBytes)}
           </span>
-          {isDuplicate ? <span className="duplicate-label">Possivel duplicado</span> : null}
+          {isDuplicate ? <span className="duplicate-label">{t("library.possibleDuplicate")}</span> : null}
           {metadata?.tags.length ? (
-            <div className="card-tags" aria-label="Tags">
+            <div className="card-tags" aria-label={t("library.tags")}>
               {metadata.tags.slice(0, 3).map((tag) => (
                 <span key={tag}>{tag}</span>
               ))}
@@ -937,19 +1114,21 @@ function ModelListRow({
   isDuplicate,
   isSelected,
   isChecked,
+  thumbnailRetryGeneration,
   fileDragBehavior,
   onOpenModel,
-  onOpenDefaultSlicer,
+  onOpenDefaultFile,
   onOpenModelContextMenu,
   onToggleModelSelection,
   onDragStartModel,
   onDragEndModel
 }: ModelCardProps) {
+  const { t, formatDate } = useI18n();
   return (
     <div
       className={`model-list-row ${isSelected ? "selected" : ""} ${isChecked ? "checked" : ""}`}
       draggable
-      title={getFileDragHelp(fileDragBehavior)}
+      title={t(fileDragBehavior === "organize-default" ? "library.organizeDragHelp" : "library.externalDragHelp")}
       onDragStart={(event) => {
         if (shouldStartExternalFileDrag(fileDragBehavior, event)) {
           event.preventDefault();
@@ -975,7 +1154,7 @@ function ModelListRow({
           type="checkbox"
           checked={isChecked}
           onChange={(event) => onToggleModelSelection(model, event.currentTarget.checked)}
-          aria-label={`Selecionar ${model.name}`}
+          aria-label={t("library.selectModel", { name: model.name })}
         />
       </label>
       <button
@@ -987,21 +1166,21 @@ function ModelListRow({
             shiftKey: event.shiftKey
           })
         }
-        onDoubleClick={() => void onOpenDefaultSlicer(model)}
+        onDoubleClick={() => void onOpenDefaultFile(model)}
       >
         <div className="list-thumb">
-          <ModelCardThumbnail model={model} />
+          <ModelCardThumbnail model={model} selected={isSelected} key={thumbnailRetryGeneration} />
         </div>
         <strong title={model.name}>{model.name}</strong>
-        <span className="optional-column" title={model.relativeFolder || "Raiz"}>
-          {model.relativeFolder || "Raiz"}
+        <span className="optional-column" title={model.relativeFolder || t("common.root")}>
+          {model.relativeFolder || t("common.root")}
         </span>
         <span>{model.extension.toUpperCase()}</span>
         <span className="optional-column">{formatBytes(model.sizeBytes)}</span>
-        <span className="optional-column">{new Date(model.modifiedAt).toLocaleDateString()}</span>
+        <span className="optional-column">{formatDate(model.modifiedAt)}</span>
         <span className="list-flags optional-column">
-          {metadata?.favorite ? <Star size={15} fill="currentColor" aria-label="Favorito" /> : null}
-          {isDuplicate ? <em>Duplicado</em> : null}
+          {metadata?.favorite ? <Star size={15} fill="currentColor" aria-label={t("library.favorite")} /> : null}
+          {isDuplicate ? <em>{t("library.duplicate")}</em> : null}
           {metadata?.tags.slice(0, 2).map((tag) => (
             <em key={tag}>{tag}</em>
           ))}
@@ -1016,12 +1195,6 @@ function shouldStartExternalFileDrag(
   event: DragEvent<HTMLElement>
 ): boolean {
   return behavior === "organize-default" ? event.ctrlKey : !event.shiftKey;
-}
-
-function getFileDragHelp(behavior: FileDragBehavior): string {
-  return behavior === "organize-default"
-    ? "Arraste para organizar. Ctrl + arraste para copiar para outro programa."
-    : "Arraste para copiar para outro programa. Shift + arraste para organizar.";
 }
 
 function formatBytes(bytes: number): string {

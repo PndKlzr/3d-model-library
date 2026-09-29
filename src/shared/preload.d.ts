@@ -1,37 +1,78 @@
 import type {
   AppSettings,
+  ArchiveExtractionMode,
   ArchiveListResult,
   FileOperationResult,
   FileDragRequest,
   FileRestorePair,
   FileDragStatus,
+  LibraryBackupActionResult,
+  LibraryDataStatus,
   LibraryMetadata,
   LibraryMetadataStatus,
-  LibraryScanResult,
-  LibraryWatchEvent,
+  LibraryActivationResult,
+  LibrarySessionRef,
+  VersionedLibraryMonitoringError,
+  VersionedLibraryScanResult,
+  VersionedLibraryWatchEvents,
   ModelHashInput,
   ModelHashResult,
   ModelFile,
   ThumbnailSignature,
-  SlicerLaunchResult
+  ThumbnailCleanupResult,
+  SlicerLaunchResult,
+  SlicerCandidate
 } from "./types";
+import type {
+  ThumbnailBenchmarkReport,
+  ThumbnailBenchmarkScenario
+} from "../lib/thumbnailBenchmark";
 
 export type ModelLibraryApi = {
   version: string;
+  getThumbnailBenchmark: () => Promise<{
+    scenario: ThumbnailBenchmarkScenario;
+    models: ModelFile[];
+    cachedIndexReadyMs: number;
+    session: LibrarySessionRef;
+  } | null>;
+  markThumbnailBenchmarkCachedGridVisible: () => Promise<void>;
+  submitThumbnailBenchmark: (report: ThumbnailBenchmarkReport) => Promise<void>;
+  failThumbnailBenchmark: (message: string) => Promise<void>;
+  getRuntimeVersions: () => Promise<{
+    appVersion: string;
+    electronVersion: string;
+    chromiumVersion: string;
+  }>;
   getSettings: () => Promise<AppSettings>;
   saveSettings: (settings: AppSettings) => Promise<AppSettings>;
   chooseLibraryFolder: () => Promise<string | null>;
   chooseArchiveExtractor: () => Promise<string | null>;
-  getCachedLibrary: (rootPath: string) => Promise<LibraryScanResult | null>;
-  scanLibrary: (rootPath: string) => Promise<LibraryScanResult>;
-  setLibraryMonitoring: (enabled: boolean) => Promise<void>;
-  onLibraryChanged: (callback: (events: LibraryWatchEvent[]) => void) => () => void;
-  onLibraryMonitoringError: (callback: (message: string) => void) => () => void;
+  detectSlicers: () => Promise<SlicerCandidate[]>;
+  inspectConfiguredSlicers: () => Promise<string[]>;
+  activateLibrary: (
+    rootPath: string | null,
+    monitoring: boolean
+  ) => Promise<LibraryActivationResult | null>;
+  getCurrentLibrary: () => Promise<LibraryActivationResult | null>;
+  scanLibrary: (session: LibrarySessionRef) => Promise<VersionedLibraryScanResult>;
+  verifyLibrary: (session: LibrarySessionRef) => Promise<VersionedLibraryScanResult>;
+  rebuildLibraryIndex: (session: LibrarySessionRef) => Promise<VersionedLibraryScanResult>;
+  showLibraryDataFolder: (session: LibrarySessionRef) => Promise<void>;
+  setLibraryMonitoring: (session: LibrarySessionRef, enabled: boolean) => Promise<void>;
+  onLibraryChanged: (callback: (payload: VersionedLibraryWatchEvents) => void) => () => void;
+  onLibraryMonitoringError: (
+    callback: (payload: VersionedLibraryMonitoringError) => void
+  ) => () => void;
   listArchiveEntries: (archivePath: string) => Promise<ArchiveListResult>;
   extractArchiveEntries: (
     archivePath: string,
     entryPaths: string[],
     destinationRelativeFolder?: string
+  ) => Promise<FileOperationResult>;
+  extractArchive: (
+    archivePath: string,
+    mode: ArchiveExtractionMode
   ) => Promise<FileOperationResult>;
   createFolder: (
     parentRelativeFolder: string,
@@ -52,6 +93,9 @@ export type ModelLibraryApi = {
   restoreLibraryPaths: (pathPairs: FileRestorePair[]) => Promise<FileOperationResult>;
   getLibraryMetadata: () => Promise<LibraryMetadata>;
   getLibraryMetadataStatus: () => Promise<LibraryMetadataStatus>;
+  getLibraryDataStatus: () => Promise<LibraryDataStatus>;
+  exportLibraryBackup: (session: LibrarySessionRef) => Promise<LibraryBackupActionResult>;
+  restoreLibraryBackup: (session: LibrarySessionRef) => Promise<LibraryBackupActionResult>;
   retryLibraryMetadata: () => Promise<LibraryMetadataStatus>;
   toggleFavorite: (modelPath: string) => Promise<LibraryMetadata>;
   setModelTags: (modelPath: string, tags: string[]) => Promise<LibraryMetadata>;
@@ -64,11 +108,24 @@ export type ModelLibraryApi = {
     previewError: string | null;
   }>;
   readModelThumbnail: (absolutePath: string) => Promise<string | null>;
+  readImageDataUrl: (session: LibrarySessionRef, absolutePath: string) => Promise<string>;
+  readObjPreviewFile: (session: LibrarySessionRef, absolutePath: string) => Promise<ArrayBuffer>;
   readCachedThumbnail: (model: ThumbnailSignature) => Promise<string | null>;
-  writeCachedThumbnail: (model: ThumbnailSignature, dataUrl: string) => Promise<void>;
+  invalidateCachedThumbnail: (model: ThumbnailSignature) => Promise<void>;
+  writeCachedThumbnail: (
+    model: ThumbnailSignature,
+    dataUrl: string,
+    sessionKey: string
+  ) => Promise<void>;
+  cleanUnusedThumbnails: (
+    session: LibrarySessionRef,
+    models: ModelFile[]
+  ) => Promise<ThumbnailCleanupResult>;
   saveConvertedStl: (sourcePath: string, stlContent: string) => Promise<FileOperationResult>;
   getModelHashes: (models: ModelHashInput[]) => Promise<ModelHashResult>;
   showModelInFolder: (absolutePath: string) => Promise<void>;
+  showLibraryFolder: (session: LibrarySessionRef, relativeFolder: string) => Promise<void>;
+  openLibraryFile: (session: LibrarySessionRef, absolutePath: string) => Promise<void>;
   copyText: (text: string) => Promise<void>;
   startFileDrag: (request: FileDragRequest) => void;
   onFileDragStatus: (callback: (status: FileDragStatus) => void) => () => void;

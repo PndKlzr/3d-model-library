@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ModelFile } from "../../src/shared/types";
+import { SUPPORTED_FILE_EXTENSIONS } from "../../src/shared/fileCapabilities";
 import { ALL_FOLDERS_ID } from "../../src/lib/folderFilters";
 import { buildFolderTree } from "../../src/lib/folderTree";
 import { getGridFolderCards } from "../../src/lib/gridFolders";
@@ -72,10 +73,155 @@ describe("getGridFolderCards", () => {
     ]);
   });
 
+  it("includes direct images in folder previews while skipping archives", () => {
+    const files = [
+      model("photo.jpg", "parts"),
+      model("bundle.zip", "parts"),
+      model("nested.webp", "parts/nested"),
+      model("shape.stl", "parts")
+    ];
+
+    const [card] = getGridFolderCards(
+      buildFolderTree(files),
+      files,
+      ALL_FOLDERS_ID,
+      false
+    );
+
+    expect(card.previewModels.map((item) => item.name)).toEqual([
+      "photo.jpg",
+      "shape.stl",
+      "nested.webp"
+    ]);
+  });
+
   it("hides folder cards when subfolders are included", () => {
     const cards = getGridFolderCards(buildFolderTree(models), models, ALL_FOLDERS_ID, true);
 
     expect(cards).toEqual([]);
+  });
+
+  it("filters folder counts and previews by visible extensions", () => {
+    const files = [
+      model("mask.stl", "cosplay"),
+      model("visor.3mf", "cosplay/helmet"),
+      model("reference.obj", "cosplay/helmet"),
+      model("tree.stl", "terrain")
+    ];
+
+    const cards = getGridFolderCards(
+      buildFolderTree(files),
+      files,
+      ALL_FOLDERS_ID,
+      false,
+      { visibleExtensions: new Set([".3mf"]) }
+    );
+
+    expect(cards).toEqual([{
+      id: "cosplay",
+      name: "cosplay",
+      modelCount: 1,
+      childCount: 1,
+      previewModels: [files[1]]
+    }]);
+  });
+
+  it("removes recursively excluded folder cards, counts, and previews", () => {
+    const files = [
+      model("mask.stl", "cosplay"),
+      model("visor.3mf", "cosplay/helmet"),
+      model("old.stl", "cosplay/archive"),
+      model("tree.stl", "terrain/forest")
+    ];
+
+    const cards = getGridFolderCards(
+      buildFolderTree(files),
+      files,
+      ALL_FOLDERS_ID,
+      false,
+      {
+        visibleExtensions: new Set([".stl", ".3mf"]),
+        excludedFolders: ["cosplay/helmet", "terrain"]
+      }
+    );
+
+    expect(cards).toEqual([{
+      id: "cosplay",
+      name: "cosplay",
+      modelCount: 2,
+      childCount: 1,
+      previewModels: [files[0], files[2]]
+    }]);
+  });
+
+  it("returns no result cards when every extension is hidden", () => {
+    expect(getGridFolderCards(
+      buildFolderTree(models),
+      models,
+      ALL_FOLDERS_ID,
+      false,
+      { visibleExtensions: new Set() }
+    )).toEqual([]);
+  });
+
+  it("keeps genuinely empty folders navigable when no type is hidden", () => {
+    const folders = buildFolderTree(models, ["empty", "empty/nested"]);
+
+    const cards = getGridFolderCards(
+      folders,
+      models,
+      ALL_FOLDERS_ID,
+      false,
+      { visibleExtensions: new Set(SUPPORTED_FILE_EXTENSIONS) }
+    );
+
+    expect(cards).toContainEqual({
+      id: "empty",
+      name: "empty",
+      modelCount: 0,
+      childCount: 1,
+      previewModels: []
+    });
+  });
+
+  it("keeps a parent visible when only a genuinely empty descendant remains", () => {
+    const files = [
+      model("hidden.obj", "parts/type-hidden"),
+      model("excluded.stl", "parts/excluded")
+    ];
+    const folders = buildFolderTree(files, ["parts/empty"]);
+    const options = {
+      visibleExtensions: new Set([".stl"] as const),
+      excludedFolders: ["parts/excluded"]
+    };
+
+    expect(getGridFolderCards(
+      folders,
+      files,
+      ALL_FOLDERS_ID,
+      false,
+      options
+    )).toEqual([{
+      id: "parts",
+      name: "parts",
+      modelCount: 0,
+      childCount: 1,
+      previewModels: []
+    }]);
+
+    expect(getGridFolderCards(
+      folders,
+      files,
+      "parts",
+      false,
+      options
+    )).toEqual([{
+      id: "parts/empty",
+      name: "empty",
+      modelCount: 0,
+      childCount: 0,
+      previewModels: []
+    }]);
   });
 });
 

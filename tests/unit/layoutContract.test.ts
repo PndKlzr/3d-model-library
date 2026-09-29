@@ -2,6 +2,12 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("layout scroll contract", () => {
+  it("keeps maintenance action rows responsive", async () => {
+    const styles = await readFile("src/styles.css", "utf8");
+    expect(styles).toContain(".maintenance-actions");
+    expect(styles).toMatch(/@media \(max-width: 720px\)[\s\S]*\.maintenance-actions/);
+    expect(styles).toContain(".settings-attention-dot");
+  });
   it("keeps the main shell fixed with independent panel scrolling", async () => {
     const css = await readFile("src/styles.css", "utf8");
 
@@ -59,11 +65,119 @@ describe("layout scroll contract", () => {
     expect(css).toMatch(/\.drop-cue\s*\{[\s\S]*?position:\s*absolute;/);
     expect(css).toContain(".folder-tree-row.drag-target-ready");
     expect(css).toContain(".toolbar > :first-child");
+    expect(css).toContain(".library-sticky-header");
     expect(css).toContain("--library-padding");
     expect(css).toContain("top: calc(0px - var(--library-padding));");
     expect(css).toMatch(/\.breadcrumbs\s*\{[\s\S]*?overflow-x:\s*auto;/);
     expect(folderTreeSource).toContain('"--folder-indent"');
     expect(folderTreeSource).toContain("drag-target-ready");
     expect(folderTreeSource).not.toContain("paddingLeft: 10 + depth * 14");
+  });
+
+  it("hides idle thumbnail status and collapses diagnostics responsively", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain("ThumbnailQueueStatus");
+    expect(gridSource).toContain('className="toolbar-statuses"');
+    expect(gridSource).toContain('className="result-count"');
+    expect(css).toMatch(/\.result-count\s*\{[\s\S]*?white-space:\s*nowrap;/);
+    expect(css).toMatch(/\.thumbnail-queue-status\.idle\s*\{\s*display:\s*none;/);
+    expect(css).toMatch(/\.thumbnail-queue-status\.complete i\s*\{[\s\S]*?background:\s*var\(--accent\);/);
+    expect(css).toMatch(/\.thumbnail-queue-status\.failed\s*\{[\s\S]*?color:\s*var\(--warn\);/);
+    expect(css).toMatch(/\.thumbnail-queue-status\.failed i\s*\{[\s\S]*?background:\s*var\(--warn\);/);
+    expect(css).toMatch(/@media \(max-width: 1100px\)[\s\S]*?\.diagnostics-grid\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\);/);
+    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations" | "maintenance" | "diagnostics"');
+    expect(settingsSource).toContain('t("settings.tabPerformance")');
+    expect(appSource).toContain("modelThumbnailService.subscribe(setThumbnailDiagnostics)");
+    expect(appSource).toContain("observeThumbnailLongTasks(modelThumbnailService)");
+    expect(appSource).toContain("longTaskObserver.start()");
+    expect(appSource).toContain("longTaskObserver.stop()");
+  });
+
+  it("bounds filter popovers inside the responsive filter area", async () => {
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(css).toMatch(/\.file-type-popover\s*\{[\s\S]*?max-height:\s*min\(520px, calc\(100vh - 32px\)\);/);
+    expect(css).toMatch(/\.filter-bar\s*\{[\s\S]*?flex-wrap:\s*wrap;/);
+  });
+
+  it("keeps search, filters, and active chips in one opaque sticky stacking context", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+    const stickyHeader = gridSource.match(
+      /<div className="library-sticky-header">[\s\S]*?\n      \{scanErrors/
+    )?.[0];
+
+    expect(stickyHeader).toBeTruthy();
+    expect(stickyHeader).toContain('className="search-box"');
+    expect(stickyHeader).toContain('className="filter-bar"');
+    expect(stickyHeader).toContain('className="exclusion-filter-row"');
+    expect(stickyHeader).toContain('className="tag-filter-row"');
+    expect(stickyHeader).toContain('selectedTags.has(tag) ? "active" : ""');
+    expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?z-index:\s*20;/);
+    expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?isolation:\s*isolate;/);
+    expect(css).toMatch(/\.library-sticky-header\s*\{[\s\S]*?background:\s*var\(--panel\);/);
+    expect(css).toMatch(/@media \(max-width: 1360px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?justify-content:\s*flex-start;/);
+  });
+
+  it("reflows the library header without overlapping labels or controls", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain('className="library-heading"');
+    expect(gridSource).toContain('className="toolbar-actions"');
+    expect(gridSource).toContain('className="toolbar-statuses"');
+    expect(css).toMatch(/\.library-heading\s*\{[\s\S]*?min-width:\s*0;/);
+    expect(css).toMatch(/\.library-heading h2\s*\{[\s\S]*?font-size:\s*24px;/);
+    expect(css).toMatch(/\.toolbar-actions\s*\{[\s\S]*?min-width:\s*0;/);
+    expect(css).toMatch(/\.responsive-panel-controls \.icon-only\s*\{[\s\S]*?width:\s*36px;/);
+    expect(css).toContain("@media (max-width: 1360px)");
+    expect(css).toMatch(
+      /@media \(max-width: 1360px\)[\s\S]*?\.toolbar-actions\s*\{[\s\S]*?flex-wrap:\s*wrap;/
+    );
+    expect(css).toContain("@media (max-width: 899px)");
+  });
+
+  it("moves details into a drawer before the three-column shell crushes the library", async () => {
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(css).toMatch(/\.library-panel\s*\{[\s\S]*?overflow-x:\s*hidden;/);
+    expect(css).toMatch(/@media \(max-width: 1360px\)[\s\S]*?\.app-shell\s*\{[\s\S]*?grid-template-columns:\s*clamp\(220px, 25vw, 260px\) minmax\(0, 1fr\);/);
+    expect(css).toMatch(/@media \(max-width: 1360px\)[\s\S]*?\.details-panel\s*\{[\s\S]*?position:\s*fixed;/);
+  });
+
+  it("keeps the current path controls together instead of stretching the copy action away", async () => {
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(gridSource).toContain('className="breadcrumb-actions"');
+    expect(css).toMatch(/\.breadcrumb-actions\s*\{[\s\S]*?display:\s*flex;/);
+    expect(css).toMatch(/\.breadcrumbs\s*\{[\s\S]*?flex:\s*0 1 auto;/);
+    expect(css).toMatch(/\.breadcrumb-row\s*\{[\s\S]*?max-width:\s*min\(100%, 680px\);/);
+  });
+
+  it("keeps settings navigation fixed while the panel content scrolls with bottom clearance", async () => {
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(css).toMatch(/\.settings-dialog\s*\{[\s\S]*?grid-template-rows:\s*auto auto minmax\(0, 1fr\);/);
+    expect(css).toMatch(/\.settings-content\s*\{[\s\S]*?overflow-y:\s*auto;/);
+    expect(css).toMatch(/\.settings-content\s*\{[\s\S]*?padding:\s*0 8px 20px 0;/);
+    expect(css).toMatch(/\.settings-content\s*\{[\s\S]*?scrollbar-gutter:\s*stable;/);
+    expect(css).toMatch(/@media \(max-height: 640px\)[\s\S]*?\.settings-dialog\s*\{[\s\S]*?max-height:\s*calc\(100dvh - 24px\);/);
+  });
+
+  it("keeps a persisted pinned folder column at narrow widths", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const folderSource = await readFile("src/components/FolderTree.tsx", "utf8");
+    const css = await readFile("src/styles.css", "utf8");
+
+    expect(appSource).toContain("FOLDERS_PINNED_STORAGE_KEY");
+    expect(appSource).toContain("data-folders-pinned={foldersPinned");
+    expect(folderSource).toContain("onToggleFoldersPinned");
+    expect(css).toMatch(/@media \(max-width: 899px\)[\s\S]*?\.app-shell\[data-folders-pinned="true"\]\s*\{[\s\S]*?grid-template-columns:/);
+    expect(css).toMatch(/\.app-shell\[data-folders-pinned="true"\] \.sidebar\s*\{[\s\S]*?position:\s*static;/);
   });
 });

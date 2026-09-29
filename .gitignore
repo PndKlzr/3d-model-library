@@ -1,9 +1,16 @@
 node_modules/
 dist-electron/
 dist-renderer/
+coverage/
+.vite/
+*.tsbuildinfo
 *.log
 .env
 .env.local
+.env.*.local
+.3d-model-library/
+.superpowers/
 tools/native-drop-probe/bin/
 *.obj
 .worktrees/
+benchmark-results/

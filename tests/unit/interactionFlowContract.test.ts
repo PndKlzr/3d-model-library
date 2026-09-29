@@ -1,7 +1,53 @@
 import { readFile } from "node:fs/promises";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { getDefaultFileOpenAction } from "../../src/lib/fileOpenAction";
+import { ALL_FOLDERS_ID, filterModels } from "../../src/lib/folderFilters";
+import { getDragModelIds, getDragOutFilePaths } from "../../src/lib/dragFiles";
+import {
+  createLibrarySessionResetState,
+  isCurrentLibraryResult
+} from "../../src/lib/librarySessionState";
+import { SUPPORTED_FILE_EXTENSIONS } from "../../src/shared/fileCapabilities";
+import type { LibrarySessionRef, ModelFile } from "../../src/shared/types";
 
 describe("interaction flow contract", () => {
+  it("routes default opening by shared file capability", () => {
+    expect(getDefaultFileOpenAction(".png")).toBe("windows");
+    expect(getDefaultFileOpenAction(".webp")).toBe("windows");
+    expect(getDefaultFileOpenAction(".stl")).toBe("slicer");
+    expect(getDefaultFileOpenAction(".3mf")).toBe("slicer");
+    expect(getDefaultFileOpenAction(".obj")).toBe("preview");
+    expect(getDefaultFileOpenAction(".zip")).toBe("inspect-archive");
+  });
+
+  it("keeps preview-only files inside the app instead of launching a slicer", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const openFlow = appSource.match(
+      /async function openFileByDefault[\s\S]*?await openModelInDefaultSlicer\(model\);\n  }/
+    )?.[0];
+
+    expect(openFlow).toBeTruthy();
+    expect(openFlow).toContain('if (action === "preview")');
+    expect(openFlow).toContain("setSelectedModel(model)");
+    expect(openFlow!.indexOf('if (action === "preview")'))
+      .toBeLessThan(openFlow!.indexOf("await openModelInDefaultSlicer(model)"));
+  });
+
+  it("loads a context-menu preview explicitly and opens the responsive details panel", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const previewFlow = appSource.match(
+      /function loadModelPreviewInPanel[\s\S]*?\n  }/
+    )?.[0];
+
+    expect(previewFlow).toBeTruthy();
+    expect(previewFlow).toContain('setResponsivePanel("details")');
+    expect(previewFlow).toContain("setModelPreviewRequest");
+    expect(appSource).toContain("loadModelPreviewInPanel(model)");
+    expect(appSource).toContain("previewRequest={modelPreviewRequest}");
+    const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+    expect(detailsSource).toContain('key={`${model.id}:${previewRenderKey}`}');
+  });
+
   it("uses an in-app text dialog instead of browser prompts for file operations", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
@@ -19,7 +65,7 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("ConfirmDialog");
     expect(appSource).toContain("requestConfirmation");
     expect(appSource).toContain("confirmationDialog");
-    expect(appSource).toContain("Mover para Lixeira");
+    expect(appSource).toContain('t("dialog.moveToTrash")');
     expect(confirmDialogSource).toContain("DialogShell");
     expect(dialogShellSource).toContain("dialog-backdrop");
     expect(dialogShellSource).toContain("onPointerDown");
@@ -35,7 +81,7 @@ describe("interaction flow contract", () => {
 
     expect(removeTagSource).toBeTruthy();
     expect(removeTagSource).toContain("requestConfirmation");
-    expect(removeTagSource).toContain("Excluir tag");
+    expect(removeTagSource).toContain('t("dialog.deleteTag")');
     expect(removeTagSource).toContain("removeCatalogTag");
   });
 
@@ -61,7 +107,7 @@ describe("interaction flow contract", () => {
     expect(detailsSource).toContain("TagSelector");
     expect(detailsSource).not.toContain("predefined-tag-list");
     expect(detailsSource).not.toContain("tagDraft");
-    expect(tagSelectorSource).toContain("Criar tag");
+    expect(tagSelectorSource).toContain('t("tags.create"');
     expect(tagSelectorSource).toContain("role=\"listbox\"");
     expect(tagSelectorSource).toContain("aria-haspopup=\"listbox\"");
     expect(tagSelectorSource).toContain("type=\"checkbox\"");
@@ -82,11 +128,11 @@ describe("interaction flow contract", () => {
 
     expect(gridSource).toContain("drag-behavior-toggle");
     expect(gridSource).toContain("onFileDragBehaviorChange");
-    expect(gridSource).toContain("Organizar na biblioteca");
-    expect(gridSource).toContain("Enviar para outro programa");
+    expect(gridSource).toContain('t("library.organize")');
+    expect(gridSource).toContain('t("library.external")');
     expect(appSource).toContain("updateFileDragBehavior");
     expect(appSource).toContain("onFileDragBehaviorChange={updateFileDragBehavior}");
-    expect(stylesSource).toMatch(/\.toolbar\s*\{[\s\S]*?position:\s*sticky;/);
+    expect(stylesSource).toMatch(/\.library-sticky-header\s*\{[\s\S]*?position:\s*sticky;/);
     expect(stylesSource).toContain(".drag-behavior-toggle");
   });
 
@@ -97,7 +143,7 @@ describe("interaction flow contract", () => {
 
     expect(appSource).toContain("THEME_MODE_STORAGE_KEY");
     expect(appSource).toContain("data-theme");
-    expect(settingsSource).toContain("Modo escuro");
+    expect(settingsSource).toContain('t("settings.darkMode")');
     expect(settingsSource).toContain("onThemeModeChange");
     expect(stylesSource).toContain('[data-theme="dark"]');
     expect(stylesSource).toContain('[data-theme="dark"] select option');
@@ -108,7 +154,7 @@ describe("interaction flow contract", () => {
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
     const stylesSource = await readFile("src/styles.css", "utf8");
 
-    expect(gridSource).toContain("Limpar busca");
+    expect(gridSource).toContain('t("library.clearSearch")');
     expect(gridSource).toContain("onSearchChange(\"\")");
     expect(gridSource).toContain("search-clear-button");
     expect(stylesSource).toContain(".search-clear-button");
@@ -130,8 +176,8 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("getAllFolderIds");
     expect(folderTreeSource).toContain("onExpandAllFolders");
     expect(folderTreeSource).toContain("onCollapseAllFolders");
-    expect(folderTreeSource).toContain("Expandir todas as pastas");
-    expect(folderTreeSource).toContain("Recolher todas as pastas");
+    expect(folderTreeSource).toContain('t("navigation.expandAll")');
+    expect(folderTreeSource).toContain('t("navigation.collapseAll")');
   });
 
   it("keeps folder and disclosure icons in stable tree columns", async () => {
@@ -153,6 +199,18 @@ describe("interaction flow contract", () => {
     expect(gridSource).toContain("onDropOnFolder(event, ALL_FOLDERS_ID)");
   });
 
+  it("provides tooltips for truncated folder navigation controls", async () => {
+    const [gridSource, folderTreeSource] = await Promise.all([
+      readFile("src/components/ModelGrid.tsx", "utf8"),
+      readFile("src/components/FolderTree.tsx", "utf8")
+    ]);
+
+    expect(gridSource).toContain('title={t("navigation.allModels")}');
+    expect(gridSource).toContain("title={part}");
+    expect(folderTreeSource).toContain("title={t(isExpanded ?");
+    expect(folderTreeSource).toContain("title={folder.name}");
+  });
+
   it("shows archive contents and extraction actions in the details panel", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
     const appSource = await readFile("src/App.tsx", "utf8");
@@ -160,11 +218,12 @@ describe("interaction flow contract", () => {
 
     expect(detailsSource).toContain("listArchiveEntries");
     expect(detailsSource).toContain("archive-entry-list");
-    expect(detailsSource).toContain("Extrair selecionados");
-    expect(detailsSource).toContain("Extrair tudo");
-    expect(appSource).toContain("extractArchiveEntries");
+    expect(detailsSource).toContain('t("details.extractHere")');
+    expect(detailsSource).toContain('t("details.extractTo"');
+    expect(detailsSource).not.toContain("Extrair selecionados");
+    expect(appSource).toContain("extractArchiveFile");
     expect(appSource).toContain("chooseArchiveExtractor");
-    expect(settingsSource).toContain("Arquivos compactados");
+    expect(settingsSource).toContain('t("settings.archives")');
     expect(settingsSource).toContain("onChooseArchiveExtractor");
   });
 
@@ -174,7 +233,7 @@ describe("interaction flow contract", () => {
     const workerClientSource = await readFile("src/lib/threeMfToStlWorker.ts", "utf8");
     const workerSource = await readFile("src/workers/threeMfToStl.worker.ts", "utf8");
 
-    expect(detailsSource).toContain("Converter para STL");
+    expect(detailsSource).toContain('t("details.convertToStl")');
     expect(detailsSource).toContain("onConvertThreeMfToStl");
     expect(detailsSource).toContain('role="progressbar"');
     expect(detailsSource).toContain("conversionProgress");
@@ -195,16 +254,107 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("isFilteringStale");
   });
 
-  it("restores the cached library before background reconciliation", async () => {
+  it("restores the activated library cache before background reconciliation", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
-    const restoreSource = appSource.match(
-      /async function restoreAndScanLibrary[\s\S]*?\n  }\n/
+    const activationSource = appSource.match(
+      /async function activateLibrary\([\s\S]*?\n  }\n/
     )?.[0];
 
-    expect(restoreSource).toBeTruthy();
-    expect(restoreSource).toContain("getCachedLibrary");
-    expect(restoreSource?.indexOf("getCachedLibrary")).toBeLessThan(
-      restoreSource?.indexOf("scanLibrary(rootPath)") ?? -1
+    expect(activationSource).toBeTruthy();
+    expect(activationSource).toContain("activation.cachedResult");
+    expect(activationSource?.indexOf("activation.cachedResult")).toBeLessThan(
+      activationSource?.indexOf("scanLibrarySession(activation.session)") ?? -1
+    );
+  });
+
+  it("defines the transient state reset used by library activation", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const activationSource = appSource.match(
+      /async function activateLibrary\([\s\S]*?\n  }\n/
+    )?.[0];
+    const reset = createLibrarySessionResetState();
+
+    expect(reset).toMatchObject({
+      scanResult: null,
+      selectedModel: null,
+      selectedFolder: ALL_FOLDERS_ID,
+      searchQuery: "",
+      folderContextMenu: null,
+      modelContextMenu: null,
+      previewModel: null
+    });
+    expect(reset.selectedModelIds.size).toBe(0);
+    expect(reset.folderHistory).toEqual({ back: [], forward: [] });
+    expect(activationSource).toBeTruthy();
+    expect(activationSource!.indexOf("applyLibraryReset()"))
+      .toBeLessThan(activationSource!.indexOf("await window.modelLibrary.activateLibrary"));
+    expect(activationSource!.indexOf("modelThumbnailService.beginLibrarySession"))
+      .toBeLessThan(activationSource!.indexOf("setScanResult(activation.cachedResult)"));
+  });
+
+  it("accepts asynchronous results only for the active session identity", () => {
+    const active: LibrarySessionRef = {
+      generation: 7,
+      libraryId: "library-a",
+      rootPath: "C:\\LibraryA"
+    };
+
+    expect(isCurrentLibraryResult(active, { ...active })).toBe(true);
+    expect(isCurrentLibraryResult(active, { ...active, generation: 6 })).toBe(false);
+    expect(isCurrentLibraryResult(active, { ...active, libraryId: "library-b" })).toBe(false);
+    expect(isCurrentLibraryResult(active, { ...active, rootPath: "C:\\LibraryB" })).toBe(false);
+    expect(isCurrentLibraryResult(null, active)).toBe(false);
+  });
+
+  it("composes catalog filters in memory", () => {
+    const now = Date.parse("2026-09-12T12:00:00.000Z");
+    const target = contractModel("target.obj", ".obj", "keep", 200);
+    const files = [
+      target,
+      contractModel("wrong-type.stl", ".stl", "keep", 900),
+      contractModel("excluded.obj", ".obj", "excluded/nested", 800),
+      contractModel("plain.obj", ".obj", "keep", 100)
+    ];
+    const result = filterModels(files, ALL_FOLDERS_ID, true, "calibrated", {
+      visibleExtensions: new Set([".obj"]),
+      excludedFolders: ["excluded"],
+      sort: "size",
+      onlySelected: true,
+      selectedIds: new Set([target.id, files[2].id]),
+      onlyDuplicates: true,
+      duplicateIds: new Set([target.id, files[3].id]),
+      onlyFavorites: true,
+      selectedTags: ["fixture", "ready"],
+      tagMatchMode: "all",
+      usageFilter: "recent",
+      notesFilter: "with-notes",
+      now,
+      slicerHistory: [{
+        modelPath: target.absolutePath,
+        slicerId: "slicer-a",
+        openedAt: "2026-09-11T12:00:00.000Z"
+      }],
+      metadataByPath: {
+        [target.absolutePath]: {
+          favorite: true,
+          tags: ["fixture", "ready"],
+          notes: "calibrated"
+        }
+      }
+    });
+
+    expect(result).toEqual([target]);
+  });
+
+  it("keeps every supported format available to internal and external drag selection", () => {
+    const files = SUPPORTED_FILE_EXTENSIONS.map((extension, index) =>
+      contractModel(`file-${index}${extension}`, extension, "", index + 1)
+    );
+    const selectedIds = new Set(files.map((file) => file.id));
+
+    expect(getDragModelIds(files[0], files, selectedIds)).toEqual(files.map((file) => file.id));
+    expect(getDragOutFilePaths(files[0], files, selectedIds)).toEqual(
+      files.map((file) => file.absolutePath)
     );
   });
 
@@ -254,18 +404,73 @@ describe("interaction flow contract", () => {
     expect(mainSource).toContain("[metadata] failed to migrate path metadata");
   });
 
-  it("binds portable metadata before the window opens and when the library changes", async () => {
+  it("activates the saved library before the window opens", async () => {
     const mainSource = await readFile("electron/main.ts", "utf8");
 
     expect(mainSource).toContain("createActiveLibraryMetadataStore");
-    expect(mainSource).toContain(
-      "await libraryMetadataStore.open(settingsStore.getSettings().libraryPath)"
-    );
-    expect(mainSource.indexOf("await libraryMetadataStore.open(")).toBeLessThan(
-      mainSource.indexOf("await createWindow()")
+    expect(mainSource).toContain("createActiveLibrarySession");
+    expect(mainSource).toContain("await activeLibrarySession.activate(");
+    expect(mainSource.indexOf("await activeLibrarySession.activate(")).toBeLessThan(
+      mainSource.lastIndexOf("await createWindow()")
     );
     expect(mainSource).toContain('ipcMain.handle("metadata:status"');
     expect(mainSource).toContain('ipcMain.handle("metadata:retry"');
+  });
+
+  it("routes scans and monitoring through session-scoped IPC", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(mainSource).toContain('ipcMain.handle("library:activate"');
+    expect(mainSource).toMatch(/activeLibrarySession!?\.scan\(expected\)/);
+    expect(mainSource).toMatch(
+      /activeLibrarySession!?\.setMonitoring\(expected, enabled === true\)/
+    );
+    expect(mainSource).not.toContain('ipcMain.handle("library:get-cached"');
+  });
+
+  it("authorizes runtime file operations from active B instead of saved setting A", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+    const requireLibraryPath = mainSource.match(
+      /function requireLibraryPath\(\): string \{[\s\S]*?\n\}/
+    )?.[0];
+
+    expect(requireLibraryPath).toBeTruthy();
+    expect(requireLibraryPath).toContain("activeLibrarySession!.current()");
+    expect(requireLibraryPath).toContain("currentSession.rootPath");
+    expect(requireLibraryPath).not.toContain("settingsStore.getSettings()");
+  });
+
+  it("canonicalizes privileged model reads against the active library", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(mainSource).toContain("resolveCanonicalLibraryFile");
+    expect(mainSource).toMatch(
+      /ipcMain\.handle\("model:metadata"[\s\S]*?resolveCanonicalLibraryFile[\s\S]*?readModelMetadata/
+    );
+    expect(mainSource).toMatch(
+      /ipcMain\.handle\("model:thumbnail"[\s\S]*?resolveCanonicalLibraryFile[\s\S]*?readEmbeddedThumbnail/
+    );
+    expect(mainSource).toMatch(
+      /ipcMain\.handle\("model:read-file"[\s\S]*?resolveCanonicalLibraryFile[\s\S]*?readFile/
+    );
+    expect(mainSource).toMatch(
+      /ipcMain\.handle\("model:show-in-folder"[\s\S]*?resolveCanonicalLibraryFile[\s\S]*?showItemInFolder/
+    );
+  });
+
+  it("activates a changed library before persisting its settings", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+    const saveHandler = mainSource.match(
+      /ipcMain\.handle\("settings:save"[\s\S]*?\n  \}\);/
+    )?.[0];
+
+    expect(saveHandler).toBeTruthy();
+    const validationIndex = saveHandler?.indexOf("validateChangedSlicerExecutables(") ?? -1;
+    const activationIndex = saveHandler?.indexOf("activeLibrarySession!.activate(") ?? -1;
+    const saveIndex = saveHandler?.indexOf("settingsStore.saveSettings(validatedSettings)") ?? -1;
+    expect(validationIndex).toBeGreaterThanOrEqual(0);
+    expect(activationIndex).toBeGreaterThan(validationIndex);
+    expect(saveIndex).toBeGreaterThan(activationIndex);
   });
 
   it("awaits portable metadata updates after move, rename, restore, and slicer launch", async () => {
@@ -282,7 +487,7 @@ describe("interaction flow contract", () => {
     expect(appSource).toContain("metadataStatus");
     expect(appSource).toContain("getLibraryMetadataStatus");
     expect(appSource).toContain("retryLibraryMetadata");
-    expect(appSource).toContain("Não foi possível salvar os dados da biblioteca");
+    expect(appSource).toContain('t("message.metadataSaveFailed"');
     expect(appSource).toContain("metadataStatus.writable");
   });
 
@@ -301,13 +506,39 @@ describe("interaction flow contract", () => {
   it("shows the complete model location with copy and Explorer actions", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
     const mainSource = await readFile("electron/main.ts", "utf8");
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 
-    expect(detailsSource).toContain("Localização");
+    expect(detailsSource).toContain('t("details.location")');
+    expect(detailsSource).not.toContain("<span>Pasta</span>");
     expect(detailsSource).toContain("relativeLocation");
-    expect(detailsSource).toContain("Copiar caminho completo");
+    expect(detailsSource).toContain('t("details.copyPath")');
     expect(detailsSource).toContain("window.modelLibrary.copyText(model.absolutePath)");
-    expect(detailsSource).toContain("Mostrar no Explorer");
+    expect(detailsSource).toContain('t("details.showExplorer")');
     expect(mainSource).toContain('ipcMain.handle("system:copy-text"');
     expect(mainSource).toContain("clipboard.writeText(value)");
+    expect(appSource).toContain("setModelRevealRequest");
+    expect(gridSource).toContain("rowVirtualizer.scrollToIndex");
   });
 });
+
+function contractModel(
+  name: string,
+  extension: ModelFile["extension"],
+  relativeFolder: string,
+  sizeBytes: number
+): ModelFile {
+  const absolutePath = `C:\\Library\\${relativeFolder ? `${relativeFolder}\\` : ""}${name}`;
+  return {
+    id: absolutePath,
+    name,
+    extension,
+    absolutePath,
+    relativeFolder,
+    sizeBytes,
+    modifiedAt: "2026-09-12T00:00:00.000Z",
+    dimensionsMm: null,
+    objectCount: null,
+    previewError: null
+  };
+}

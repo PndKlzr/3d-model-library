@@ -2,6 +2,85 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("product flow contract", () => {
+  it("refreshes slicer availability whenever settings opens", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    expect(appSource).toMatch(
+      /if \(!isSettingsOpen\) return;[\s\S]*?refreshLibraryDataStatus\(\);[\s\S]*?refreshSlicerAvailability\(\);/
+    );
+  });
+  it("switches libraries through one atomic renderer activation flow", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+
+    expect(appSource).toContain("async function activateLibrary(");
+    expect(appSource).toContain("createLibrarySessionResetState");
+    expect(appSource).toContain("window.modelLibrary.activateLibrary(rootPath");
+    expect(appSource).toContain("activeLibrarySessionRef.current = activation.session");
+    expect(appSource).toContain("modelThumbnailService.beginLibrarySession(");
+    expect(appSource).toContain("loadLibraryViewPreferences(");
+    expect(appSource).toContain("isCurrentLibraryResult(");
+    expect(appSource).not.toContain("getCachedLibrary");
+    expect(appSource).not.toContain("scanLibrary(rootPath");
+  });
+
+  it("settles startup loading after the initial activation completes", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const startupEffect = appSource.match(
+      /useEffect\(\(\) => \{[\s\S]*?window\.modelLibrary\.getSettings\(\)[\s\S]*?\n  \}, \[\]\);/
+    )?.[0];
+
+    expect(startupEffect).toBeTruthy();
+    expect(startupEffect).toContain("let isMounted = true");
+    expect(startupEffect).toContain("if (isMounted) setIsLoading(false)");
+  });
+
+  it("restores the prior renderer library after activation failure", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const activationSource = appSource.match(
+      /async function activateLibrary\([\s\S]*?\n  }\n/
+    )?.[0];
+
+    expect(activationSource).toBeTruthy();
+    expect(activationSource).toContain("previousRendererState");
+    expect(activationSource).toContain("restorePreviousLibrary");
+    expect(activationSource).toContain("activationRequestRef.current");
+    const recoverySource = appSource.match(
+      /async function restorePreviousLibrary[\s\S]*?\n  }\n/
+    )?.[0];
+    expect(recoverySource).toContain("getCurrentLibrary");
+    expect(recoverySource).not.toContain("activateLibrary(");
+  });
+
+  it("serializes settings mutations and preserves pending values", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+
+    expect(appSource).toContain("createSettingsMutationQueue");
+    expect(appSource).toContain("settingsMutationQueueRef.current.enqueue");
+    expect(appSource).toContain("async function saveSettings(mutation: AppSettingsMutation)");
+    expect(appSource).not.toContain("createSettingsPatch");
+    expect(settingsSource).toContain("onSaveSettings: (mutation: AppSettingsMutation)");
+    expect(settingsSource).toContain("setSlicerEnabled(id, enabled)");
+    expect(settingsSource).not.toContain("slicers: settings.slicers.map");
+  });
+
+  it("clears library-specific undo state during activation reset", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const resetSource = appSource.match(/function applyLibraryReset[\s\S]*?\n  }\n/)?.[0];
+
+    expect(resetSource).toContain("setActionLogEntries([])");
+    expect(resetSource).toContain("setUndoToast(null)");
+  });
+
+  it("keeps machine-wide preferences outside per-library storage", async () => {
+    const preferencesSource = await readFile("src/lib/libraryViewPreferences.ts", "utf8");
+
+    expect(preferencesSource).not.toContain("theme");
+    expect(preferencesSource).not.toContain("fileDragBehavior");
+    expect(preferencesSource).not.toContain("slicer");
+    expect(preferencesSource).not.toContain("monitor");
+    expect(preferencesSource).not.toContain("viewMode");
+  });
+
   it("keeps advanced library filters in a compact popover", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
@@ -10,29 +89,29 @@ describe("product flow contract", () => {
     expect(appSource).toContain("notesFilter");
     expect(appSource).toContain("tagMatchMode");
     expect(gridSource).toContain("advanced-filter-popover");
-    expect(gridSource).toContain("Abertos nos últimos 30 dias");
-    expect(gridSource).toContain("Nunca abertos");
-    expect(gridSource).toContain("Com notas");
-    expect(gridSource).toContain("Sem notas");
+    expect(gridSource).toContain('t("library.usageRecent")');
+    expect(gridSource).toContain('t("library.usageNever")');
+    expect(gridSource).toContain('t("library.notesWith")');
+    expect(gridSource).toContain('t("library.notesWithout")');
   });
 
   it("shows restrained reconciliation and monitoring feedback", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     const gridSource = await readFile("src/components/ModelGrid.tsx", "utf8");
 
-    expect(gridSource).toContain("Atualizando biblioteca...");
-    expect(gridSource).toContain("Monitoramento ativo");
-    expect(gridSource).toContain("Atualização manual");
+    expect(gridSource).toContain('t("library.updatingProgress")');
+    expect(gridSource).toContain('t("library.monitoring")');
+    expect(gridSource).toContain('t("library.manual")');
     expect(appSource).toContain("monitorStatus");
-    expect(appSource).toContain("Use o botão Atualizar");
+    expect(appSource).toContain('translate(locale, "message.monitorPaused"');
   });
   it("organizes the right panel into preview, info, notes, and actions zones", async () => {
     const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
 
     expect(detailsSource).toContain("details-tabs");
-    expect(detailsSource).toContain("Info");
-    expect(detailsSource).toContain("Notas");
-    expect(detailsSource).toContain("Ações");
+    expect(detailsSource).toContain('t("details.info")');
+    expect(detailsSource).toContain('t("library.notes")');
+    expect(detailsSource).toContain('t("details.actions")');
     expect(detailsSource).toContain('activeTab === "actions"');
   });
 
@@ -52,20 +131,16 @@ describe("product flow contract", () => {
       "src/components/FolderCardThumbnail.tsx",
       "utf8"
     );
-    const modelThumbnailSource = await readFile(
-      "src/components/ModelCardThumbnail.tsx",
-      "utf8"
-    );
     const stylesSource = await readFile("src/styles.css", "utf8");
 
     expect(gridSource).toContain("<FolderCardThumbnail models={folderCard.previewModels}");
     expect(folderThumbnailSource).toContain("IntersectionObserver");
-    expect(folderThumbnailSource).toContain("loadModelThumbnail");
+    expect(folderThumbnailSource).toContain('request(model, "mosaic")');
+    expect(folderThumbnailSource).toContain("request.release()");
     expect(folderThumbnailSource).toContain("draggable={false}");
     expect(folderThumbnailSource).toContain('data-count={thumbnailUrls.length}');
-    expect(modelThumbnailSource).toContain("export async function loadModelThumbnail");
     expect(folderThumbnailSource).toContain("folder-kind-strip");
-    expect(folderThumbnailSource).toContain("PASTA");
+    expect(folderThumbnailSource).toContain('t("common.folder")');
     expect(stylesSource).toContain(".folder-thumbnail-mosaic");
     expect(stylesSource).toContain(".folder-kind-strip");
   });
@@ -108,7 +183,7 @@ describe("product flow contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
     expect(appSource).toContain("launchSelectedModelsInSlicer");
-    expect(appSource).toContain("Abrir selecionados no");
+    expect(appSource).toContain('t("context.openSelectedIn"');
     expect(appSource).toContain("getSlicerLaunchModelPaths");
   });
 
@@ -117,6 +192,31 @@ describe("product flow contract", () => {
 
     expect(appSource).toContain("canLaunchContextModelInSlicer");
     expect(appSource).toContain("getSlicerLaunchModelCount(modelContextMenu.model) > 0");
+  });
+
+  it("routes file actions through shared capabilities", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const detailsSource = await readFile("src/components/DetailsPanel.tsx", "utf8");
+    const archiveSource = await readFile("electron/services/archiveManager.ts", "utf8");
+    const organizerSource = await readFile("electron/services/fileOrganizer.ts", "utf8");
+    const mainSource = await readFile("electron/main.ts", "utf8");
+    const watcherSource = await readFile("electron/services/libraryWatcher.ts", "utf8");
+
+    expect(appSource).toContain("getSlicerLaunchFilePaths");
+    expect(appSource).not.toContain("function isPrintableModel");
+    expect(detailsSource).toContain("canConvertToStl(model.extension)");
+    expect(archiveSource).toContain("isArchive(");
+    expect(archiveSource).not.toContain("canSendToSlicer(");
+    expect(archiveSource).not.toContain("ARCHIVE_EXTENSIONS");
+    expect(archiveSource).not.toContain("PRINTABLE_EXTENSIONS");
+    expect(organizerSource).toContain("toSupportedFileExtension(");
+    expect(organizerSource).toContain("canConvertToStl(");
+    expect(organizerSource).not.toContain("LIBRARY_FILE_EXTENSIONS");
+    expect(mainSource).toContain("requestedPaths.filter");
+    expect(mainSource).toContain('typeof modelPath !== "string"');
+    expect(mainSource).toContain("canSendToSlicer(extension)");
+    expect(watcherSource).toContain("toSupportedFileExtension(");
+    expect(watcherSource).not.toContain("SUPPORTED_EXTENSIONS");
   });
 
   it("keeps internal folder organization attached to the native drag session", async () => {
@@ -163,13 +263,13 @@ describe("product flow contract", () => {
     const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
     const stylesSource = await readFile("src/styles.css", "utf8");
 
-    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations"');
+    expect(settingsSource).toContain('type SettingsTab = "library" | "organization" | "integrations" | "maintenance" | "diagnostics"');
     expect(settingsSource).toContain('role="tablist"');
     expect(settingsSource).toContain('role="tab"');
     expect(settingsSource).toContain('role="tabpanel"');
-    expect(settingsSource).toContain("Biblioteca");
-    expect(settingsSource).toContain("Organização");
-    expect(settingsSource).toContain("Integrações");
+    expect(settingsSource).toContain('t("settings.tabLibrary")');
+    expect(settingsSource).toContain('t("settings.tabOrganization")');
+    expect(settingsSource).toContain('t("settings.tabIntegrations")');
     expect(stylesSource).toContain(".settings-tabs");
     expect(stylesSource).toContain(".settings-content");
   });
@@ -181,11 +281,26 @@ describe("product flow contract", () => {
     const typesSource = await readFile("src/shared/types.ts", "utf8");
 
     expect(typesSource).toContain("defaultSlicerId: string | null");
-    expect(settingsSource).toContain("Slicer padrão");
+    expect(settingsSource).toContain('t("settings.slicersDescription")');
     expect(appSource).toContain("openModelInDefaultSlicer");
     expect(appSource).toContain("settings.defaultSlicerId");
-    expect(gridSource).toContain("onOpenDefaultSlicer");
+    expect(gridSource).toContain("onOpenDefaultFile");
     expect(gridSource).toContain("onDoubleClick");
+  });
+
+  it("connects slicer detection and custom management to the integrations tab", async () => {
+    const appSource = await readFile("src/App.tsx", "utf8");
+    const settingsSource = await readFile("src/components/SettingsDialog.tsx", "utf8");
+
+    expect(appSource).toContain("window.modelLibrary.detectSlicers()");
+    expect(appSource).toContain("applyDetectedSlicers(");
+    expect(appSource).toContain('t("slicer.detectedCount"');
+    expect(appSource).toContain('t("slicer.noneDetected"');
+    expect(appSource).toContain("addCustomSlicer(");
+    expect(appSource).toContain("renameCustomSlicer(");
+    expect(appSource).toContain("removeCustomSlicer(");
+    expect(settingsSource).toContain("<SlicerIntegrationList");
+    expect(settingsSource).toContain("setDefaultSlicer(");
   });
 
   it("wraps the app in an error boundary instead of allowing a blank screen", async () => {
@@ -202,7 +317,8 @@ describe("product flow contract", () => {
     const appSource = await readFile("src/App.tsx", "utf8");
 
     expect(appSource).toContain("onFileDragStatus");
-    expect(appSource).toContain("setOperationMessage(status.message)");
+    expect(appSource).toContain("localizeResult(status.message)");
+    expect(appSource).toContain("readLocalizedErrorMessage(new Error(status.message))");
     expect(appSource).toContain('status.state !== "started"');
     expect(appSource).not.toContain("if (activeFileDragSessionRef.current) {\n      return;");
   });
@@ -218,7 +334,7 @@ describe("product flow contract", () => {
 
     expect(detailsSource).toContain("metadataStatus");
     expect(detailsSource).toContain("metadata-recovery-notice");
-    expect(detailsSource).toContain("Tentar novamente");
+    expect(detailsSource).toContain('t("common.retry")');
     expect(detailsSource).toContain("onRetryMetadata");
   });
 });

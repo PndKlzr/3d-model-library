@@ -11,8 +11,31 @@ import {
   type PortableLibraryManifestV1
 } from "../../electron/services/portableMetadataCodec";
 import { createPortableMetadataRepository } from "../../electron/services/portableMetadataRepository";
+import { decodeLibraryIndex, encodeLibraryIndex } from "../../electron/services/libraryIndexCodec";
+import type { LibraryScanResult } from "../../src/shared/types";
 
 describe("portable metadata security", () => {
+  it("rejects traversal and absolute paths in the rebuildable index", () => {
+    const root = path.resolve("C:/library");
+    const absolutePath = path.join(root, "part.stl");
+    const result: LibraryScanResult = {
+      rootPath: root,
+      folders: [],
+      errors: [],
+      models: [{ id: absolutePath, name: "part.stl", extension: ".stl", absolutePath,
+        relativeFolder: "", sizeBytes: 1, modifiedAt: "2026-09-09T00:00:00.000Z",
+        dimensionsMm: null, objectCount: null, previewError: null }]
+    };
+    const manifest = encodeLibraryIndex(root, result, "library-1");
+
+    for (const relativePath of ["../outside.stl", "C:/outside.stl", "/outside.stl"]) {
+      expect(() => decodeLibraryIndex(root, {
+        ...manifest,
+        files: [{ ...manifest.files[0], relativePath }]
+      })).toThrow(/escape|relative/i);
+    }
+  });
+
   it("does not serialize machine settings, caches, or the absolute library root", () => {
     const root = path.resolve("C:/Users/PrivateUser/Desktop/Models");
     const modelPath = path.join(root, "Props", "part.stl");
@@ -66,6 +89,17 @@ describe("portable metadata security", () => {
       /ativa|library/i
     );
     expect(harness.store.getMetadata().models).toEqual({});
+  });
+
+  it("accepts runtime mutations for dot-prefixed names inside the active root", async () => {
+    const harness = createSecurityHarness();
+    const rootPath = path.resolve("C:/library-a");
+    const modelPath = path.join(rootPath, "..draft", "..part.stl");
+    await harness.store.open(rootPath);
+
+    await expect(harness.store.setNotes(modelPath, "allowed")).resolves.toBeTruthy();
+
+    expect(harness.store.getMetadata().models[modelPath]?.notes).toBe("allowed");
   });
 
   it("waits for a pending write before switching libraries", async () => {

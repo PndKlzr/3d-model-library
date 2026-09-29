@@ -1,39 +1,91 @@
 import type { CSSProperties } from "react";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ConfirmDialog, type ConfirmDialogOptions } from "./components/ConfirmDialog";
-import { DetailsPanel } from "./components/DetailsPanel";
+import { I18nProvider } from "./i18n/I18nProvider";
+import type { TranslationKey } from "./i18n/catalog";
+import { translate, type TranslationParams } from "./i18n/translate";
+import {
+  localizeErrorMessage,
+  localizeOperationMessage
+} from "./shared/appError";
+import { DetailsPanel, type ModelPreviewRequest } from "./components/DetailsPanel";
+import { DialogHeader } from "./components/DialogHeader";
 import { DialogShell } from "./components/DialogShell";
 import { FirstRun } from "./components/FirstRun";
 import { FolderTree } from "./components/FolderTree";
 import { ModelGrid } from "./components/ModelGrid";
 import { SettingsDialog } from "./components/SettingsDialog";
+import type { MaintenanceAction } from "./components/LibraryMaintenanceSettings";
 import { TagSelector } from "./components/TagSelector";
 import { TextInputDialog, type TextInputDialogOptions } from "./components/TextInputDialog";
 import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
+import { runAfterCommittedUpdate } from "./lib/committedExternalAction";
 import { getContextMenuPosition } from "./lib/contextMenuPosition";
 import { buildFolderTree, type FolderNode } from "./lib/folderTree";
 import {
   ALL_FOLDERS_ID,
   filterModels,
+  getFolderScopeModels,
+  isFolderExcluded,
+  reconcileExcludedFolders,
   type ModelSortMode,
-  type ModelTypeFilter,
   type NotesFilter,
   type TagMatchMode,
   type UsageFilter
 } from "./lib/folderFilters";
 import {
+  createFolderNavigationEntry,
   createFolderNavigationHistory,
   goBackInFolderHistory,
   goForwardInFolderHistory,
-  pushFolderHistory
+  pushFolderHistory,
+  type FolderNavigationEntry
 } from "./lib/folderNavigationHistory";
 import { getDragModelIds, getDragOutFilePaths } from "./lib/dragFiles";
+import { getDefaultFileOpenAction } from "./lib/fileOpenAction";
+import { getSlicerLaunchFilePaths } from "./lib/slicerLaunchSelection";
 import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
+import {
+  loadLibraryViewPreferences,
+  saveLibraryViewPreferences,
+  type LibraryViewPreferencesV1
+} from "./lib/libraryViewPreferences";
+import {
+  createLibrarySessionResetState,
+  isCurrentLibraryResult
+} from "./lib/librarySessionState";
 import { updateSelectionForGesture } from "./lib/modelSelection";
+import { modelThumbnailService } from "./lib/modelThumbnailService";
+import { buildLibraryHealthSnapshot } from "./lib/libraryHealth";
+import { librarySessionIssueRegistry } from "./lib/librarySessionIssueRegistry";
+import {
+  runThumbnailBenchmark,
+  type ThumbnailBenchmarkScenario
+} from "./lib/thumbnailBenchmark";
+import {
+  observeThumbnailLongTasks,
+  type ThumbnailDiagnosticsSnapshot
+} from "./lib/thumbnailDiagnostics";
 import { getMouseNavigationIntent } from "./lib/mouseNavigation";
 import { getRenameTarget, type FocusedLibraryItem } from "./lib/renameTarget";
+import {
+  toggleResponsivePanel,
+  type ResponsivePanel
+} from "./lib/responsivePanels";
+import {
+  createSettingsMutationQueue,
+  type SettingsMutationQueue
+} from "./lib/settingsMutationQueue";
+import {
+  addCustomSlicer,
+  applyDetectedSlicers,
+  removeCustomSlicer,
+  renameCustomSlicer,
+  setSlicerExecutable,
+  type AppSettingsMutation
+} from "./lib/settingsMutations";
 import { convertThreeMfToStlInWorker } from "./lib/threeMfToStlWorker";
 import {
   parseModelViewMode,
@@ -43,41 +95,181 @@ import {
 } from "./lib/viewPreferences";
 import type {
   AppSettings,
+  ArchiveExtractionMode,
   FileDragBehavior,
   FileRestorePair,
   LibraryActionLogEntry,
+  LibraryDataStatus,
   LibraryMetadata,
   LibraryMetadataStatus,
   LibraryScanResult,
+  LibrarySessionIssueFact,
+  LibrarySessionRef,
   ModelHashResult,
   ModelFile
 } from "./shared/types";
+import {
+  SUPPORTED_FILE_EXTENSIONS,
+  canConvertToStl,
+  canSendToSlicer,
+  canShowThumbnail,
+  isArchive,
+  isDirectImage,
+  type SupportedFileExtension
+} from "./shared/fileCapabilities";
 
 const EXPANDED_FOLDERS_STORAGE_KEY = "model-library-expanded-folders";
 const MODEL_VIEW_MODE_STORAGE_KEY = "model-library-view-mode";
 const THEME_MODE_STORAGE_KEY = "model-library-theme-mode";
+const FOLDERS_PINNED_STORAGE_KEY = "model-library-folders-pinned";
 const OPERATION_MESSAGE_TIMEOUT_MS = 6000;
 const UNDO_TOAST_TIMEOUT_MS = 8000;
 const CONTEXT_MENU_WIDTH = 320;
-const FOLDER_CONTEXT_MENU_HEIGHT = 430;
-const MODEL_CONTEXT_MENU_HEIGHT = 420;
+const FOLDER_CONTEXT_MENU_HEIGHT = 465;
+const MODEL_CONTEXT_MENU_HEIGHT = 550;
 
 type LocalActionLogEntry = LibraryActionLogEntry & {
   restorePairs?: FileRestorePair[];
 };
 
+type BenchmarkConfiguration = {
+  scenario: ThumbnailBenchmarkScenario;
+  models: ModelFile[];
+  cachedIndexReadyMs: number;
+  session: LibrarySessionRef;
+};
+
 function App() {
+  const [benchmark, setBenchmark] = useState<BenchmarkConfiguration | null | undefined>();
+
+  useEffect(() => {
+    let mounted = true;
+    window.modelLibrary.getThumbnailBenchmark()
+      .then((configuration) => {
+        if (mounted) setBenchmark(configuration);
+      })
+      .catch(() => {
+        if (mounted) setBenchmark(null);
+      });
+    return () => { mounted = false; };
+  }, []);
+
+  if (benchmark === undefined) return null;
+  if (benchmark) return <ThumbnailBenchmark configuration={benchmark} />;
+  return <LibraryApp />;
+}
+
+function ThumbnailBenchmark({ configuration }: { configuration: BenchmarkConfiguration }) {
+  const [cachedGridVisible, setCachedGridVisible] = useState(false);
+
+  useLayoutEffect(() => {
+    modelThumbnailService.beginLibrarySession(configuration.session);
+  }, [configuration.session]);
+
+  useLayoutEffect(() => {
+    let active = true;
+    const frame = requestAnimationFrame(() => {
+      void window.modelLibrary.markThumbnailBenchmarkCachedGridVisible()
+        .then(() => {
+          if (active) setCachedGridVisible(true);
+        })
+        .catch((error) => {
+          void window.modelLibrary.failThumbnailBenchmark(readErrorMessage(error));
+        });
+    });
+    return () => {
+      active = false;
+      cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!cachedGridVisible) return;
+    const longTaskObserver = observeThumbnailLongTasks(modelThumbnailService);
+    let active = true;
+    longTaskObserver.start();
+
+    void window.modelLibrary.getRuntimeVersions()
+      .then((runtime) => runThumbnailBenchmark({
+        scenario: configuration.scenario,
+        models: configuration.models,
+        request: (model, priority) => modelThumbnailService.request(model, priority),
+        diagnostics: () => modelThumbnailService.getDiagnostics(),
+        resetDiagnostics: () => modelThumbnailService.resetDiagnostics(),
+        libraryScanReadyMs: configuration.cachedIndexReadyMs,
+        runtime
+      }))
+      .then((report) => active ? window.modelLibrary.submitThumbnailBenchmark(report) : undefined)
+      .catch((error) => {
+        console.error("[thumbnail-benchmark]", error);
+        void window.modelLibrary.failThumbnailBenchmark(readErrorMessage(error));
+      });
+
+    return () => {
+      active = false;
+      longTaskObserver.stop();
+    };
+  }, [cachedGridVisible, configuration]);
+
+  return (
+    <div className="model-grid benchmark-cached-grid" aria-hidden="true">
+      {configuration.models.slice(0, 24).map((model) => (
+        <div className="model-card" key={model.id}>{model.name}</div>
+      ))}
+    </div>
+  );
+}
+
+function LibraryApp() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [unavailableSlicerIds, setUnavailableSlicerIds] = useState<string[]>([]);
+  const [sessionIssues, setSessionIssues] = useState<LibrarySessionIssueFact[]>(
+    () => librarySessionIssueRegistry.getSnapshot()
+  );
+  const [monitoringError, setMonitoringError] = useState<string | null>(null);
+  const [verifiedHealthScan, setVerifiedHealthScan] = useState<LibraryScanResult | null>(null);
+  const [healthCheckedAt, setHealthCheckedAt] = useState<string | null>(null);
+  const [libraryDataStatus, setLibraryDataStatus] = useState<LibraryDataStatus>({
+    libraryId: null,
+    updatedAt: null,
+    availability: "unavailable",
+    writable: false,
+    source: "empty",
+    modelCount: 0,
+    tagCount: 0
+  });
+  const [maintenanceBusyAction, setMaintenanceBusyAction] =
+    useState<MaintenanceAction | null>(null);
+  const locale = settings?.locale ?? "pt-BR";
+  const t = (key: TranslationKey, params?: TranslationParams) =>
+    translate(locale, key, params);
+  const localizeResult = (message: string) =>
+    localizeOperationMessage(locale, message);
+  const readLocalizedErrorMessage = (error: unknown) =>
+    localizeErrorMessage(locale, error);
   const [scanResult, setScanResult] = useState<LibraryScanResult | null>(null);
   const [selectedFolder, setSelectedFolder] = useState(ALL_FOLDERS_ID);
   const [folderHistory, setFolderHistory] = useState(createFolderNavigationHistory);
   const [selectedModel, setSelectedModel] = useState<ModelFile | null>(null);
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(() => new Set());
+  const [modelPreviewRequest, setModelPreviewRequest] = useState<ModelPreviewRequest | null>(null);
+  const modelPreviewRequestIdRef = useRef(0);
   const [lastSelectedModelId, setLastSelectedModelId] = useState<string | null>(null);
   const [lastFocusedItem, setLastFocusedItem] = useState<FocusedLibraryItem>("folder");
   const [draggedModelIds, setDraggedModelIds] = useState<string[]>([]);
   const draggedModelIdsRef = useRef<string[]>([]);
   const activeFileDragSessionRef = useRef<string | null>(null);
+  const gridScrollTopRef = useRef(0);
+  const gridScrollRestoreSequenceRef = useRef(0);
+  const modelRevealSequenceRef = useRef(0);
+  const [gridScrollRestoreRequest, setGridScrollRestoreRequest] = useState<{
+    key: number;
+    top: number;
+  } | null>(null);
+  const [modelRevealRequest, setModelRevealRequest] = useState<{
+    key: number;
+    modelId: string;
+  } | null>(null);
   const [folderContextMenu, setFolderContextMenu] = useState<{
     folderId: string;
     x: number;
@@ -88,6 +280,12 @@ function App() {
     x: number;
     y: number;
   } | null>(null);
+  const [thumbnailRetryGenerations, setThumbnailRetryGenerations] = useState<
+    Record<string, number>
+  >({});
+  const [thumbnailDiagnostics, setThumbnailDiagnostics] = useState<ThumbnailDiagnosticsSnapshot>(
+    () => modelThumbnailService.getDiagnostics()
+  );
   const [tagPickerDialog, setTagPickerDialog] = useState<{ model: ModelFile } | null>(null);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(() =>
     readExpandedFolders()
@@ -98,7 +296,6 @@ function App() {
   const [themeMode, setThemeMode] = useState<ThemeMode>(() =>
     parseThemeMode(window.localStorage.getItem(THEME_MODE_STORAGE_KEY))
   );
-  const [typeFilter, setTypeFilter] = useState<ModelTypeFilter>("all");
   const [sortMode, setSortMode] = useState<ModelSortMode>("name");
   const [onlySelected, setOnlySelected] = useState(false);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
@@ -108,6 +305,8 @@ function App() {
   const [tagMatchMode, setTagMatchMode] = useState<TagMatchMode>("all");
   const [selectedTagFilters, setSelectedTagFilters] = useState<Set<string>>(() => new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [libraryViewPreferences, setLibraryViewPreferences] =
+    useState<LibraryViewPreferencesV1 | null>(null);
   const [libraryMetadata, setLibraryMetadata] = useState<LibraryMetadata>({
     models: {},
     tagCatalog: [],
@@ -117,12 +316,19 @@ function App() {
     availability: "unavailable",
     writable: false,
     source: "empty",
-    message: "Biblioteca ainda não conectada."
+    message: t("message.libraryNotConnected")
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isScanning, setIsScanning] = useState(false);
   const [monitorStatus, setMonitorStatus] = useState<"active" | "disabled" | "error">("disabled");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isDetectingSlicers, setIsDetectingSlicers] = useState(false);
+  const initialSlicerDetectionRef = useRef(false);
+  const slicerInspectionRequestRef = useRef(0);
+  const [responsivePanel, setResponsivePanel] = useState<ResponsivePanel>(null);
+  const [foldersPinned, setFoldersPinned] = useState(() =>
+    window.localStorage.getItem(FOLDERS_PINNED_STORAGE_KEY) === "true"
+  );
   const [launchMessage, setLaunchMessage] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState<string | null>(null);
   const [actionLogEntries, setActionLogEntries] = useState<LocalActionLogEntry[]>([]);
@@ -132,84 +338,113 @@ function App() {
   const textInputResolver = useRef<((value: string | null) => void) | null>(null);
   const [confirmationDialog, setConfirmationDialog] = useState<ConfirmDialogOptions | null>(null);
   const confirmationResolver = useRef<((value: boolean) => void) | null>(null);
+  const activeLibrarySessionRef = useRef<LibrarySessionRef | null>(null);
+  const maintenanceActionRef = useRef<MaintenanceAction | null>(null);
+  const activationRequestRef = useRef(0);
+  const settingsMutationQueueRef = useRef<SettingsMutationQueue<AppSettings> | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const isFilteringStale = deferredSearchQuery !== searchQuery;
 
   useEffect(() => {
     let isMounted = true;
-
-    Promise.all([
-      window.modelLibrary.getSettings(),
-      window.modelLibrary.getLibraryMetadata(),
-      window.modelLibrary.getLibraryMetadataStatus()
-    ])
-      .then(([loadedSettings, loadedMetadata, loadedMetadataStatus]) => {
-        if (isMounted) {
-          setSettings(loadedSettings);
-          setLibraryMetadata(loadedMetadata);
-          setMetadataStatus(loadedMetadataStatus);
+    window.modelLibrary.getSettings()
+      .then(async (loadedSettings) => {
+        if (!isMounted) return;
+        settingsMutationQueueRef.current = createSettingsMutationQueue(
+          loadedSettings,
+          persistSettings
+        );
+        setSettings(loadedSettings);
+        if (loadedSettings.libraryPath) {
+          await activateLibrary(loadedSettings.libraryPath, loadedSettings.monitorLibrary);
         }
       })
       .finally(() => {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        if (isMounted) setIsLoading(false);
       });
 
     return () => {
       isMounted = false;
+      activationRequestRef.current += 1;
     };
   }, []);
 
-  useEffect(() => {
-    if (settings?.libraryPath) {
-      void restoreAndScanLibrary(settings.libraryPath);
-    }
-  }, [settings?.libraryPath]);
+  useEffect(() => modelThumbnailService.subscribe(setThumbnailDiagnostics), []);
+
+  useEffect(() => librarySessionIssueRegistry.subscribe(setSessionIssues), []);
 
   useEffect(() => {
-    if (!settings?.libraryPath) {
-      return;
-    }
+    if (!settings || initialSlicerDetectionRef.current) return;
+    initialSlicerDetectionRef.current = true;
+    void detectInstalledSlicers();
+  }, [settings]);
 
-    const rootPath = settings.libraryPath;
-    let isCurrent = true;
-    setMonitorStatus("disabled");
-    const unsubscribeChanged = window.modelLibrary.onLibraryChanged(async () => {
-      const cachedResult = await window.modelLibrary.getCachedLibrary(rootPath);
+  useEffect(() => {
+    if (!settings) return;
+    void refreshSlicerAvailability();
+  }, [settings?.slicers]);
 
-      if (isCurrent && cachedResult) {
-        setScanResult(cachedResult);
-      }
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+    void refreshLibraryDataStatus();
+    void refreshSlicerAvailability();
+  }, [isSettingsOpen]);
+
+  useEffect(() => {
+    const longTaskObserver = observeThumbnailLongTasks(modelThumbnailService);
+    longTaskObserver.start();
+    return () => longTaskObserver.stop();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribeChanged = window.modelLibrary.onLibraryChanged((payload) => {
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, payload.session)) return;
+      if (payload.metadata) setLibraryMetadata(payload.metadata);
+      void scanLibrarySession(payload.session);
     });
-    const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((message) => {
-      if (isCurrent) {
-        setMonitorStatus("error");
-        setOperationMessage(`Monitoramento pausado: ${message}. Use o botão Atualizar.`);
-      }
+    const unsubscribeError = window.modelLibrary.onLibraryMonitoringError((payload) => {
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, payload.session)) return;
+      setMonitorStatus("error");
+      setMonitoringError(payload.message);
+      setOperationMessage(translate(locale, "message.monitorPaused", {
+        detail: localizeErrorMessage(locale, new Error(payload.message))
+      }));
     });
-
-    void window.modelLibrary.setLibraryMonitoring(settings.monitorLibrary)
-      .then(() => {
-        if (isCurrent) setMonitorStatus(settings.monitorLibrary ? "active" : "disabled");
-      })
-      .catch((error) => {
-        if (isCurrent) {
-          setMonitorStatus("error");
-          setOperationMessage(`Monitoramento pausado: ${readErrorMessage(error)}. Use o botão Atualizar.`);
-        }
-      });
 
     return () => {
-      isCurrent = false;
       unsubscribeChanged();
       unsubscribeError();
     };
-  }, [settings?.libraryPath, settings?.monitorLibrary]);
+  }, [locale]);
+
+  const libraryHealth = useMemo(() => buildLibraryHealthSnapshot({
+    rootPath: activeLibrarySessionRef.current?.rootPath ?? settings?.libraryPath ?? "",
+    checkedAt: healthCheckedAt,
+    scanResult: verifiedHealthScan ?? scanResult,
+    metadata: libraryMetadata,
+    metadataStatus,
+    sessionIssues,
+    monitoringError,
+    unavailableSlicerIds
+  }), [
+    healthCheckedAt,
+    libraryMetadata,
+    metadataStatus,
+    monitoringError,
+    scanResult,
+    sessionIssues,
+    settings?.libraryPath,
+    unavailableSlicerIds,
+    verifiedHealthScan
+  ]);
 
   useEffect(() => {
     const unsubscribe = window.modelLibrary.onFileDragStatus?.((status) => {
-      setOperationMessage(status.message);
+      setOperationMessage(
+        status.state === "failed"
+          ? readLocalizedErrorMessage(new Error(status.message))
+          : localizeResult(status.message)
+      );
 
       if (
         status.state !== "started" &&
@@ -220,7 +455,7 @@ function App() {
     });
 
     return () => unsubscribe?.();
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -236,6 +471,10 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(THEME_MODE_STORAGE_KEY, themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    window.localStorage.setItem(FOLDERS_PINNED_STORAGE_KEY, String(foldersPinned));
+  }, [foldersPinned]);
 
   useEffect(() => {
     if (!undoToast) {
@@ -261,6 +500,7 @@ function App() {
   useEffect(() => {
     const models = scanResult?.models ?? [];
     const hashCandidates = getHashCandidateModels(models);
+    const expectedSession = activeLibrarySessionRef.current;
     let isStale = false;
 
     if (
@@ -275,13 +515,15 @@ function App() {
     window.modelLibrary
       .getModelHashes(hashCandidates)
       .then((hashes) => {
-        if (!isStale) {
+        if (!isStale && expectedSession &&
+          isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
           setModelHashes(hashes);
         }
       })
       .catch((error) => {
-        if (!isStale) {
-          setOperationMessage(readErrorMessage(error));
+        if (!isStale && expectedSession &&
+          isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
+          setOperationMessage(readLocalizedErrorMessage(error));
         }
       });
 
@@ -344,7 +586,8 @@ function App() {
     selectedModel,
     selectedModelIds,
     tagPickerDialog,
-    textInputDialog
+    textInputDialog,
+    responsivePanel
   ]);
 
   useEffect(() => {
@@ -386,29 +629,52 @@ function App() {
     confirmationDialog,
     isSettingsOpen,
     modelContextMenu,
+    notesFilter,
+    onlyDuplicates,
+    onlyFavorites,
+    onlySelected,
+    searchQuery,
     selectedFolder,
+    selectedTagFilters,
+    sortMode,
     tagPickerDialog,
-    textInputDialog
+    tagMatchMode,
+    textInputDialog,
+    usageFilter
   ]);
 
   async function refreshMetadataState() {
+    const expectedSession = activeLibrarySessionRef.current;
+    if (!expectedSession) return;
     const [nextMetadata, nextStatus] = await Promise.all([
       window.modelLibrary.getLibraryMetadata(),
       window.modelLibrary.getLibraryMetadataStatus()
     ]);
+    if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
     setLibraryMetadata(nextMetadata);
     setMetadataStatus(nextStatus);
   }
 
   async function retryLibraryMetadata() {
+    const expectedSession = activeLibrarySessionRef.current;
+    if (!expectedSession) return;
     try {
       const nextStatus = await window.modelLibrary.retryLibraryMetadata();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
+      const nextMetadata = await window.modelLibrary.getLibraryMetadata();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setMetadataStatus(nextStatus);
-      setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
-      setOperationMessage(nextStatus.message ?? "Dados da biblioteca reconectados.");
+      setLibraryMetadata(nextMetadata);
+      setOperationMessage(
+        nextStatus.availability === "ready"
+          ? t("message.metadataReconnected")
+          : nextStatus.message
+            ? readLocalizedErrorMessage(new Error(nextStatus.message))
+            : t("error.unexpected")
+      );
     } catch (error) {
       setOperationMessage(
-        `Não foi possível reconectar os dados da biblioteca: ${readErrorMessage(error)}`
+        t("message.metadataReconnectFailed", { detail: readLocalizedErrorMessage(error) })
       );
     }
   }
@@ -420,38 +686,48 @@ function App() {
       return;
     }
 
-    const savedSettings = await window.modelLibrary.saveSettings({
-      ...settings,
-      libraryPath
-    });
-
-    setSettings(savedSettings);
-    await refreshMetadataState();
-    setSelectedFolder(ALL_FOLDERS_ID);
-    setFolderHistory(createFolderNavigationHistory());
-    setSelectedModel(null);
-    setSelectedModelIds(new Set());
-    setLastSelectedModelId(null);
+    await saveSettings((current) => ({ ...current, libraryPath }));
   }
 
-  async function saveSettings(nextSettings: AppSettings) {
-    const libraryChanged = settings?.libraryPath !== nextSettings.libraryPath;
-    const savedSettings = await window.modelLibrary.saveSettings(nextSettings);
-    setSettings(savedSettings);
-    if (libraryChanged) {
-      await refreshMetadataState();
+  async function saveSettings(mutation: AppSettingsMutation) {
+    if (!settings || !settingsMutationQueueRef.current) return;
+    try {
+      const savedSettings = await settingsMutationQueueRef.current.enqueue(mutation);
+      setSettings(savedSettings);
+    } catch (error) {
+      setOperationMessage(readLocalizedErrorMessage(error));
     }
+  }
+
+  async function persistSettings(nextSettings: AppSettings, previousSettings: AppSettings) {
+    const libraryChanged = previousSettings.libraryPath !== nextSettings.libraryPath;
+    if (libraryChanged && nextSettings.libraryPath) {
+      const activation = await activateLibrary(
+        nextSettings.libraryPath,
+        nextSettings.monitorLibrary
+      );
+      if (!activation) return previousSettings;
+    }
+    const expectedSession = activeLibrarySessionRef.current;
+    const savedSettings = await window.modelLibrary.saveSettings(nextSettings);
+    if (expectedSession &&
+      !isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
+      return previousSettings;
+    }
+    const currentSession = activeLibrarySessionRef.current;
+    if (!libraryChanged && currentSession) {
+      setMonitorStatus(nextSettings.monitorLibrary ? "active" : "disabled");
+    }
+    return savedSettings;
   }
 
   function updateFileDragBehavior(fileDragBehavior: FileDragBehavior) {
-    if (!settings || settings.fileDragBehavior === fileDragBehavior) {
-      return;
-    }
+    if (!settings) return;
 
-    void saveSettings({ ...settings, fileDragBehavior });
+    void saveSettings((current) => ({ ...current, fileDragBehavior }));
   }
 
-  async function chooseSlicerExecutable(slicer: AppSettings["slicers"][number]) {
+  async function chooseSlicerExecutable(slicerId: string) {
     if (!settings) {
       return;
     }
@@ -462,13 +738,71 @@ function App() {
       return;
     }
 
-    await saveSettings({
-      ...settings,
-      defaultSlicerId: settings.defaultSlicerId ?? slicer.id,
-      slicers: settings.slicers.map((item) =>
-        item.id === slicer.id ? { ...item, executablePath, enabled: true } : item
-      )
+    await saveSettings(setSlicerExecutable(slicerId, executablePath));
+  }
+
+  async function detectInstalledSlicers(announceResult = false) {
+    if (isDetectingSlicers) return;
+    setIsDetectingSlicers(true);
+    try {
+      const candidates = await window.modelLibrary.detectSlicers();
+      if (candidates.length > 0) await saveSettings(applyDetectedSlicers(candidates));
+      if (announceResult) {
+        const detectedCount = new Set(candidates.map((candidate) => candidate.builtInKey)).size;
+        setOperationMessage(detectedCount > 0
+          ? t("slicer.detectedCount", { count: detectedCount })
+          : t("slicer.noneDetected"));
+      }
+    } catch (error) {
+      setOperationMessage(t("slicer.detectFailed", { detail: readLocalizedErrorMessage(error) }));
+    } finally {
+      setIsDetectingSlicers(false);
+    }
+  }
+
+  async function refreshSlicerAvailability() {
+    const requestId = ++slicerInspectionRequestRef.current;
+    try {
+      const ids = await window.modelLibrary.inspectConfiguredSlicers();
+      if (slicerInspectionRequestRef.current === requestId) setUnavailableSlicerIds(ids);
+    } catch {
+      if (slicerInspectionRequestRef.current === requestId) setUnavailableSlicerIds([]);
+    }
+  }
+
+  async function addSlicerProgram() {
+    const name = await requestTextInput({
+      title: t("slicer.addTitle"), label: t("slicer.customName"),
+      confirmLabel: t("common.continue")
     });
+    if (!name?.trim()) return;
+    try {
+      const executablePath = await window.modelLibrary.chooseSlicerExecutable();
+      if (executablePath) await saveSettings(addCustomSlicer(name, executablePath));
+    } catch (error) {
+      setOperationMessage(readLocalizedErrorMessage(error));
+    }
+  }
+
+  async function renameSlicerProgram(slicerId: string) {
+    const slicer = settings?.slicers.find((item) => item.id === slicerId);
+    if (!slicer || slicer.kind !== "custom") return;
+    const name = await requestTextInput({
+      title: t("slicer.renameTitle"), label: t("slicer.customName"),
+      initialValue: slicer.name, confirmLabel: t("common.rename")
+    });
+    if (name?.trim()) await saveSettings(renameCustomSlicer(slicerId, name));
+  }
+
+  async function removeSlicerProgram(slicerId: string) {
+    const slicer = settings?.slicers.find((item) => item.id === slicerId);
+    if (!slicer || slicer.kind !== "custom") return;
+    const confirmed = await requestConfirmation({
+      title: t("slicer.removeTitle"),
+      message: t("slicer.removeQuestion", { name: slicer.name }),
+      confirmLabel: t("slicer.remove"), tone: "danger"
+    });
+    if (confirmed) await saveSettings(removeCustomSlicer(slicerId));
   }
 
   async function chooseArchiveExtractor() {
@@ -482,15 +816,12 @@ function App() {
       return;
     }
 
-    await saveSettings({
-      ...settings,
-      archiveExtractorPath
-    });
+    await saveSettings((current) => ({ ...current, archiveExtractorPath }));
   }
 
   async function launchSlicer(slicerId: string, modelPaths: string | string[]) {
     const result = await window.modelLibrary.launchSlicer(slicerId, modelPaths);
-    setLaunchMessage(result.message);
+    setLaunchMessage(localizeResult(result.message));
 
     if (result.ok) {
       await refreshMetadataState();
@@ -498,15 +829,11 @@ function App() {
   }
 
   function getSlicerLaunchModelPaths(contextModel: ModelFile): string[] {
-    const selectedPrintableModels = (scanResult?.models ?? []).filter(
-      (model) => selectedModelIds.has(model.id) && isPrintableModel(model)
+    return getSlicerLaunchFilePaths(
+      contextModel,
+      scanResult?.models ?? [],
+      selectedModelIds
     );
-
-    if (selectedModelIds.has(contextModel.id) && selectedPrintableModels.length > 0) {
-      return selectedPrintableModels.map((model) => model.absolutePath);
-    }
-
-    return isPrintableModel(contextModel) ? [contextModel.absolutePath] : [];
   }
 
   function getSlicerLaunchModelCount(contextModel: ModelFile): number {
@@ -518,7 +845,7 @@ function App() {
     setModelContextMenu(null);
 
     if (modelPaths.length === 0) {
-      setLaunchMessage("Selecione pelo menos um STL ou 3MF para abrir no slicer.");
+      setLaunchMessage(t("message.selectSlicerModels"));
       return;
     }
 
@@ -526,24 +853,58 @@ function App() {
   }
 
   async function openModelInDefaultSlicer(model: ModelFile) {
-    if (!isPrintableModel(model)) {
-      setLaunchMessage("Extraia um STL ou 3MF antes de abrir no slicer.");
+    if (!canSendToSlicer(model.extension)) {
+      setLaunchMessage(t("message.extractBeforeSlicer"));
       return;
     }
 
     if (!settings?.defaultSlicerId) {
-      setLaunchMessage("Escolha um slicer padrão nas configurações para abrir com duplo clique.");
+      setLaunchMessage(t("message.chooseDefaultSlicer"));
       return;
     }
 
     const defaultSlicer = settings.slicers.find((slicer) => slicer.id === settings.defaultSlicerId);
 
     if (!defaultSlicer?.enabled || !defaultSlicer.executablePath) {
-      setLaunchMessage("Configure e ative o slicer padrão antes de usar o duplo clique.");
+      setLaunchMessage(t("message.configureDefaultSlicer"));
       return;
     }
 
     await launchSlicer(settings.defaultSlicerId, model.absolutePath);
+  }
+
+  async function openLibraryImageFile(modelPath: string) {
+    const session = activeLibrarySessionRef.current;
+    if (!session) throw new Error(t("message.libraryInactive"));
+    await window.modelLibrary.openLibraryFile(session, modelPath);
+  }
+
+  async function openFileByDefault(model: ModelFile) {
+    const action = getDefaultFileOpenAction(model.extension);
+
+    if (action === "windows") {
+      try {
+        await openLibraryImageFile(model.absolutePath);
+        setLaunchMessage(null);
+      } catch (error) {
+        setLaunchMessage(error instanceof Error ? error.message : String(error));
+      }
+      return;
+    }
+
+    if (action === "inspect-archive") {
+      setSelectedModel(model);
+      setLaunchMessage(null);
+      return;
+    }
+
+    if (action === "preview") {
+      setSelectedModel(model);
+      setLaunchMessage(null);
+      return;
+    }
+
+    await openModelInDefaultSlicer(model);
   }
 
   async function toggleFavorite(modelPath: string) {
@@ -559,13 +920,22 @@ function App() {
   }
 
   async function persistMetadataMutation(operation: () => Promise<LibraryMetadata>) {
+    const expectedSession = activeLibrarySessionRef.current;
+    if (!expectedSession) return;
     try {
-      setLibraryMetadata(await operation());
-      setMetadataStatus(await window.modelLibrary.getLibraryMetadataStatus());
+      const nextMetadata = await operation();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
+      const nextStatus = await window.modelLibrary.getLibraryMetadataStatus();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
+      setLibraryMetadata(nextMetadata);
+      setMetadataStatus(nextStatus);
     } catch (error) {
-      setMetadataStatus(await window.modelLibrary.getLibraryMetadataStatus());
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
+      const nextStatus = await window.modelLibrary.getLibraryMetadataStatus();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
+      setMetadataStatus(nextStatus);
       setOperationMessage(
-        `Não foi possível salvar os dados da biblioteca: ${readErrorMessage(error)}`
+        t("message.metadataSaveFailed", { detail: readLocalizedErrorMessage(error) })
       );
     }
   }
@@ -629,15 +999,20 @@ function App() {
       return true;
     }
 
+    if (responsivePanel) {
+      setResponsivePanel(null);
+      return true;
+    }
+
     return false;
   }
 
   async function addCatalogTag() {
     const tag = await requestTextInput({
-      title: "Nova tag",
-      label: "Nome da tag",
+      title: t("dialog.newTag"),
+      label: t("dialog.tagName"),
       placeholder: "ex: cosplay",
-      confirmLabel: "Criar tag"
+      confirmLabel: t("dialog.createTag")
     });
 
     if (!tag?.trim()) {
@@ -649,9 +1024,9 @@ function App() {
 
   async function removeCatalogTag(tag: string) {
     const confirmed = await requestConfirmation({
-      title: "Excluir tag",
+      title: t("dialog.deleteTag"),
       message: `Remover a tag "${tag}" da lista e de todos os modelos?`,
-      confirmLabel: "Excluir tag",
+      confirmLabel: t("dialog.deleteTag"),
       tone: "danger"
     });
 
@@ -676,12 +1051,380 @@ function App() {
     });
   }
 
-  async function scanLibrary(rootPath: string, preferredSelectedPaths: string[] = []) {
+  function updateLibraryViewPreferences(
+    update: (current: LibraryViewPreferencesV1) => LibraryViewPreferencesV1
+  ) {
+    const expectedSession = activeLibrarySessionRef.current;
+    if (!expectedSession) return;
+
+    setLibraryViewPreferences((current) => {
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return current;
+      const next = update(current ?? loadLibraryViewPreferences(
+        window.localStorage,
+        expectedSession.libraryId
+      ));
+      saveLibraryViewPreferences(window.localStorage, expectedSession.libraryId, next);
+      return next;
+    });
+  }
+
+  function updateVisibleExtensions(visibleExtensions: ReadonlySet<SupportedFileExtension>) {
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      visibleExtensions: [...SUPPORTED_FILE_EXTENSIONS].filter((extension) =>
+        visibleExtensions.has(extension)
+      )
+    }));
+  }
+
+  function excludeFolder(folderId: string) {
+    setFolderContextMenu(null);
+    if (folderId === ALL_FOLDERS_ID) return;
+
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      excludedFolders: [...new Set([...current.excludedFolders, folderId])]
+    }));
+  }
+
+  function removeFolderExclusion(folderId: string) {
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      excludedFolders: current.excludedFolders.filter((excluded) => excluded !== folderId)
+    }));
+  }
+
+  function clearFolderExclusions() {
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      excludedFolders: []
+    }));
+  }
+
+  async function activateLibrary(rootPath: string, monitoring: boolean) {
+    const requestId = ++activationRequestRef.current;
+    const previousSession = activeLibrarySessionRef.current;
+    const previousRendererState = {
+      session: previousSession,
+      scanResult,
+      selectedModel,
+      selectedModelIds: new Set(selectedModelIds),
+      lastSelectedModelId,
+      selectedFolder,
+      folderHistory,
+      scrollTop: gridScrollTopRef.current,
+      draggedModelIds: [...draggedModelIds],
+      activeFileDragSessionId: activeFileDragSessionRef.current,
+      searchQuery,
+      folderContextMenu,
+      modelContextMenu,
+      libraryMetadata,
+      metadataStatus,
+      libraryViewPreferences,
+      monitorStatus,
+      actionLogEntries: [...actionLogEntries],
+      undoToast
+    };
+
+    activeLibrarySessionRef.current = null;
+    applyLibraryReset();
+
+    try {
+      const activation = await window.modelLibrary.activateLibrary(rootPath, monitoring);
+      if (activationRequestRef.current !== requestId || !activation) return null;
+
+      activeLibrarySessionRef.current = activation.session;
+      modelThumbnailService.beginLibrarySession(activation.session);
+      setLibraryViewPreferences(
+        loadLibraryViewPreferences(window.localStorage, activation.session.libraryId)
+      );
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, activation.session)) return null;
+      setLibraryMetadata(activation.metadata);
+      setMetadataStatus(activation.metadataStatus);
+      setScanResult(activation.cachedResult);
+      setMonitorStatus(monitoring ? "active" : "disabled");
+      setMonitoringError(null);
+      void refreshLibraryDataStatus(activation.session);
+      void scanLibrarySession(activation.session);
+      return activation;
+    } catch (error) {
+      if (activationRequestRef.current !== requestId) return null;
+      await restorePreviousLibrary(previousRendererState, requestId);
+      if (activationRequestRef.current === requestId) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
+      return null;
+    }
+  }
+
+  function applyLibraryReset() {
+    const reset = createLibrarySessionResetState();
+    setScanResult(reset.scanResult);
+    setSelectedModel(reset.selectedModel);
+    setSelectedModelIds(reset.selectedModelIds);
+    setLastSelectedModelId(reset.lastSelectedModelId);
+    setSelectedFolder(reset.selectedFolder);
+    setFolderHistory(reset.folderHistory);
+    requestGridScroll(0);
+    draggedModelIdsRef.current = reset.draggedModelIds;
+    activeFileDragSessionRef.current = reset.activeFileDragSessionId;
+    setDraggedModelIds(reset.draggedModelIds);
+    setSearchQuery(reset.searchQuery);
+    setFolderContextMenu(reset.folderContextMenu);
+    setModelContextMenu(reset.modelContextMenu);
+    setTagPickerDialog(null);
+    setThumbnailRetryGenerations({});
+    setModelRevealRequest(null);
+    setModelHashes({});
+    setActionLogEntries([]);
+    setUndoToast(null);
+    setLibraryViewPreferences(null);
+    setLibraryMetadata({ models: {}, tagCatalog: [], slicerHistory: [] });
+    setMetadataStatus({
+      availability: "unavailable",
+      writable: false,
+      source: "empty",
+      message: t("message.libraryNotConnected")
+    });
+    setMonitorStatus("disabled");
+    setMonitoringError(null);
+    setVerifiedHealthScan(null);
+    setHealthCheckedAt(null);
+    setLibraryDataStatus({
+      libraryId: null,
+      updatedAt: null,
+      availability: "unavailable",
+      writable: false,
+      source: "empty",
+      modelCount: 0,
+      tagCount: 0
+    });
+    maintenanceActionRef.current = null;
+    setMaintenanceBusyAction(null);
+    librarySessionIssueRegistry.reset();
+  }
+
+  async function refreshLibraryDataStatus(
+    expectedSession = activeLibrarySessionRef.current
+  ) {
+    if (!expectedSession) return null;
+    try {
+      const status = await window.modelLibrary.getLibraryDataStatus();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return null;
+      setLibraryDataStatus(status);
+      return status;
+    } catch (error) {
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
+      return null;
+    }
+  }
+
+  async function verifyLibraryHealth() {
+    const session = activeLibrarySessionRef.current;
+    if (!session) throw new Error(t("error.libraryInactive"));
+    const [verified, unavailable] = await Promise.all([
+      window.modelLibrary.verifyLibrary(session),
+      window.modelLibrary.inspectConfiguredSlicers()
+    ]);
+    if (!isCurrentLibraryResult(activeLibrarySessionRef.current, verified.session)) return null;
+    setVerifiedHealthScan(verified.result);
+    setUnavailableSlicerIds(unavailable);
+    setHealthCheckedAt(new Date().toISOString());
+    return verified.result;
+  }
+
+  async function runMaintenanceAction(
+    action: MaintenanceAction,
+    operation: (session: LibrarySessionRef) => Promise<void>
+  ) {
+    const session = activeLibrarySessionRef.current;
+    if (!session) {
+      setOperationMessage(t("message.libraryInactive"));
+      return;
+    }
+    if (maintenanceActionRef.current) return;
+
+    maintenanceActionRef.current = action;
+    setMaintenanceBusyAction(action);
+    try {
+      await operation(session);
+    } catch (error) {
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
+    } finally {
+      if (maintenanceActionRef.current === action) {
+        maintenanceActionRef.current = null;
+        setMaintenanceBusyAction(null);
+      }
+    }
+  }
+
+  function exportLibraryBackup() {
+    return runMaintenanceAction("export-backup", async (session) => {
+      const result = await window.modelLibrary.exportLibraryBackup(session);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return;
+      if (result.state === "exported") setOperationMessage(t("maintenance.exported"));
+    });
+  }
+
+  function restoreLibraryBackup() {
+    return runMaintenanceAction("restore-backup", async (session) => {
+      const result = await window.modelLibrary.restoreLibraryBackup(session);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return;
+      if (result.state !== "restored") return;
+      if (result.metadata) setLibraryMetadata(result.metadata);
+      if (result.metadataStatus) setMetadataStatus(result.metadataStatus);
+      await refreshLibraryDataStatus(session);
+      setOperationMessage(t("maintenance.restored"));
+    });
+  }
+
+  function openLibraryDataFolder() {
+    return runMaintenanceAction("open-data-folder", async (session) => {
+      await window.modelLibrary.showLibraryDataFolder(session);
+    });
+  }
+
+  function verifyLibraryMaintenance() {
+    return runMaintenanceAction("verify", async (session) => {
+      await verifyLibraryHealth();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return;
+      setOperationMessage(t("maintenance.verified"));
+    });
+  }
+
+  function rebuildLibraryIndex() {
+    return runMaintenanceAction("rebuild-index", async (session) => {
+      const rebuilt = await window.modelLibrary.rebuildLibraryIndex(session);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, rebuilt.session)) return;
+
+      setScanResult(rebuilt.result);
+      setVerifiedHealthScan(null);
+      setHealthCheckedAt(null);
+      setSelectedModelIds((currentIds) => new Set(
+        rebuilt.result.models
+          .filter((model) => currentIds.has(model.id))
+          .map((model) => model.id)
+      ));
+      setSelectedModel((currentModel) => currentModel
+        ? rebuilt.result.models.find((model) => model.id === currentModel.id) ?? null
+        : null);
+      setLastSelectedModelId((currentId) => currentId &&
+        rebuilt.result.models.some((model) => model.id === currentId) ? currentId : null);
+      setOperationMessage(t("maintenance.indexRebuilt"));
+    });
+  }
+
+  function cleanUnusedThumbnails() {
+    return runMaintenanceAction("clean-thumbnails", async (session) => {
+      const result = await window.modelLibrary.cleanUnusedThumbnails(
+        session,
+        scanResult?.models ?? []
+      );
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return;
+      setOperationMessage(t("maintenance.thumbnailsCleaned", {
+        count: result.removedFiles,
+        size: formatBytes(result.reclaimedBytes)
+      }));
+    });
+  }
+
+  function retryThumbnailByRelativePath(relativePath: string) {
+    const normalizedTarget = normalizeLibraryRelativePath(relativePath);
+    const model = scanResult?.models.find((candidate) =>
+      normalizeLibraryRelativePath(
+        [candidate.relativeFolder, candidate.name].filter(Boolean).join("/")
+      ) === normalizedTarget
+    );
+    if (model) void retryModelThumbnail(model);
+  }
+
+  async function restorePreviousLibrary(
+    previous: {
+      session: LibrarySessionRef | null;
+      scanResult: LibraryScanResult | null;
+      selectedModel: ModelFile | null;
+      selectedModelIds: Set<string>;
+      lastSelectedModelId: string | null;
+      selectedFolder: string;
+      folderHistory: ReturnType<typeof createFolderNavigationHistory>;
+      scrollTop: number;
+      draggedModelIds: string[];
+      activeFileDragSessionId: string | null;
+      searchQuery: string;
+      folderContextMenu: typeof folderContextMenu;
+      modelContextMenu: typeof modelContextMenu;
+      libraryMetadata: LibraryMetadata;
+      metadataStatus: LibraryMetadataStatus;
+      libraryViewPreferences: LibraryViewPreferencesV1 | null;
+      monitorStatus: typeof monitorStatus;
+      actionLogEntries: LocalActionLogEntry[];
+      undoToast: LocalActionLogEntry | null;
+    },
+    requestId: number
+  ) {
+    try {
+      const restored = await window.modelLibrary.getCurrentLibrary();
+      if (activationRequestRef.current !== requestId || !restored) return;
+
+      activeLibrarySessionRef.current = restored.session;
+      modelThumbnailService.beginLibrarySession(restored.session);
+      const isPriorRoot = previous.session && samePath(
+        previous.session.rootPath,
+        restored.session.rootPath
+      );
+      setScanResult(restored.cachedResult);
+      setSelectedModel(isPriorRoot ? previous.selectedModel : null);
+      setSelectedModelIds(isPriorRoot ? previous.selectedModelIds : new Set());
+      setLastSelectedModelId(isPriorRoot ? previous.lastSelectedModelId : null);
+      setSelectedFolder(isPriorRoot ? previous.selectedFolder : ALL_FOLDERS_ID);
+      setFolderHistory(
+        isPriorRoot ? previous.folderHistory : createFolderNavigationHistory()
+      );
+      requestGridScroll(isPriorRoot ? previous.scrollTop : 0);
+      draggedModelIdsRef.current = [];
+      activeFileDragSessionRef.current = null;
+      setDraggedModelIds([]);
+      setSearchQuery(isPriorRoot ? previous.searchQuery : "");
+      setFolderContextMenu(null);
+      setModelContextMenu(null);
+      setActionLogEntries(isPriorRoot ? previous.actionLogEntries : []);
+      setUndoToast(isPriorRoot ? previous.undoToast : null);
+      setLibraryViewPreferences(
+        loadLibraryViewPreferences(window.localStorage, restored.session.libraryId)
+      );
+      setLibraryMetadata(restored.metadata);
+      setMetadataStatus(restored.metadataStatus);
+      setMonitorStatus(isPriorRoot ? previous.monitorStatus : "disabled");
+      void refreshLibraryDataStatus(restored.session);
+      void scanLibrarySession(restored.session);
+    } catch (restoreError) {
+      if (activationRequestRef.current === requestId) {
+        setOperationMessage(readLocalizedErrorMessage(restoreError));
+      }
+    }
+  }
+
+  async function scanLibrarySession(
+    session: LibrarySessionRef,
+    preferredSelectedPaths: string[] = []
+  ) {
+    if (!isCurrentLibraryResult(activeLibrarySessionRef.current, session)) return null;
     setIsScanning(true);
 
     try {
-      const nextScanResult = await window.modelLibrary.scanLibrary(rootPath);
+      const versionedResult = await window.modelLibrary.scanLibrary(session);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, versionedResult.session)) {
+        return null;
+      }
+      const nextScanResult = versionedResult.result;
+      if (versionedResult.metadata) setLibraryMetadata(versionedResult.metadata);
       setScanResult(nextScanResult);
+      setVerifiedHealthScan(null);
+      setHealthCheckedAt(null);
       const modelsByPath = new Map(
         nextScanResult.models.map((model) => [model.absolutePath.toLowerCase(), model])
       );
@@ -717,30 +1460,36 @@ function App() {
       }
 
       return nextScanResult;
+    } catch (error) {
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
+      return null;
     } finally {
-      setIsScanning(false);
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
+        setIsScanning(false);
+      }
     }
   }
 
-  async function restoreAndScanLibrary(rootPath: string) {
-    try {
-      const cachedResult = await window.modelLibrary.getCachedLibrary(rootPath);
-
-      if (cachedResult) {
-        setScanResult(cachedResult);
-      }
-    } catch (error) {
-      setOperationMessage(readErrorMessage(error));
-    }
-
-    return scanLibrary(rootPath);
+  function scanCurrentLibrary(preferredSelectedPaths: string[] = []) {
+    const currentSession = activeLibrarySessionRef.current;
+    return currentSession
+      ? scanLibrarySession(currentSession, preferredSelectedPaths)
+      : Promise.resolve(null);
   }
 
   function selectFolder(folderId: string) {
+    if (folderId === selectedFolder) {
+      navigateToFolder(folderId);
+      return;
+    }
+    const currentEntry = captureCurrentNavigationEntry();
     setFolderHistory((currentHistory) =>
-      pushFolderHistory(currentHistory, selectedFolder, folderId)
+      pushFolderHistory(currentHistory, currentEntry, folderId)
     );
     navigateToFolder(folderId);
+    requestGridScroll(0);
   }
 
   function navigateToFolder(folderId: string) {
@@ -748,29 +1497,65 @@ function App() {
     setFolderContextMenu(null);
     setModelContextMenu(null);
     setSelectedFolder(folderId);
+    setResponsivePanel(null);
     expandFolderAncestors(folderId);
   }
 
   function goBackFolder() {
-    const result = goBackInFolderHistory(folderHistory, selectedFolder);
+    const result = goBackInFolderHistory(folderHistory, captureCurrentNavigationEntry());
 
     if (!result) {
       return;
     }
 
     setFolderHistory(result.history);
-    navigateToFolder(result.folderId);
+    restoreNavigationEntry(result.entry);
   }
 
   function goForwardFolder() {
-    const result = goForwardInFolderHistory(folderHistory, selectedFolder);
+    const result = goForwardInFolderHistory(folderHistory, captureCurrentNavigationEntry());
 
     if (!result) {
       return;
     }
 
     setFolderHistory(result.history);
-    navigateToFolder(result.folderId);
+    restoreNavigationEntry(result.entry);
+  }
+
+  function captureCurrentNavigationEntry(): FolderNavigationEntry {
+    return createFolderNavigationEntry(selectedFolder, {
+      searchQuery,
+      sortMode,
+      onlySelected,
+      onlyFavorites,
+      onlyDuplicates,
+      usageFilter,
+      notesFilter,
+      tagMatchMode,
+      selectedTags: [...selectedTagFilters],
+      scrollTop: gridScrollTopRef.current
+    });
+  }
+
+  function restoreNavigationEntry(entry: FolderNavigationEntry) {
+    navigateToFolder(entry.folderId);
+    setSearchQuery(entry.searchQuery);
+    setSortMode(entry.sortMode);
+    setOnlySelected(entry.onlySelected);
+    setOnlyFavorites(entry.onlyFavorites);
+    setOnlyDuplicates(entry.onlyDuplicates);
+    setUsageFilter(entry.usageFilter);
+    setNotesFilter(entry.notesFilter);
+    setTagMatchMode(entry.tagMatchMode);
+    setSelectedTagFilters(new Set(entry.selectedTags));
+    requestGridScroll(entry.scrollTop);
+  }
+
+  function requestGridScroll(top: number) {
+    gridScrollTopRef.current = top;
+    gridScrollRestoreSequenceRef.current += 1;
+    setGridScrollRestoreRequest({ key: gridScrollRestoreSequenceRef.current, top });
   }
 
   function openFolderContextMenu(folderId: string, x: number, y: number) {
@@ -778,6 +1563,41 @@ function App() {
     setModelContextMenu(null);
     expandFolderAncestors(folderId);
     setFolderContextMenu({ folderId, x, y });
+  }
+
+  async function showFolderInExplorer(folderId: string) {
+    const session = activeLibrarySessionRef.current;
+    if (!session) {
+      flushSync(() => setFolderContextMenu(null));
+      setOperationMessage(t("message.libraryInactive"));
+      return;
+    }
+
+    const relativeFolder = folderId === ALL_FOLDERS_ID ? "" : folderId;
+    try {
+      await runAfterCommittedUpdate(
+        () => setFolderContextMenu(null),
+        () => window.modelLibrary.showLibraryFolder(session, relativeFolder)
+      );
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
+        setOperationMessage(relativeFolder ? t("message.folderOpenedExplorer") : t("message.libraryOpenedExplorer"));
+      }
+    } catch (error) {
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, session)) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
+    }
+  }
+
+  async function copyCurrentFolderPath() {
+    const folderId = selectedFolder === ALL_FOLDERS_ID ? "" : selectedFolder;
+
+    try {
+      await window.modelLibrary.copyText(buildFolderPath(settings?.libraryPath ?? "", folderId));
+      setOperationMessage(t("message.folderPathCopied"));
+    } catch (error) {
+      setOperationMessage(readLocalizedErrorMessage(error));
+    }
   }
 
   function toggleExpandedFolder(folderId: string) {
@@ -841,6 +1661,58 @@ function App() {
     }
   }
 
+  function loadModelPreviewInPanel(model: ModelFile) {
+    setLastFocusedItem("model");
+    setModelContextMenu(null);
+    setSelectedModel(model);
+    setSelectedModelIds(new Set([model.id]));
+    setLastSelectedModelId(model.id);
+    setResponsivePanel("details");
+    modelPreviewRequestIdRef.current += 1;
+    setModelPreviewRequest({
+      id: modelPreviewRequestIdRef.current,
+      modelPath: model.absolutePath
+    });
+  }
+
+  function viewModelFolderInLibrary(model: ModelFile) {
+    setModelContextMenu(null);
+    setSearchQuery("");
+    setOnlySelected(false);
+    setOnlyFavorites(false);
+    setOnlyDuplicates(false);
+    setUsageFilter("all");
+    setNotesFilter("all");
+    setTagMatchMode("all");
+    setSelectedTagFilters(new Set());
+    setSelectedModel(model);
+    setSelectedModelIds(new Set([model.id]));
+    setLastSelectedModelId(model.id);
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      visibleExtensions: [...new Set([...current.visibleExtensions, model.extension])],
+      excludedFolders: current.excludedFolders.filter((excluded) =>
+        !isFolderExcluded(model.relativeFolder, [excluded])
+      )
+    }));
+    selectFolder(model.relativeFolder || ALL_FOLDERS_ID);
+    modelRevealSequenceRef.current += 1;
+    setModelRevealRequest({ key: modelRevealSequenceRef.current, modelId: model.id });
+  }
+
+  async function retryModelThumbnail(model: ModelFile) {
+    setModelContextMenu(null);
+    try {
+      await modelThumbnailService.retry(model);
+      setThumbnailRetryGenerations((current) => ({
+        ...current,
+        [model.absolutePath]: (current[model.absolutePath] ?? 0) + 1
+      }));
+    } catch (error) {
+      setOperationMessage(readLocalizedErrorMessage(error));
+    }
+  }
+
   function toggleModelSelection(model: ModelFile, selected: boolean) {
     setLastFocusedItem("model");
     setFolderContextMenu(null);
@@ -874,8 +1746,8 @@ function App() {
     activeFileDragSessionRef.current = sessionId;
     setOperationMessage(
       mode === "internal"
-        ? `Organizando ${filePaths.length} arquivo(s).`
-        : `Arrastando ${filePaths.length} arquivo(s).`
+        ? t("message.organizingFiles", { count: filePaths.length })
+        : t("message.draggingFiles", { count: filePaths.length })
     );
 
     flushSync(() => {
@@ -912,9 +1784,11 @@ function App() {
     const parentFolderId = parentFolderOverride ?? selectedFolder;
     const parentFolder = parentFolderId === ALL_FOLDERS_ID ? "" : parentFolderId;
     const folderName = await requestTextInput({
-      title: parentFolder ? `Nova pasta em ${parentFolder}` : "Nova pasta na raiz",
-      label: "Nome da pasta",
-      confirmLabel: "Criar pasta"
+      title: parentFolder
+        ? t("dialog.newFolderAt", { name: parentFolder })
+        : t("dialog.newRootFolder"),
+      label: t("dialog.folderName"),
+      confirmLabel: t("dialog.createFolder")
     });
 
     if (!folderName?.trim()) {
@@ -925,9 +1799,10 @@ function App() {
       const result = await window.modelLibrary.createFolder(parentFolder, folderName);
       selectFolder(joinFolder(parentFolder, folderName.trim()));
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
-        action: createActionLogEntry("Pasta criada", joinFolder(parentFolder, folderName.trim()))
+        preserveScroll: false,
+        action: createActionLogEntry(t("action.folderCreated"), joinFolder(parentFolder, folderName.trim()))
       };
     });
   }
@@ -937,16 +1812,16 @@ function App() {
     setModelContextMenu(null);
 
     if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
-      setOperationMessage("Selecione uma pasta para renomear.");
+      setOperationMessage(t("message.selectFolderRename"));
       return;
     }
 
     const currentName = folderId.split("/").pop() ?? folderId;
     const nextName = await requestTextInput({
-      title: "Renomear pasta",
-      label: "Novo nome da pasta",
+      title: t("dialog.renameFolder"),
+      label: t("dialog.newFolderName"),
       initialValue: currentName,
-      confirmLabel: "Renomear"
+      confirmLabel: t("common.rename")
     });
 
     if (!nextName?.trim()) {
@@ -964,11 +1839,12 @@ function App() {
       const restorePairs = createRenameRestorePairs(nextPath, sourcePath);
       selectFolder(destinationLabel);
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
+        preserveScroll: false,
         action:
           restorePairs.length > 0
-            ? createActionLogEntry("Pasta renomeada", `${folderId} -> ${destinationLabel}`, restorePairs)
+            ? createActionLogEntry(t("action.folderRenamed"), `${folderId} -> ${destinationLabel}`, restorePairs)
             : undefined
       };
     });
@@ -979,16 +1855,16 @@ function App() {
     setModelContextMenu(null);
 
     if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
-      setOperationMessage("Selecione uma pasta para mover.");
+      setOperationMessage(t("message.selectFolderMove"));
       return;
     }
 
     const folderName = folderId.split("/").pop() ?? folderId;
     const destinationFolder = await requestTextInput({
-      title: `Mover ${folderName}`,
-      label: "Pasta destino",
-      placeholder: "Vazio = Raiz; ex: Decoracao/Suportes",
-      confirmLabel: "Mover"
+      title: t("dialog.moveFolder", { name: folderName }),
+      label: t("dialog.destinationFolder"),
+      placeholder: t("dialog.destinationFolderPlaceholder"),
+      confirmLabel: t("dialog.move")
     });
 
     if (destinationFolder === null) {
@@ -1009,11 +1885,12 @@ function App() {
       selectFolder(destinationLabel);
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
+        preserveScroll: false,
         action:
           restorePairs.length > 0
-            ? createActionLogEntry("Pasta movida", `${folderId} -> ${destinationLabel}`, restorePairs)
+            ? createActionLogEntry(t("action.folderMoved"), `${folderId} -> ${destinationLabel}`, restorePairs)
             : undefined
       };
     });
@@ -1024,15 +1901,15 @@ function App() {
     setModelContextMenu(null);
 
     if (!settings?.libraryPath || folderId === ALL_FOLDERS_ID) {
-      setOperationMessage("Selecione uma pasta para enviar para a Lixeira.");
+      setOperationMessage(t("message.selectFolderTrash"));
       return;
     }
 
     const folderName = folderId.split("/").pop() ?? folderId;
     const confirmed = await requestConfirmation({
-      title: "Mover pasta para a Lixeira",
-      message: `Mover a pasta "${folderName}" para a Lixeira?`,
-      confirmLabel: "Mover para Lixeira",
+      title: t("dialog.trashFolder"),
+      message: t("dialog.trashFolderQuestion", { name: folderName }),
+      confirmLabel: t("dialog.moveToTrash"),
       tone: "danger"
     });
 
@@ -1045,9 +1922,10 @@ function App() {
       selectFolder(ALL_FOLDERS_ID);
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
-        action: createActionLogEntry("Pasta na Lixeira", folderId)
+        preserveScroll: false,
+        action: createActionLogEntry(t("action.folderTrashed"), folderId)
       };
     });
   }
@@ -1060,10 +1938,10 @@ function App() {
     }
 
     const nextName = await requestTextInput({
-      title: "Renomear arquivo",
-      label: "Novo nome do arquivo",
+      title: t("dialog.renameFile"),
+      label: t("dialog.newFileName"),
       initialValue: selectedModel.name,
-      confirmLabel: "Renomear"
+      confirmLabel: t("common.rename")
     });
 
     if (!nextName?.trim()) {
@@ -1078,11 +1956,11 @@ function App() {
         ? createRenameRestorePairs(result.path, previousPath)
         : [];
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: result.path ? [result.path] : [],
         action:
           restorePairs.length > 0
-            ? createActionLogEntry("Arquivo renomeado", `${selectedModel.name} -> ${nextName}`, restorePairs)
+            ? createActionLogEntry(t("action.fileRenamed"), `${selectedModel.name} -> ${nextName}`, restorePairs)
             : undefined
       };
     });
@@ -1135,13 +2013,16 @@ function App() {
       );
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: restorePairs.map((pair) => pair.sourcePath),
         action:
           restorePairs.length > 0
             ? createActionLogEntry(
-                "Modelos movidos",
-                `${restorePairs.length} para ${targetFolder || "Raiz"}`,
+                t("action.modelsMoved"),
+                t("action.modelsMovedDetail", {
+                  count: restorePairs.length,
+                  folder: targetFolder || t("common.root")
+                }),
                 restorePairs
               )
             : undefined
@@ -1165,9 +2046,9 @@ function App() {
     }
 
     const confirmed = await requestConfirmation({
-      title: "Mover arquivos para a Lixeira",
-      message: `Mover ${modelsToTrash.length} arquivo${modelsToTrash.length === 1 ? "" : "s"} para a Lixeira?`,
-      confirmLabel: "Mover para Lixeira",
+      title: t("dialog.trashFiles"),
+      message: t("dialog.trashFilesQuestion", { count: modelsToTrash.length }),
+      confirmLabel: t("dialog.moveToTrash"),
       tone: "danger"
     });
 
@@ -1181,26 +2062,26 @@ function App() {
       );
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: [],
         action: createActionLogEntry(
-          "Arquivos na Lixeira",
-          `${modelsToTrash.length} arquivo${modelsToTrash.length === 1 ? "" : "s"}`
+          t("action.modelsTrashed"),
+          t("action.fileCount", { count: modelsToTrash.length })
         )
       };
     });
   }
 
-  async function extractArchiveEntries(archivePath: string, entryPaths: string[]) {
-    if (!settings?.libraryPath || entryPaths.length === 0) {
+  async function extractArchiveFile(archivePath: string, mode: ArchiveExtractionMode) {
+    if (!settings?.libraryPath) {
       return;
     }
 
     await runLibraryOperation(async () => {
-      const result = await window.modelLibrary.extractArchiveEntries(archivePath, entryPaths);
+      const result = await window.modelLibrary.extractArchive(archivePath, mode);
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: result.paths ?? []
       };
     });
@@ -1220,9 +2101,16 @@ function App() {
       const result = await window.modelLibrary.saveConvertedStl(modelPath, stlContent);
 
       return {
-        message: result.message,
+        message: localizeResult(result.message),
         selectedPaths: result.paths ?? []
       };
+    });
+  }
+
+  async function convertContextModelToStl(model: ModelFile) {
+    setModelContextMenu(null);
+    await convertSelectedThreeMfToStl(model.absolutePath, (progress) => {
+      setOperationMessage(`${t("details.converting")} ${progress}%`);
     });
   }
 
@@ -1242,15 +2130,25 @@ function App() {
       return;
     }
 
+    const expectedSession = activeLibrarySessionRef.current;
+    if (!expectedSession) return;
+    const preservedScrollTop = gridScrollTopRef.current;
+
     try {
       const result = await window.modelLibrary.restoreLibraryPaths(undoableAction.restorePairs);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
       setActionLogEntries((entries) => markActionUndone(entries, undoableAction.id));
       setUndoToast(null);
-      setOperationMessage(result.message);
-      setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
-      await scanLibrary(settings.libraryPath, result.paths ?? []);
+      setOperationMessage(localizeResult(result.message));
+      const nextMetadata = await window.modelLibrary.getLibraryMetadata();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
+      setLibraryMetadata(nextMetadata);
+      await scanLibrarySession(expectedSession, result.paths ?? []);
+      requestGridScroll(preservedScrollTop);
     } catch (error) {
-      setOperationMessage(readErrorMessage(error));
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
     }
   }
 
@@ -1259,25 +2157,38 @@ function App() {
       message: string;
       selectedPaths: string[];
       action?: LocalActionLogEntry;
+      preserveScroll?: boolean;
     }>
   ) {
     if (!settings?.libraryPath) {
       return;
     }
 
+    const expectedSession = activeLibrarySessionRef.current;
+    if (!expectedSession) return;
+    const preservedScrollTop = gridScrollTopRef.current;
+
     try {
       const result = await operation();
-      setOperationMessage(result.message);
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
+      setOperationMessage(localizeResult(result.message));
       if (result.action) {
         setActionLogEntries((entries) => appendActionLogEntry(entries, result.action!));
         setUndoToast(result.action);
       }
-      setLibraryMetadata(await window.modelLibrary.getLibraryMetadata());
-      await scanLibrary(settings.libraryPath, result.selectedPaths);
+      const nextMetadata = await window.modelLibrary.getLibraryMetadata();
+      if (!isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) return;
+      setLibraryMetadata(nextMetadata);
+      await scanLibrarySession(expectedSession, result.selectedPaths);
+      if (result.preserveScroll !== false) requestGridScroll(preservedScrollTop);
     } catch (error) {
-      setOperationMessage(readErrorMessage(error));
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
+        setOperationMessage(readLocalizedErrorMessage(error));
+      }
     } finally {
-      clearDraggedModels();
+      if (isCurrentLibraryResult(activeLibrarySessionRef.current, expectedSession)) {
+        clearDraggedModels();
+      }
     }
   }
 
@@ -1286,23 +2197,34 @@ function App() {
       return;
     }
 
-    const savedSettings = await window.modelLibrary.saveSettings({
-      ...settings,
-      includeSubfolders
-    });
-
-    setSettings(savedSettings);
+    await saveSettings((current) => ({ ...current, includeSubfolders }));
   }
 
   const models = scanResult?.models ?? [];
+  const visibleExtensions = useMemo(
+    () => new Set<SupportedFileExtension>(
+      libraryViewPreferences?.visibleExtensions ?? SUPPORTED_FILE_EXTENSIONS
+    ),
+    [libraryViewPreferences?.visibleExtensions]
+  );
+  const excludedFolders = libraryViewPreferences?.excludedFolders ?? [];
+  const excludedFolderIds = useMemo(
+    () => new Set((scanResult?.folders ?? []).filter((folder) =>
+      isFolderExcluded(folder, excludedFolders)
+    )),
+    [excludedFolders, scanResult?.folders]
+  );
   const folders = useMemo(
     () => buildFolderTree(models, scanResult?.folders ?? []),
     [models, scanResult?.folders]
   );
   const includeSubfolders = settings?.includeSubfolders ?? true;
   const folderCards = useMemo(
-    () => getGridFolderCards(folders, models, selectedFolder, includeSubfolders),
-    [folders, includeSubfolders, models, selectedFolder]
+    () => getGridFolderCards(folders, models, selectedFolder, includeSubfolders, {
+      visibleExtensions,
+      excludedFolders
+    }),
+    [excludedFolders, folders, includeSubfolders, models, selectedFolder, visibleExtensions]
   );
   const availableTags = useMemo(
     () => getAvailableTags(models, libraryMetadata),
@@ -1316,10 +2238,15 @@ function App() {
     () => (settings?.slicers ?? []).filter((slicer) => slicer.enabled && slicer.executablePath),
     [settings?.slicers]
   );
+  const scopeModels = useMemo(
+    () => getFolderScopeModels(models, selectedFolder, includeSubfolders),
+    [includeSubfolders, models, selectedFolder]
+  );
   const filteredModels = useMemo(
     () =>
       filterModels(models, selectedFolder, includeSubfolders, deferredSearchQuery, {
-        type: typeFilter,
+        visibleExtensions,
+        excludedFolders,
         sort: sortMode,
         onlySelected,
         selectedIds: selectedModelIds,
@@ -1336,6 +2263,7 @@ function App() {
     [
       deferredSearchQuery,
       duplicateModelIds,
+      excludedFolders,
       includeSubfolders,
       libraryMetadata,
       models,
@@ -1349,23 +2277,41 @@ function App() {
       sortMode,
       tagMatchMode,
       usageFilter,
-      typeFilter
+      visibleExtensions
     ]
   );
+
+  useEffect(() => {
+    if (!scanResult || !libraryViewPreferences) return;
+    const reconciled = reconcileExcludedFolders(
+      libraryViewPreferences.excludedFolders,
+      scanResult.folders
+    );
+    if (sameStrings(reconciled, libraryViewPreferences.excludedFolders)) return;
+
+    updateLibraryViewPreferences((current) => ({
+      ...current,
+      excludedFolders: reconcileExcludedFolders(current.excludedFolders, scanResult.folders)
+    }));
+  }, [libraryViewPreferences, scanResult]);
 
   if (isLoading) {
     return (
       <main className="first-run" data-theme={themeMode}>
         <div>
-          <p className="eyebrow">Carregando</p>
-          <h1>Preparando biblioteca</h1>
+          <p className="eyebrow">{t("app.loading")}</p>
+          <h1>{t("app.preparingLibrary")}</h1>
         </div>
       </main>
     );
   }
 
   if (!settings?.libraryPath) {
-    return <FirstRun onChooseFolder={chooseFolder} themeMode={themeMode} />;
+    return (
+      <I18nProvider locale={settings?.locale ?? "pt-BR"}>
+        <FirstRun onChooseFolder={chooseFolder} themeMode={themeMode} />
+      </I18nProvider>
+    );
   }
 
   const canLaunchContextModelInSlicer = modelContextMenu
@@ -1373,7 +2319,13 @@ function App() {
     : false;
 
   return (
-    <main className="app-shell" data-theme={themeMode}>
+    <I18nProvider locale={settings.locale}>
+    <main
+      className="app-shell"
+      data-theme={themeMode}
+      data-responsive-panel={responsivePanel ?? "none"}
+      data-folders-pinned={foldersPinned ? "true" : "false"}
+    >
       <FolderTree
         folders={folders}
         selectedFolder={selectedFolder}
@@ -1383,6 +2335,7 @@ function App() {
         canMoveModels={draggedModelIds.length > 0}
         pointerDragOverFolder={null}
         expandedFolderIds={expandedFolderIds}
+        excludedFolderIds={excludedFolderIds}
         onSelectFolder={selectFolder}
         onToggleFolder={toggleExpandedFolder}
         onExpandAllFolders={expandAllFolders}
@@ -1390,15 +2343,23 @@ function App() {
         onToggleIncludeSubfolders={updateIncludeSubfolders}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
+        foldersPinned={foldersPinned}
+        onToggleFoldersPinned={() => {
+          setFoldersPinned((current) => !current);
+          setResponsivePanel(null);
+        }}
       />
       <ModelGrid
         models={filteredModels}
+        scopeModelCount={scopeModels.length}
+        thumbnailModels={models}
         folderCards={folderCards}
         scanErrors={scanResult?.errors ?? []}
         selectedModelId={selectedModel?.id ?? null}
         selectedModelIds={selectedModelIds}
         searchQuery={searchQuery}
-        typeFilter={typeFilter}
+        visibleExtensions={visibleExtensions}
+        excludedFolders={excludedFolders}
         sortMode={sortMode}
         onlySelected={onlySelected}
         onlyFavorites={onlyFavorites}
@@ -1410,6 +2371,8 @@ function App() {
         selectedTags={selectedTagFilters}
         metadataByPath={libraryMetadata.models}
         duplicateModelIds={duplicateModelIds}
+        thumbnailRetryGenerations={thumbnailRetryGenerations}
+        thumbnailDiagnostics={thumbnailDiagnostics}
         isScanning={isScanning}
         monitorStatus={monitorStatus}
         isFilteringStale={isFilteringStale}
@@ -1421,8 +2384,14 @@ function App() {
         fileDragBehavior={settings.fileDragBehavior}
         canNavigateBack={folderHistory.back.length > 0}
         canNavigateForward={folderHistory.forward.length > 0}
+        responsivePanel={responsivePanel}
+        scrollRestoreRequest={gridScrollRestoreRequest}
+        modelRevealRequest={modelRevealRequest}
+        onScrollTopChange={(top) => { gridScrollTopRef.current = top; }}
         onSearchChange={setSearchQuery}
-        onTypeFilterChange={setTypeFilter}
+        onVisibleExtensionsChange={updateVisibleExtensions}
+        onRemoveFolderExclusion={removeFolderExclusion}
+        onClearFolderExclusions={clearFolderExclusions}
         onSortModeChange={setSortMode}
         onOnlySelectedChange={setOnlySelected}
         onOnlyFavoritesChange={setOnlyFavorites}
@@ -1435,20 +2404,31 @@ function App() {
         onFileDragBehaviorChange={updateFileDragBehavior}
         onNavigateBack={goBackFolder}
         onNavigateForward={goForwardFolder}
+        onCopyCurrentFolderPath={copyCurrentFolderPath}
         onOpenFolder={selectFolder}
         onOpenFolderContextMenu={openFolderContextMenu}
         onMoveModelsToFolder={moveDraggedModels}
         onOpenModel={openModel}
-        onOpenDefaultSlicer={openModelInDefaultSlicer}
+        onOpenDefaultFile={openFileByDefault}
         onOpenModelContextMenu={openModelContextMenu}
         onToggleModelSelection={toggleModelSelection}
         onDragStartModel={startDraggingModel}
         onDragEndModel={clearDraggedModels}
-        onRefresh={() => scanLibrary(settings.libraryPath ?? "")}
+        onRefresh={() => scanCurrentLibrary()}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        settingsNeedsAttention={libraryHealth.counts.error > 0 || (
+          libraryDataStatus.availability !== "unavailable" && !libraryDataStatus.writable
+        )}
+        onToggleFolders={() =>
+          setResponsivePanel((current) => toggleResponsivePanel(current, "folders"))
+        }
+        onToggleDetails={() =>
+          setResponsivePanel((current) => toggleResponsivePanel(current, "details"))
+        }
       />
       <DetailsPanel
         model={selectedModel}
+        previewRequest={modelPreviewRequest}
         settings={settings}
         modelMetadata={
           selectedModel ? libraryMetadata.models[selectedModel.absolutePath] ?? null : null
@@ -1461,28 +2441,61 @@ function App() {
         onLaunchSlicer={launchSlicer}
         onRenameModelFile={renameSelectedModel}
         onShowModelInFolder={(modelPath) => window.modelLibrary.showModelInFolder(modelPath)}
+        onOpenLibraryFile={openLibraryImageFile}
         onToggleFavorite={toggleFavorite}
         onSetModelTags={setModelTags}
         onSetModelNotes={setModelNotes}
         onRetryMetadata={retryLibraryMetadata}
-        onExtractArchiveEntries={extractArchiveEntries}
+        onExtractArchive={extractArchiveFile}
         onConvertThreeMfToStl={convertSelectedThreeMfToStl}
+        onArchiveFailure={(model, error) =>
+          librarySessionIssueRegistry.record("archive", model.absolutePath, error)}
+        onArchiveSuccess={(model) =>
+          librarySessionIssueRegistry.resolve("archive", model.absolutePath)}
       />
+      {responsivePanel ? (
+        <button
+          className="responsive-panel-scrim"
+          type="button"
+          onClick={() => setResponsivePanel(null)}
+          aria-label={t("app.closePanel")}
+        />
+      ) : null}
       {isSettingsOpen ? (
         <SettingsDialog
           settings={settings}
           tagCatalog={libraryMetadata.tagCatalog}
           metadataWritable={metadataStatus.writable}
-          metadataMessage={metadataStatus.message}
+          metadataMessage={metadataStatus.message
+            ? readLocalizedErrorMessage(new Error(metadataStatus.message))
+            : null}
+          thumbnailDiagnostics={thumbnailDiagnostics}
+          librarySession={activeLibrarySessionRef.current}
           onClose={() => setIsSettingsOpen(false)}
           onSaveSettings={saveSettings}
           onChooseLibraryFolder={chooseFolder}
           onChooseArchiveExtractor={chooseArchiveExtractor}
           onChooseSlicerExecutable={chooseSlicerExecutable}
+          detectingSlicers={isDetectingSlicers}
+          unavailableSlicerIds={unavailableSlicerIds}
+          onDetectSlicers={() => detectInstalledSlicers(true)}
+          onAddSlicer={addSlicerProgram}
+          onRenameSlicer={renameSlicerProgram}
+          onRemoveSlicer={removeSlicerProgram}
           onAddCatalogTag={addCatalogTag}
           onRemoveCatalogTag={removeCatalogTag}
           themeMode={themeMode}
           onThemeModeChange={setThemeMode}
+          libraryDataStatus={libraryDataStatus}
+          libraryHealth={libraryHealth}
+          maintenanceBusyAction={maintenanceBusyAction}
+          onExportLibraryBackup={exportLibraryBackup}
+          onRestoreLibraryBackup={restoreLibraryBackup}
+          onOpenLibraryDataFolder={openLibraryDataFolder}
+          onVerifyLibrary={verifyLibraryMaintenance}
+          onRebuildLibraryIndex={rebuildLibraryIndex}
+          onCleanUnusedThumbnails={cleanUnusedThumbnails}
+          onRetryThumbnailPath={retryThumbnailByRelativePath}
         />
       ) : null}
       {undoToast ? (
@@ -1493,7 +2506,7 @@ function App() {
           </div>
           {undoToast.undoable && !undoToast.undone ? (
             <button type="button" onClick={undoLastAction}>
-              Desfazer
+              {t("common.undo")}
             </button>
           ) : null}
         </div>
@@ -1515,30 +2528,22 @@ function App() {
       {tagPickerDialog ? (
         <DialogShell
           className="tag-picker-dialog"
-          title="Tags do modelo"
+          title={t("dialog.modelTags")}
           onCancel={() => setTagPickerDialog(null)}
         >
-          <header className="dialog-header">
-            <div>
-              <p className="eyebrow">Tags</p>
-              <h2>{tagPickerDialog.model.name}</h2>
-            </div>
-            <button
-              className="icon-only"
-              type="button"
-              onClick={() => setTagPickerDialog(null)}
-              aria-label="Fechar"
-              title="Fechar"
-            >
-              Fechar
-            </button>
-          </header>
+          <DialogHeader
+            eyebrow={t("tags.label")}
+            title={tagPickerDialog.model.name}
+            onClose={() => setTagPickerDialog(null)}
+          />
           <TagSelector
             selectedTags={libraryMetadata.models[tagPickerDialog.model.absolutePath]?.tags ?? []}
             availableTags={availableTags}
             onChange={(tags) => setModelTags(tagPickerDialog.model.absolutePath, tags)}
             disabled={!metadataStatus.writable}
-            disabledReason={metadataStatus.message}
+            disabledReason={metadataStatus.message
+              ? readLocalizedErrorMessage(new Error(metadataStatus.message))
+              : undefined}
           />
         </DialogShell>
       ) : null}
@@ -1549,20 +2554,34 @@ function App() {
           role="menu"
           onMouseLeave={() => setFolderContextMenu(null)}
         >
-          <div className="context-menu-section-title">Pasta</div>
+          <div className="context-menu-section-title">{t("context.folder")}</div>
           <button type="button" role="menuitem" onClick={() => selectFolder(folderContextMenu.folderId)}>
-            Abrir pasta
+            {t("context.openFolder")}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => void showFolderInExplorer(folderContextMenu.folderId)}
+          >
+            {t("details.showExplorer")}
           </button>
           <button type="button" role="menuitem" onClick={() => createFolder(folderContextMenu.folderId)}>
-            Nova pasta aqui
+            {t("context.newFolderHere")}
           </button>
           {folderContextMenu.folderId !== ALL_FOLDERS_ID ? (
             <>
               <button type="button" role="menuitem" onClick={() => renameFolder(folderContextMenu.folderId)}>
-                Renomear
+                {t("common.rename")}
               </button>
               <button type="button" role="menuitem" onClick={() => moveFolder(folderContextMenu.folderId)}>
-                Mover pasta...
+                {t("context.moveFolder")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => excludeFolder(folderContextMenu.folderId)}
+              >
+                {t("context.hideResults")}
               </button>
               <button
                 className="danger-menu-item"
@@ -1570,46 +2589,46 @@ function App() {
                 role="menuitem"
                 onClick={() => trashFolder(folderContextMenu.folderId)}
               >
-                Mover pasta para Lixeira
+                {t("context.trashFolder")}
               </button>
             </>
           ) : null}
           {selectedModelIds.size > 0 ? (
             <>
               <div className="context-menu-separator" />
-              <div className="context-menu-section-title">Organizar</div>
+              <div className="context-menu-section-title">{t("context.organize")}</div>
               <button
                 type="button"
                 role="menuitem"
                 onClick={() => moveSelectedModelsToFolder(folderContextMenu.folderId)}
               >
-                Mover selecionados aqui
+                {t("context.moveSelectedHere")}
               </button>
               <button className="danger-menu-item" type="button" role="menuitem" onClick={trashSelectedModels}>
-                Mover selecionados para Lixeira
+                {t("context.trashSelected")}
               </button>
             </>
           ) : null}
           {actionLogEntries.some((entry) => entry.undoable && !entry.undone) ? (
             <>
               <div className="context-menu-separator" />
-              <div className="context-menu-section-title">Histórico</div>
+              <div className="context-menu-section-title">{t("context.history")}</div>
               <button type="button" role="menuitem" onClick={undoLastAction}>
-                Desfazer última ação
+                {t("context.undoLast")}
               </button>
             </>
           ) : null}
           <div className="context-menu-separator" />
-          <div className="context-menu-section-title">Biblioteca</div>
+          <div className="context-menu-section-title">{t("context.library")}</div>
           <button
             type="button"
             role="menuitem"
             onClick={() => {
               setFolderContextMenu(null);
-              void scanLibrary(settings.libraryPath ?? "");
+              void scanCurrentLibrary();
             }}
           >
-            Atualizar biblioteca
+            {t("common.refresh")}
           </button>
           <button
             type="button"
@@ -1619,7 +2638,7 @@ function App() {
               setIsSettingsOpen(true);
             }}
           >
-            Configurações
+            {t("common.settings")}
           </button>
         </div>
       ) : null}
@@ -1630,19 +2649,42 @@ function App() {
           role="menu"
           onMouseLeave={() => setModelContextMenu(null)}
         >
-          <div className="context-menu-section-title">Modelo</div>
+          <div className="context-menu-section-title">{t("context.open")}</div>
           <button
             type="button"
             role="menuitem"
-            onClick={() => openModel(modelContextMenu.model, { ctrlKey: false, shiftKey: false })}
+            onClick={() => {
+              const model = modelContextMenu.model;
+              setModelContextMenu(null);
+              if (isDirectImage(model.extension)) {
+                void openFileByDefault(model);
+              } else {
+                loadModelPreviewInPanel(model);
+              }
+            }}
           >
-            Carregar no painel
+            {isDirectImage(modelContextMenu.model.extension)
+              ? t("context.openWindows")
+              : getDefaultFileOpenAction(modelContextMenu.model.extension) === "inspect-archive"
+                ? t("context.inspectArchive")
+                : t("context.loadPanel")}
           </button>
+          {canShowThumbnail(modelContextMenu.model.extension) ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => retryModelThumbnail(modelContextMenu.model)}
+            >
+              {t("context.retryThumbnail")}
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
             disabled={!metadataStatus.writable}
-            title={!metadataStatus.writable ? metadataStatus.message ?? undefined : undefined}
+            title={!metadataStatus.writable && metadataStatus.message
+              ? readLocalizedErrorMessage(new Error(metadataStatus.message))
+              : undefined}
             onClick={() => {
               const model = modelContextMenu.model;
               setModelContextMenu(null);
@@ -1650,28 +2692,30 @@ function App() {
             }}
           >
             {libraryMetadata.models[modelContextMenu.model.absolutePath]?.favorite
-              ? "Remover dos favoritos"
-              : "Adicionar aos favoritos"}
+              ? t("details.removeFavorite")
+              : t("details.addFavorite")}
           </button>
           <div className="context-menu-separator" />
-          <div className="context-menu-section-title">Tags</div>
+          <div className="context-menu-section-title">{t("tags.label")}</div>
           <button
             type="button"
             role="menuitem"
             disabled={!metadataStatus.writable}
-            title={!metadataStatus.writable ? metadataStatus.message ?? undefined : undefined}
+            title={!metadataStatus.writable && metadataStatus.message
+              ? readLocalizedErrorMessage(new Error(metadataStatus.message))
+              : undefined}
             onClick={() => {
               const model = modelContextMenu.model;
               setModelContextMenu(null);
               setTagPickerDialog({ model });
             }}
           >
-            Tags...
+            {t("context.tags")}
           </button>
           {enabledSlicers.length > 0 && canLaunchContextModelInSlicer ? (
             <>
               <div className="context-menu-separator" />
-              <div className="context-menu-section-title">Slicer</div>
+              <div className="context-menu-section-title">{t("context.slicer")}</div>
               {enabledSlicers.map((slicer) => {
                 const launchCount = getSlicerLaunchModelCount(modelContextMenu.model);
 
@@ -1685,15 +2729,59 @@ function App() {
                     }
                   >
                     {launchCount > 1
-                      ? `Abrir selecionados no ${slicer.name}`
-                      : `Abrir no ${slicer.name}`}
+                      ? t("context.openSelectedIn", { name: slicer.name })
+                      : t("details.openIn", { name: slicer.name })}
                   </button>
                 );
               })}
             </>
           ) : null}
+          {isArchive(modelContextMenu.model.extension) ? (
+            <>
+              <div className="context-menu-separator" />
+              <div className="context-menu-section-title">{t("context.extract")}</div>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const model = modelContextMenu.model;
+                  setModelContextMenu(null);
+                  void extractArchiveFile(model.absolutePath, "here");
+                }}
+              >
+                {t("details.extractHere")}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  const model = modelContextMenu.model;
+                  setModelContextMenu(null);
+                  void extractArchiveFile(model.absolutePath, "named-folder");
+                }}
+              >
+                {t("details.extractTo", { name: getArchiveBaseName(modelContextMenu.model.name) })}
+              </button>
+            </>
+          ) : null}
           <div className="context-menu-separator" />
-          <div className="context-menu-section-title">Arquivo</div>
+          <div className="context-menu-section-title">{t("context.file")}</div>
+          {canConvertToStl(modelContextMenu.model.extension) ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => void convertContextModelToStl(modelContextMenu.model)}
+            >
+              {t("details.convertToStl")}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => viewModelFolderInLibrary(modelContextMenu.model)}
+          >
+            {t("context.viewFolder")}
+          </button>
           <button
             type="button"
             role="menuitem"
@@ -1703,17 +2791,18 @@ function App() {
               void window.modelLibrary.showModelInFolder(model.absolutePath);
             }}
           >
-            Mostrar no Explorer
+            {t("details.showExplorer")}
           </button>
           <button type="button" role="menuitem" onClick={renameSelectedModel}>
-            Renomear arquivo
+            {t("details.renameFile")}
           </button>
           <button className="danger-menu-item" type="button" role="menuitem" onClick={trashSelectedModels}>
-            Mover selecionados para Lixeira
+            {t("context.trashSelected")}
           </button>
         </div>
       ) : null}
     </main>
+    </I18nProvider>
   );
 }
 
@@ -1725,6 +2814,10 @@ function joinFolder(parentFolder: string, folderName: string): string {
   }
 
   return `${parentFolder}/${trimmedName}`;
+}
+
+function getArchiveBaseName(fileName: string): string {
+  return fileName.replace(/\.(zip|rar|7z)$/i, "");
 }
 
 function normalizeFolderInput(folderPath: string): string {
@@ -1755,6 +2848,16 @@ function buildFolderPath(libraryPath: string, folderId: string): string {
   const normalizedFolder = folderId.replaceAll("/", "\\").replace(/^[\\/]+|[\\/]+$/g, "");
 
   return normalizedFolder ? `${normalizedRoot}\\${normalizedFolder}` : normalizedRoot;
+}
+
+function normalizeLibraryRelativePath(value: string): string {
+  return value.replace(/\\/g, "/").replace(/^\/+/, "").toLocaleLowerCase();
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function getContextMenuStyle(
@@ -1812,6 +2915,10 @@ function readErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const lastError = message.split("Error: ").pop();
   return lastError || message;
+}
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
 function getAncestorFolderIds(folderId: string): string[] {
@@ -1880,10 +2987,6 @@ function getHashCandidateModels(models: ModelFile[]) {
     .filter((modelsWithSameSize) => modelsWithSameSize.length > 1)
     .flat()
     .map(({ absolutePath, sizeBytes, modifiedAt }) => ({ absolutePath, sizeBytes, modifiedAt }));
-}
-
-function isPrintableModel(model: ModelFile): boolean {
-  return model.extension === ".stl" || model.extension === ".3mf";
 }
 
 function isTextInputTarget(target: EventTarget | null): boolean {

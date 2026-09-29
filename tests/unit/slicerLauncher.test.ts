@@ -38,6 +38,26 @@ describe("launchSlicer", () => {
     expect(result.message).toContain("não foi encontrado");
   });
 
+  it("does not launch when a configured executable becomes stale", async () => {
+    const stalePath = path.join(tempRoot, "stale.exe");
+    await writeFile(stalePath, "stale executable");
+    const spawnProcess = vi.fn();
+    const resolveExecutable = vi.fn(async () => {
+      throw new Error("stale executable");
+    });
+
+    const result = await launchSlicer(
+      slicer({ executablePath: stalePath, enabled: true }),
+      modelPath,
+      spawnProcess,
+      resolveExecutable
+    );
+
+    expect(result.ok).toBe(false);
+    expect(resolveExecutable).toHaveBeenCalledWith(stalePath);
+    expect(spawnProcess).not.toHaveBeenCalled();
+  });
+
   it("spawns the slicer executable with the model path as one argument", async () => {
     const executablePath = path.join(tempRoot, "fake-slicer.exe");
     await writeFile(executablePath, "fake executable");
@@ -87,8 +107,11 @@ function slicer(overrides: Partial<SlicerConfig>): SlicerConfig {
   return {
     id: "cura",
     name: "Cura",
+    kind: "built-in",
+    builtInKey: "cura",
     executablePath: "",
     enabled: false,
+    pathSource: null,
     ...overrides
   };
 }

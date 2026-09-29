@@ -1,10 +1,15 @@
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import {
+  SUPPORTED_FILE_EXTENSIONS,
+  type SupportedFileExtension
+} from "../../src/shared/fileCapabilities.js";
 import type { LibraryScanResult, LibraryWatchEvent, ModelFile } from "../../src/shared/types.js";
 import { runBounded } from "./boundedTaskPool.js";
+import { isPathInside } from "./pathContainment.js";
 import { isInternalLibraryPath } from "./portableMetadataCodec.js";
 
-const LIBRARY_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
+const LIBRARY_FILE_EXTENSIONS = new Set<string>(SUPPORTED_FILE_EXTENSIONS);
 const FILE_STAT_CONCURRENCY = 8;
 
 type ModelCandidate = {
@@ -62,7 +67,7 @@ export async function scanLibrary(rootPath: string): Promise<LibraryScanResult> 
 
       candidates.push({
         absolutePath,
-        extension: extension as ModelFile["extension"],
+        extension: extension as SupportedFileExtension,
         name: entry.name
       });
     }
@@ -201,7 +206,7 @@ async function readModelCandidate(rootPath: string, absolutePath: string): Promi
     return {
       id: absolutePath,
       name: path.basename(absolutePath),
-      extension: extension as ModelFile["extension"],
+      extension: extension as SupportedFileExtension,
       absolutePath,
       relativeFolder: normalizeRelativeFolder(path.dirname(path.relative(rootPath, absolutePath))),
       sizeBytes: fileStat.size,
@@ -220,8 +225,7 @@ function compareModels(left: ModelFile, right: ModelFile): number {
 }
 
 function isPathInsideRoot(rootPath: string, absolutePath: string): boolean {
-  const relative = path.relative(rootPath, absolutePath);
-  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+  return isPathInside(rootPath, absolutePath);
 }
 
 function normalizePathKey(filePath: string): string {

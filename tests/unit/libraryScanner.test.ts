@@ -15,6 +15,24 @@ afterEach(async () => {
 });
 
 describe("scanLibrary", () => {
+  it("discovers uppercase OBJ and JPEG files with normalized extensions", async () => {
+    await writeFile(path.join(tempRoot, "shape.OBJ"), "obj");
+    await writeFile(path.join(tempRoot, "photo.JPEG"), "jpeg");
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models.map((model) => model.name).sort()).toEqual(["photo.JPEG", "shape.OBJ"]);
+    expect(result.models.map((model) => model.extension).sort()).toEqual([".jpeg", ".obj"]);
+  });
+
+  it("rejects unknown file extensions", async () => {
+    await writeFile(path.join(tempRoot, "notes.txt"), "ignore me");
+
+    const result = await scanLibrary(tempRoot);
+
+    expect(result.models).toEqual([]);
+  });
+
   it("finds STL and 3MF files recursively and ignores other extensions", async () => {
     await mkdir(path.join(tempRoot, "props", "terrain"), { recursive: true });
     await writeFile(path.join(tempRoot, "bench.STL"), "solid bench\nendsolid bench");
@@ -140,6 +158,28 @@ describe("scanLibrary", () => {
 
     expect(result.models.map((model) => model.name)).toEqual(["next.3mf"]);
     expect(result.folders).toEqual(["new-folder"]);
+  });
+
+  it("applies watcher events in dot-prefixed child segments but ignores parent traversal", async () => {
+    const initial = await scanLibrary(tempRoot);
+    const validFolder = path.join(tempRoot, "..draft");
+    const validPath = path.join(validFolder, "..part.stl");
+    const outsidePath = path.resolve(tempRoot, "..", "outside.stl");
+    await mkdir(validFolder);
+    await writeFile(validPath, "solid draft\nendsolid draft");
+    await writeFile(outsidePath, "solid outside\nendsolid outside");
+
+    try {
+      const result = await applyLibraryWatchEvents(initial, [
+        { type: "add", absolutePath: validPath },
+        { type: "add", absolutePath: outsidePath }
+      ]);
+
+      expect(result.models.map((model) => model.absolutePath)).toContain(validPath);
+      expect(result.models.map((model) => model.absolutePath)).not.toContain(outsidePath);
+    } finally {
+      await rm(outsidePath, { force: true });
+    }
   });
 
   it("defensively ignores internal metadata watcher events", async () => {

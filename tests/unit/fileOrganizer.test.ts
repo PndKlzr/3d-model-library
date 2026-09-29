@@ -40,6 +40,15 @@ describe("file organizer", () => {
     });
   });
 
+  it("accepts dot-prefixed child segments but rejects exact parent traversal", async () => {
+    await mkdir(path.join(tempRoot, "..draft"));
+
+    await expect(createLibraryFolder(tempRoot, "..draft", "parts")).resolves.toMatchObject({
+      path: path.join(tempRoot, "..draft", "parts")
+    });
+    await expect(createLibraryFolder(tempRoot, "..", "outside")).rejects.toThrow();
+  });
+
   it("moves model files to an existing folder without overwriting", async () => {
     await mkdir(path.join(tempRoot, "sorted"));
     const sourcePath = path.join(tempRoot, "bench.stl");

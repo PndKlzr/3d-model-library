@@ -1,18 +1,25 @@
 import { Folder } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import {
+  modelThumbnailService,
+  type ModelThumbnailRequest
+} from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
-import { loadModelThumbnail } from "./ModelCardThumbnail";
+import { isArchive } from "../shared/fileCapabilities";
+import { useI18n } from "../i18n/I18nProvider";
 
 type FolderCardThumbnailProps = {
   models: ModelFile[];
 };
 
 export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
+  const { t } = useI18n();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [thumbnailUrls, setThumbnailUrls] = useState<string[]>([]);
 
   useEffect(() => {
     const element = rootRef.current;
+    const outstandingRequests = new Set<ModelThumbnailRequest>();
     let isMounted = true;
 
     setThumbnailUrls([]);
@@ -30,7 +37,18 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
         }
 
         observer.disconnect();
-        void Promise.all(models.slice(0, 4).map(loadModelThumbnail)).then((imageUrls) => {
+        const requests = models.filter((model) => !isArchive(model.extension))
+          .slice(0, 4)
+          .map(loadFolderMosaicThumbnail);
+        for (const request of requests) {
+          outstandingRequests.add(request);
+          void request.promise.then(
+            () => releaseRequest(request),
+            () => releaseRequest(request)
+          );
+        }
+
+        void Promise.all(requests.map((request) => request.promise)).then((imageUrls) => {
           if (isMounted) {
             setThumbnailUrls(imageUrls.filter((imageUrl): imageUrl is string => Boolean(imageUrl)));
           }
@@ -44,7 +62,14 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
     return () => {
       isMounted = false;
       observer.disconnect();
+      for (const request of outstandingRequests) request.release();
+      outstandingRequests.clear();
     };
+
+    function releaseRequest(request: ModelThumbnailRequest) {
+      if (!outstandingRequests.delete(request)) return;
+      request.release();
+    }
   }, [models]);
 
   return (
@@ -57,6 +82,9 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
               src={thumbnailUrl}
               alt=""
               draggable={false}
+              onError={() => setThumbnailUrls((current) =>
+                current.filter((_, thumbnailIndex) => thumbnailIndex !== index)
+              )}
             />
           ))}
         </div>
@@ -65,8 +93,12 @@ export function FolderCardThumbnail({ models }: FolderCardThumbnailProps) {
       )}
       <span className="folder-kind-strip" aria-hidden="true">
         <Folder size={14} fill="currentColor" />
-        PASTA
+        {t("common.folder")}
       </span>
     </div>
   );
+}
+
+export function loadFolderMosaicThumbnail(model: ModelFile): ModelThumbnailRequest {
+  return modelThumbnailService.request(model, "mosaic");
 }

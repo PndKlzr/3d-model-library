@@ -1,11 +1,15 @@
 import path from "node:path";
-import type { LibraryMetadata, ModelUserMetadata } from "../../src/shared/types.js";
+import type {
+  FileContentIdentity,
+  LibraryMetadata,
+  ModelUserMetadata
+} from "../../src/shared/types.js";
 import { normalizeLibraryMetadata } from "./libraryMetadataStore.js";
 
 export const PORTABLE_METADATA_DIRECTORY = ".3d-model-library";
 export const PORTABLE_METADATA_FILENAME = "3D_LIBRARY_DATA_DO_NOT_DELETE.json";
 export const MAX_PORTABLE_METADATA_BYTES = 8 * 1024 * 1024;
-export const PORTABLE_METADATA_SCHEMA_VERSION = 1;
+export const PORTABLE_METADATA_SCHEMA_VERSION = 2;
 
 const MAX_LIBRARY_ID_LENGTH = 120;
 const MAX_MODEL_PATH_LENGTH = 1024;
@@ -27,12 +31,28 @@ export type PortableLibraryManifestV1 = {
   }>;
 };
 
+export type PortableLibraryManifestV2 = {
+  schemaVersion: 2;
+  libraryId: string;
+  updatedAt: string;
+  tagCatalog: string[];
+  models: Record<string, ModelUserMetadata>;
+  slicerHistory: Array<{
+    relativePath: string;
+    slicerId: string;
+    openedAt: string;
+  }>;
+  fileIdentities: Record<string, FileContentIdentity>;
+};
+
+export type PortableLibraryManifest = PortableLibraryManifestV1 | PortableLibraryManifestV2;
+
 export function encodePortableMetadata(
   rootPath: string,
   libraryId: string,
   metadata: LibraryMetadata,
   updatedAt = new Date().toISOString()
-): PortableLibraryManifestV1 {
+): PortableLibraryManifestV2 {
   const normalizedRoot = path.resolve(rootPath);
   assertBoundedString(libraryId, "library id", MAX_LIBRARY_ID_LENGTH);
   assertTimestamp(updatedAt, "updated timestamp");
@@ -55,6 +75,12 @@ export function encodePortableMetadata(
       openedAt: entry.openedAt
     };
   });
+  const fileIdentities = Object.fromEntries(
+    Object.entries(normalizedMetadata.fileIdentities).map(([modelPath, identity]) => [
+      toPortableRelativePath(normalizedRoot, modelPath),
+      identity
+    ])
+  );
 
   return {
     schemaVersion: PORTABLE_METADATA_SCHEMA_VERSION,
@@ -62,7 +88,8 @@ export function encodePortableMetadata(
     updatedAt,
     tagCatalog: normalizedMetadata.tagCatalog,
     models,
-    slicerHistory
+    slicerHistory,
+    fileIdentities
   };
 }
 
@@ -72,7 +99,7 @@ export function decodePortableMetadata(
 ): { libraryId: string; updatedAt: string; metadata: LibraryMetadata } {
   const manifest = requireRecord(value, "metadata manifest");
 
-  if (manifest.schemaVersion !== PORTABLE_METADATA_SCHEMA_VERSION) {
+  if (manifest.schemaVersion !== 1 && manifest.schemaVersion !== PORTABLE_METADATA_SCHEMA_VERSION) {
     throw new Error("Unsupported portable metadata version");
   }
 
@@ -119,25 +146,48 @@ export function decodePortableMetadata(
       openedAt: requireTimestamp(entry.openedAt, "slicer history timestamp")
     };
   });
+  const fileIdentities: LibraryMetadata["fileIdentities"] = {};
+
+  if (manifest.schemaVersion === PORTABLE_METADATA_SCHEMA_VERSION) {
+    const portableIdentities = requireRecord(manifest.fileIdentities, "file identities");
+    for (const [relativePath, rawIdentity] of Object.entries(portableIdentities)) {
+      const identity = requireRecord(rawIdentity, `file identity for ${relativePath}`);
+      const algorithm = requireBoundedString(identity.algorithm, "identity algorithm", 16);
+      const digest = requireBoundedString(identity.digest, "identity digest", 64);
+      const sizeBytes = requireSafeSize(identity.sizeBytes, "identity size");
+      const modifiedAt = requireTimestamp(identity.modifiedAt, "identity modified timestamp");
+
+      if (algorithm !== "sha256" || !/^[a-f0-9]{64}$/.test(digest)) {
+        throw new Error("File identity is invalid");
+      }
+
+      fileIdentities[fromPortableRelativePath(rootPath, relativePath)] = {
+        algorithm,
+        digest,
+        sizeBytes,
+        modifiedAt
+      };
+    }
+  }
 
   return {
     libraryId,
     updatedAt,
-    metadata: normalizeLibraryMetadata({ models, tagCatalog, slicerHistory })
+    metadata: normalizeLibraryMetadata({ models, tagCatalog, slicerHistory, fileIdentities })
   };
 }
 
 export function isInternalLibraryPath(rootPath: string, candidatePath: string): boolean {
   const relativePath = path.relative(path.resolve(rootPath), path.resolve(candidatePath));
 
-  if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+  if (!relativePath || isOutsideRelativePath(relativePath)) {
     return false;
   }
 
   return relativePath.split(path.sep)[0].toLowerCase() === PORTABLE_METADATA_DIRECTORY;
 }
 
-function toPortableRelativePath(rootPath: string, absolutePath: string): string {
+export function toPortableRelativePath(rootPath: string, absolutePath: string): string {
   if (typeof absolutePath !== "string" || absolutePath.includes("\0")) {
     throw new Error("Model path must be a valid library path");
   }
@@ -145,7 +195,7 @@ function toPortableRelativePath(rootPath: string, absolutePath: string): string 
   const resolvedPath = path.resolve(absolutePath);
   const relativePath = path.relative(rootPath, resolvedPath);
 
-  if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+  if (!relativePath || isOutsideRelativePath(relativePath)) {
     throw new Error("Model path must be inside the library");
   }
 
@@ -154,7 +204,7 @@ function toPortableRelativePath(rootPath: string, absolutePath: string): string 
   return portablePath;
 }
 
-function fromPortableRelativePath(rootPath: string, relativePath: string): string {
+export function fromPortableRelativePath(rootPath: string, relativePath: string): string {
   assertBoundedString(relativePath, "relative model path", MAX_MODEL_PATH_LENGTH);
 
   if (
@@ -177,11 +227,17 @@ function fromPortableRelativePath(rootPath: string, relativePath: string): strin
   const absolutePath = path.resolve(normalizedRoot, ...segments);
   const verification = path.relative(normalizedRoot, absolutePath);
 
-  if (!verification || verification.startsWith("..") || path.isAbsolute(verification)) {
+  if (!verification || isOutsideRelativePath(verification)) {
     throw new Error("Portable model path cannot escape the library");
   }
 
   return absolutePath;
+}
+
+function isOutsideRelativePath(relativePath: string): boolean {
+  return relativePath === ".." ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath);
 }
 
 function validateMetadataStrings(metadata: LibraryMetadata) {
@@ -248,6 +304,13 @@ function requireTimestamp(value: unknown, label: string): string {
   const timestamp = requireBoundedString(value, label, 64);
   assertTimestamp(timestamp, label);
   return timestamp;
+}
+
+function requireSafeSize(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`${label} is invalid`);
+  }
+  return value;
 }
 
 function assertTimestamp(value: string, label: string) {

@@ -1,5 +1,10 @@
 import path from "node:path";
-import type { LibraryMetadata, ModelUserMetadata } from "../../src/shared/types.js";
+import type {
+  FileContentIdentity,
+  LibraryMetadata,
+  ModelUserMetadata
+} from "../../src/shared/types.js";
+import { isPathAtOrInside, isPathInside } from "./pathContainment.js";
 
 export type LibraryMetadataBackend = {
   get: () => LibraryMetadata | undefined;
@@ -14,7 +19,11 @@ export type LibraryMetadataStore = {
   setNotes: (modelPath: string, notes: string) => LibraryMetadata;
   addCatalogTag: (tag: string) => LibraryMetadata;
   removeCatalogTag: (tag: string) => LibraryMetadata;
+  setFileIdentity: (modelPath: string, identity: FileContentIdentity) => LibraryMetadata;
   movePathMetadata: (sourcePath: string, destinationPath: string) => LibraryMetadata;
+  movePathMetadataBatch: (
+    moves: Array<{ sourcePath: string; destinationPath: string }>
+  ) => LibraryMetadata;
   recordSlicerOpen: (modelPath: string, slicerId: string, openedAt?: string) => LibraryMetadata;
 };
 
@@ -24,7 +33,8 @@ export function createDefaultLibraryMetadata(): LibraryMetadata {
   return {
     models: {},
     tagCatalog: [],
-    slicerHistory: []
+    slicerHistory: [],
+    fileIdentities: {}
   };
 }
 
@@ -117,6 +127,17 @@ export function createLibraryMetadataStore(
       });
     },
 
+    setFileIdentity(modelPath, identity) {
+      const metadata = getMetadata();
+      return saveMetadata({
+        ...metadata,
+        fileIdentities: {
+          ...metadata.fileIdentities,
+          [modelPath]: identity
+        }
+      });
+    },
+
     movePathMetadata(sourcePath, destinationPath) {
       if (samePath(sourcePath, destinationPath)) {
         return getMetadata();
@@ -125,6 +146,8 @@ export function createLibraryMetadataStore(
       const metadata = getMetadata();
       const nextModels: LibraryMetadata["models"] = {};
       const movedModelEntries: Array<[string, ModelUserMetadata]> = [];
+      const nextIdentities: LibraryMetadata["fileIdentities"] = {};
+      const movedIdentityEntries: Array<[string, FileContentIdentity]> = [];
 
       for (const [modelPath, modelMetadata] of Object.entries(metadata.models)) {
         const movedPath = movePathIfInside(modelPath, sourcePath, destinationPath);
@@ -139,14 +162,41 @@ export function createLibraryMetadataStore(
         }
       }
 
+      for (const [modelPath, identity] of Object.entries(metadata.fileIdentities)) {
+        const movedPath = movePathIfInside(modelPath, sourcePath, destinationPath);
+
+        if (movedPath) {
+          movedIdentityEntries.push([movedPath, identity]);
+          continue;
+        }
+
+        if (!isPathSameOrInside(modelPath, destinationPath)) {
+          nextIdentities[modelPath] = identity;
+        }
+      }
+
       return saveMetadata({
         ...metadata,
         models: {
           ...nextModels,
           ...Object.fromEntries(movedModelEntries)
         },
+        fileIdentities: {
+          ...nextIdentities,
+          ...Object.fromEntries(movedIdentityEntries)
+        },
         slicerHistory: moveSlicerHistory(metadata, sourcePath, destinationPath)
       });
+    },
+
+    movePathMetadataBatch(moves) {
+      assertUniqueMoves(moves);
+      const reducer = createLibraryMetadataStore();
+      reducer.saveMetadata(getMetadata());
+      for (const move of moves) {
+        reducer.movePathMetadata(move.sourcePath, move.destinationPath);
+      }
+      return saveMetadata(reducer.getMetadata());
     },
 
     setNotes(modelPath, notes) {
@@ -219,7 +269,12 @@ export function normalizeLibraryMetadata(metadata: LibraryMetadata): LibraryMeta
       modelPath: entry.modelPath,
       slicerId: entry.slicerId,
       openedAt: entry.openedAt
-    }))
+    })),
+    fileIdentities: Object.fromEntries(
+      Object.entries(metadata.fileIdentities ?? {})
+        .filter((entry): entry is [string, FileContentIdentity] => isFileContentIdentity(entry[1]))
+        .map(([modelPath, identity]) => [modelPath, { ...identity }])
+    )
   };
 }
 
@@ -229,6 +284,38 @@ export function cloneLibraryMetadata(metadata: LibraryMetadata): LibraryMetadata
 
 function normalizeTags(tags: string[]): string[] {
   return [...new Set(tags.map((tag) => tag.trim().toLowerCase()).filter(Boolean))].sort();
+}
+
+function isFileContentIdentity(value: unknown): value is FileContentIdentity {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    (value as FileContentIdentity).algorithm === "sha256" &&
+    /^[a-f0-9]{64}$/.test((value as FileContentIdentity).digest) &&
+    Number.isSafeInteger((value as FileContentIdentity).sizeBytes) &&
+    (value as FileContentIdentity).sizeBytes >= 0 &&
+    typeof (value as FileContentIdentity).modifiedAt === "string" &&
+    !Number.isNaN(Date.parse((value as FileContentIdentity).modifiedAt))
+  );
+}
+
+function assertUniqueMoves(moves: Array<{ sourcePath: string; destinationPath: string }>) {
+  const sources = new Set<string>();
+  const destinations = new Set<string>();
+
+  for (const move of moves) {
+    const source = normalizePathKey(move.sourcePath);
+    const destination = normalizePathKey(move.destinationPath);
+    if (sources.has(source) || destinations.has(destination)) {
+      throw new Error("Metadata path moves must have unique sources and destinations");
+    }
+    sources.add(source);
+    destinations.add(destination);
+  }
+}
+
+function normalizePathKey(value: string): string {
+  return path.resolve(value).toLowerCase();
 }
 
 function movePathIfInside(
@@ -245,8 +332,7 @@ function movePathIfInside(
   }
 
   const relativePath = path.relative(normalizedSource, normalizedCandidate);
-  const isInside =
-    Boolean(relativePath) && !relativePath.startsWith("..") && !path.isAbsolute(relativePath);
+  const isInside = isPathInside(normalizedSource, normalizedCandidate);
 
   return isInside ? path.join(normalizedDestination, relativePath) : null;
 }
@@ -277,11 +363,7 @@ function moveSlicerHistory(
 function isPathSameOrInside(candidatePath: string, parentPath: string): boolean {
   const normalizedCandidate = path.resolve(candidatePath);
   const normalizedParent = path.resolve(parentPath);
-  const relativePath = path.relative(normalizedParent, normalizedCandidate);
-
-  return (
-    relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
-  );
+  return isPathAtOrInside(normalizedParent, normalizedCandidate);
 }
 
 function samePath(left: string, right: string): boolean {

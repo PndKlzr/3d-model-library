@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ModelFile } from "../../src/shared/types";
-import { ALL_FOLDERS_ID, filterModels } from "../../src/lib/folderFilters";
+import {
+  ALL_FOLDERS_ID,
+  filterModels,
+  getFolderScopeModels,
+  isFolderExcluded,
+  reconcileExcludedFolders
+} from "../../src/lib/folderFilters";
 
 const models: ModelFile[] = [
   model("root.stl", "", 100, "2026-07-01T00:00:00.000Z"),
@@ -45,9 +51,33 @@ describe("filterModels", () => {
   });
 
   it("filters models by file type", () => {
-    const result = filterModels(models, ALL_FOLDERS_ID, true, "", { type: ".3mf" });
+    const result = filterModels(models, ALL_FOLDERS_ID, true, "", {
+      visibleExtensions: new Set([".3mf"])
+    });
 
     expect(result.map((modelFile) => modelFile.name)).toEqual(["visor.3mf"]);
+  });
+
+  it("combines visible extensions and excluded folders with the other filters", () => {
+    const files = [
+      ...models,
+      model("reference.obj", "cosplay", 250, "2026-07-05T00:00:00.000Z", ".obj"),
+      model("preview.png", "cosplay", 150, "2026-07-06T00:00:00.000Z", ".png"),
+      model("keep.obj", "parts-old", 175, "2026-07-07T00:00:00.000Z", ".obj")
+    ];
+
+    const result = filterModels(files, ALL_FOLDERS_ID, true, "obj", {
+      visibleExtensions: new Set([".obj", ".png"]),
+      excludedFolders: ["cosplay"]
+    });
+
+    expect(result.map((modelFile) => modelFile.name)).toEqual(["keep.obj"]);
+  });
+
+  it("allows every supported type to be hidden", () => {
+    expect(filterModels(models, ALL_FOLDERS_ID, true, "", {
+      visibleExtensions: new Set()
+    })).toEqual([]);
   });
 
   it("sorts models by newest modification date first", () => {
@@ -180,16 +210,53 @@ describe("filterModels", () => {
   });
 });
 
+describe("getFolderScopeModels", () => {
+  it("returns every model for the recursive All view", () => {
+    expect(getFolderScopeModels(models, ALL_FOLDERS_ID, true)).toEqual(models);
+  });
+
+  it("returns only root models for the non-recursive All view", () => {
+    expect(getFolderScopeModels(models, ALL_FOLDERS_ID, false).map((item) => item.name))
+      .toEqual(["root.stl"]);
+  });
+
+  it("returns a folder and its descendants when recursive", () => {
+    expect(getFolderScopeModels(models, "cosplay", true).map((item) => item.name))
+      .toEqual(["helmet.stl", "visor.3mf"]);
+  });
+
+  it("returns only exact folder members when non-recursive", () => {
+    expect(getFolderScopeModels(models, "cosplay", false).map((item) => item.name))
+      .toEqual(["helmet.stl"]);
+  });
+});
+
+describe("folder exclusions", () => {
+  it("matches normalized complete path segments", () => {
+    expect(isFolderExcluded("parts/sub", ["parts"])).toBe(true);
+    expect(isFolderExcluded("parts-old", ["parts"])).toBe(false);
+    expect(isFolderExcluded("parts\\sub\\nested", ["/parts/sub/"])).toBe(true);
+  });
+
+  it("removes exclusions only when their exact folder no longer exists", () => {
+    expect(reconcileExcludedFolders(
+      ["parts", "parts/sub", "missing", "PARTS"],
+      ["parts", "parts/sub", "parts-old"]
+    )).toEqual(["parts", "parts/sub"]);
+  });
+});
+
 function model(
   name: string,
   relativeFolder: string,
   sizeBytes: number,
-  modifiedAt: string
+  modifiedAt: string,
+  extension: ModelFile["extension"] = name.endsWith(".3mf") ? ".3mf" : ".stl"
 ): ModelFile {
   return {
     id: `${relativeFolder}/${name}`,
     name,
-    extension: name.endsWith(".3mf") ? ".3mf" : ".stl",
+    extension,
     absolutePath: `C:/library/${relativeFolder}/${name}`,
     relativeFolder,
     sizeBytes,

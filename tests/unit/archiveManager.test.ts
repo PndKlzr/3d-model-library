@@ -4,12 +4,19 @@ import path from "node:path";
 import { strToU8, zipSync } from "fflate";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  extractArchive,
   extractArchiveEntries,
   listArchiveEntries,
   parseSevenZipListOutput
 } from "../../electron/services/archiveManager";
 
 let tempRoot: string;
+
+async function createTestSevenZip(): Promise<string> {
+  const executablePath = path.join(tempRoot, "7z.exe");
+  await writeFile(executablePath, "test executable");
+  return executablePath;
+}
 
 beforeEach(async () => {
   tempRoot = await mkdtemp(path.join(os.tmpdir(), "model-archives-"));
@@ -20,7 +27,75 @@ afterEach(async () => {
 });
 
 describe("archiveManager", () => {
-  it("lists printable model entries inside a zip archive", async () => {
+  it("lists every regular file and folder in a zip archive", async () => {
+    const archivePath = path.join(tempRoot, "complete.zip");
+    await writeFile(archivePath, zipSync({
+      "models/part.stl": strToU8("solid part\nendsolid part"),
+      "docs/readme.pdf": new Uint8Array([1, 2]),
+      "preview.jpg": new Uint8Array([3, 4, 5])
+    }));
+
+    const result = await listArchiveEntries(tempRoot, archivePath, {
+      extractorPath: path.join(tempRoot, "missing-7z.exe")
+    });
+
+    expect(result.entries.map((entry) => entry.path)).toEqual([
+      "docs/readme.pdf",
+      "models/part.stl",
+      "preview.jpg"
+    ]);
+    expect(result.entries.find((entry) => entry.path === "docs/readme.pdf")?.extension)
+      .toBe(".pdf");
+  });
+
+  it("extracts a complete archive beside the archive in here mode", async () => {
+    const archiveFolder = path.join(tempRoot, "archives");
+    await mkdir(archiveFolder);
+    const archivePath = path.join(archiveFolder, "pack.zip");
+    await writeFile(archivePath, zipSync({
+      "part.stl": strToU8("part"),
+      "docs/readme.pdf": strToU8("instructions")
+    }));
+
+    const result = await extractArchive(tempRoot, archivePath, "here", {
+      extractorPath: path.join(tempRoot, "missing-7z.exe")
+    });
+
+    expect(result.path).toBe(archiveFolder);
+    await expect(readFile(path.join(archiveFolder, "part.stl"), "utf8")).resolves.toBe("part");
+    await expect(readFile(path.join(archiveFolder, "docs", "readme.pdf"), "utf8"))
+      .resolves.toBe("instructions");
+  });
+
+  it("avoids a duplicate wrapper when named-folder contents already share the archive name", async () => {
+    const archiveFolder = path.join(tempRoot, "archives");
+    await mkdir(archiveFolder);
+    const archivePath = path.join(archiveFolder, "pack.zip");
+    await writeFile(archivePath, zipSync({
+      "pack/part.stl": strToU8("part"),
+      "pack/preview.png": new Uint8Array([1, 2, 3])
+    }));
+
+    const result = await extractArchive(tempRoot, archivePath, "named-folder", {
+      extractorPath: path.join(tempRoot, "missing-7z.exe")
+    });
+
+    expect(result.path).toBe(path.join(archiveFolder, "pack"));
+    await expect(readFile(path.join(archiveFolder, "pack", "part.stl"), "utf8"))
+      .resolves.toBe("part");
+    await expect(stat(path.join(archiveFolder, "pack", "pack"))).rejects.toThrow("ENOENT");
+  });
+
+  it("rejects an unknown whole-archive extraction mode", async () => {
+    const archivePath = path.join(tempRoot, "pack.zip");
+    await writeFile(archivePath, zipSync({ "part.stl": strToU8("part") }));
+
+    await expect(
+      extractArchive(tempRoot, archivePath, "unexpected" as never)
+    ).rejects.toThrow("Modo de extracao invalido");
+  });
+
+  it("lists all entries inside a zip archive", async () => {
     const archivePath = path.join(tempRoot, "pack.zip");
     await writeFile(
       archivePath,
@@ -48,6 +123,12 @@ describe("archiveManager", () => {
           name: "part.stl",
           extension: ".stl",
           sizeBytes: 24
+        },
+        {
+          path: "readme.txt",
+          name: "readme.txt",
+          extension: ".txt",
+          sizeBytes: 6
         }
       ]
     });
@@ -64,7 +145,7 @@ describe("archiveManager", () => {
     const calls: string[][] = [];
 
     const result = await listArchiveEntries(tempRoot, archivePath, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async (args) => {
         calls.push(args);
         return {
@@ -95,7 +176,7 @@ Folder = -
     const calls: string[][] = [];
 
     const result = await listArchiveEntries(tempRoot, archivePath, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async (args) => {
         calls.push(args);
         return {
@@ -116,6 +197,12 @@ Folder = -
     expect(calls).toEqual([["l", "-slt", archivePath]]);
     expect(result.entries).toEqual([
       {
+        path: "notes.txt",
+        name: "notes.txt",
+        extension: ".txt",
+        sizeBytes: 4
+      },
+      {
         path: "part.stl",
         name: "part.stl",
         extension: ".stl",
@@ -129,7 +216,7 @@ Folder = -
     await writeFile(archivePath, "not readable by fflate");
 
     const result = await listArchiveEntries(tempRoot, archivePath, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async () => {
         throw Object.assign(new Error("Warnings while listing archive"), {
           stdout: `
@@ -191,7 +278,7 @@ Folder = -
       ["folder/part.stl"],
       undefined,
       {
-        extractorPath: process.execPath,
+        extractorPath: await createTestSevenZip(),
         runSevenZip: async (args) => {
           calls.push(args);
           return { stdout: "Everything is Ok", stderr: "" };
@@ -200,7 +287,10 @@ Folder = -
     );
 
     const destinationRoot = path.join(tempRoot, "archives", "pack");
-    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(calls).toEqual([
+      ["l", "-slt", archivePath],
+      ["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]
+    ]);
     expect(result.paths).toEqual([path.join(destinationRoot, "folder", "part.stl")]);
   });
 
@@ -216,7 +306,7 @@ Folder = -
       ["folder/part.stl"],
       undefined,
       {
-        extractorPath: process.execPath,
+        extractorPath: await createTestSevenZip(),
         runSevenZip: async (args) => {
           calls.push(args);
           return { stdout: "Everything is Ok", stderr: "" };
@@ -225,7 +315,10 @@ Folder = -
     );
 
     const destinationRoot = path.join(tempRoot, "archives", "external");
-    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(calls).toEqual([
+      ["l", "-slt", archivePath],
+      ["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]
+    ]);
     expect(result.paths).toEqual([path.join(destinationRoot, "folder", "part.stl")]);
   });
 
@@ -295,7 +388,7 @@ Folder = -
     await expect(stat(path.join(tempRoot, "target", "part.stl"))).rejects.toThrow("ENOENT");
   });
 
-  it("parses printable entries from 7-Zip technical list output", () => {
+  it("parses all files and folders from 7-Zip technical list output", () => {
     const entries = parseSevenZipListOutput(`
 Path = folder
 Folder = +
@@ -316,6 +409,13 @@ Folder = -
 
     expect(entries).toEqual([
       {
+        path: "folder",
+        name: "folder",
+        extension: "",
+        sizeBytes: 0,
+        isDirectory: true
+      },
+      {
         path: "folder/part.stl",
         name: "part.stl",
         extension: ".stl",
@@ -326,16 +426,22 @@ Folder = -
         name: "model.3mf",
         extension: ".3mf",
         sizeBytes: 2048
+      },
+      {
+        path: "notes/readme.txt",
+        name: "readme.txt",
+        extension: ".txt",
+        sizeBytes: 12
       }
     ]);
   });
 
-  it("lists printable entries inside a rar archive through 7-Zip", async () => {
+  it("lists all entries inside a rar archive through 7-Zip", async () => {
     const archivePath = path.join(tempRoot, "pack.rar");
     await writeFile(archivePath, "fake rar");
 
     const result = await listArchiveEntries(tempRoot, archivePath, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async () => ({
         stdout: `
 Path = part.stl
@@ -352,6 +458,12 @@ Folder = -
 
     expect(result.entries).toEqual([
       {
+        path: "ignored.txt",
+        name: "ignored.txt",
+        extension: ".txt",
+        sizeBytes: 9
+      },
+      {
         path: "part.stl",
         name: "part.stl",
         extension: ".stl",
@@ -367,7 +479,7 @@ Folder = -
     const calls: string[][] = [];
 
     const result = await extractArchiveEntries(tempRoot, archivePath, ["folder/part.stl"], undefined, {
-      extractorPath: process.execPath,
+      extractorPath: await createTestSevenZip(),
       runSevenZip: async (args) => {
         calls.push(args);
         return { stdout: "Everything is Ok", stderr: "" };
@@ -375,7 +487,10 @@ Folder = -
     });
 
     const destinationRoot = path.join(tempRoot, "archives", "pack");
-    expect(calls).toEqual([["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]]);
+    expect(calls).toEqual([
+      ["l", "-slt", archivePath],
+      ["x", archivePath, `-o${destinationRoot}`, "-y", "folder/part.stl"]
+    ]);
     expect(result).toEqual({
       ok: true,
       message: "1 arquivo extraido.",
@@ -393,14 +508,14 @@ Folder = -
 
     await expect(
       extractArchiveEntries(tempRoot, archivePath, ["folder/part.stl"], undefined, {
-        extractorPath: process.execPath,
+        extractorPath: await createTestSevenZip(),
         runSevenZip: async (args) => {
           calls.push(args);
           return { stdout: "Everything is Ok", stderr: "" };
         }
       })
     ).rejects.toThrow("Ja existe um arquivo extraido com esse nome");
-    expect(calls).toEqual([]);
+    expect(calls).toEqual([["l", "-slt", archivePath]]);
     await expect(readFile(existingPath, "utf8")).resolves.toBe("existing model");
   });
 });

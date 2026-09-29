@@ -4,10 +4,15 @@
   "private": true,
   "type": "module",
   "main": "dist-electron/electron/main.js",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "scripts": {
+    "start": "npm run electron:dev",
     "dev": "vite --host 127.0.0.1 --strictPort",
     "electron:dev": "node scripts/electron-dev.cjs",
     "build": "tsc -p tsconfig.node.json && node scripts/copy-preload.cjs && vite build",
+    "benchmark:thumbnails": "node scripts/thumbnail-benchmark.cjs",
     "probe:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/native-drop-probe/build.ps1",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -18,7 +23,7 @@
     "@tanstack/react-virtual": "^3.14.11",
     "chokidar": "^4.0.3",
     "electron-store": "^10.0.0",
-    "fast-xml-parser": "^4.5.1",
+    "fast-xml-parser": "^5.11.1",
     "fflate": "^0.8.2",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
@@ -32,16 +37,14 @@
     "@types/react": "^18.3.17",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
-    "concurrently": "^9.1.0",
-    "electron": "^33.2.1",
+    "electron": "^44.4.1",
     "jsdom": "^29.1.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
-    "vitest": "^2.1.8",
-    "wait-on": "^8.0.1"
+    "vitest": "^5.0.2"
   },
   "allowScripts": {
-    "electron@33.2.1": true,
+    "electron@44.4.1": true,
     "esbuild@0.25.12": true,
     "esbuild@0.21.5": true
   }

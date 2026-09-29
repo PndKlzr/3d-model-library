@@ -1,13 +1,35 @@
+import type { SupportedFileExtension } from "./fileCapabilities.js";
+import type { BuiltInSlicerKey } from "./slicerCatalog.js";
+
 export type SlicerConfig = {
   id: string;
   name: string;
+  kind: "built-in" | "custom";
+  builtInKey?: BuiltInSlicerKey;
   executablePath: string;
   enabled: boolean;
+  pathSource: "detected" | "manual" | null;
+};
+
+export type SlicerEvidence =
+  | "app-path"
+  | "uninstall"
+  | "association"
+  | "start-menu"
+  | "known-directory";
+
+export type SlicerCandidate = {
+  builtInKey: BuiltInSlicerKey;
+  executablePath: string;
+  version?: string;
+  evidence: SlicerEvidence;
 };
 
 export type FileDragBehavior = "organize-default" | "external-default";
+export type AppLocale = "pt-BR" | "en";
 
 export type AppSettings = {
+  locale: AppLocale;
   libraryPath: string | null;
   includeSubfolders: boolean;
   monitorLibrary: boolean;
@@ -25,7 +47,7 @@ export type LibraryWatchEvent = {
 export type ModelFile = {
   id: string;
   name: string;
-  extension: ".stl" | ".3mf" | ".zip" | ".rar" | ".7z";
+  extension: SupportedFileExtension;
   absolutePath: string;
   relativeFolder: string;
   sizeBytes: number;
@@ -37,11 +59,51 @@ export type ModelFile = {
 
 export type ThumbnailSignature = Pick<ModelFile, "absolutePath" | "sizeBytes" | "modifiedAt">;
 
+export type ThumbnailCacheOwner = {
+  libraryId: string;
+  relativePath: string;
+};
+
+export type ThumbnailCleanupResult = {
+  removedFiles: number;
+  reclaimedBytes: number;
+};
+
 export type LibraryScanResult = {
   rootPath: string;
   models: ModelFile[];
   folders: string[];
   errors: Array<{ path: string; message: string }>;
+};
+
+export type LibrarySessionRef = {
+  generation: number;
+  rootPath: string;
+  libraryId: string;
+};
+
+export type LibraryActivationResult = {
+  session: LibrarySessionRef;
+  cachedResult: LibraryScanResult | null;
+  metadata: LibraryMetadata;
+  metadataStatus: LibraryMetadataStatus;
+};
+
+export type VersionedLibraryScanResult = {
+  session: LibrarySessionRef;
+  result: LibraryScanResult;
+  metadata: LibraryMetadata;
+};
+
+export type VersionedLibraryWatchEvents = {
+  session: LibrarySessionRef;
+  events: LibraryWatchEvent[];
+  metadata: LibraryMetadata;
+};
+
+export type VersionedLibraryMonitoringError = {
+  session: LibrarySessionRef;
+  message: string;
 };
 
 export type ModelHashInput = Pick<ModelFile, "absolutePath" | "sizeBytes" | "modifiedAt">;
@@ -54,6 +116,13 @@ export type ModelUserMetadata = {
   notes: string;
 };
 
+export type FileContentIdentity = {
+  algorithm: "sha256";
+  digest: string;
+  sizeBytes: number;
+  modifiedAt: string;
+};
+
 export type SlicerHistoryEntry = {
   modelPath: string;
   slicerId: string;
@@ -64,6 +133,7 @@ export type LibraryMetadata = {
   models: Record<string, ModelUserMetadata>;
   tagCatalog: string[];
   slicerHistory: SlicerHistoryEntry[];
+  fileIdentities: Record<string, FileContentIdentity>;
 };
 
 export type LibraryMetadataAvailability = "ready" | "read-only" | "unavailable";
@@ -73,6 +143,57 @@ export type LibraryMetadataStatus = {
   writable: boolean;
   source: "primary" | "backup" | "legacy" | "empty" | "mirror";
   message: string | null;
+};
+
+export type LibrarySessionIssueKind = "thumbnail" | "archive";
+
+export type LibrarySessionIssueFact = {
+  kind: LibrarySessionIssueKind;
+  modelPath: string;
+  detail: string;
+};
+
+export type LibraryHealthIssueCode =
+  | "metadata-recovered-backup"
+  | "metadata-read-only"
+  | "metadata-unavailable"
+  | "metadata-file-missing"
+  | "metadata-file-relocation-unresolved"
+  | "scan-error"
+  | "thumbnail-failed"
+  | "archive-read-failed"
+  | "slicer-unavailable"
+  | "monitoring-failed";
+
+export type LibraryHealthIssue = {
+  id: string;
+  code: LibraryHealthIssueCode;
+  severity: "warning" | "error";
+  relativePath?: string;
+  detail?: string;
+};
+
+export type LibraryHealthSnapshot = {
+  checkedAt: string | null;
+  counts: { warning: number; error: number };
+  issues: LibraryHealthIssue[];
+};
+
+export type LibraryDataStatus = {
+  libraryId: string | null;
+  updatedAt: string | null;
+  availability: LibraryMetadataAvailability;
+  writable: boolean;
+  source: LibraryMetadataStatus["source"];
+  modelCount: number;
+  tagCount: number;
+};
+
+export type LibraryBackupActionResult = {
+  state: "cancelled" | "exported" | "restored";
+  message: string;
+  metadata?: LibraryMetadata;
+  metadataStatus?: LibraryMetadataStatus;
 };
 
 export type SlicerLaunchResult = {
@@ -103,9 +224,12 @@ export type FileOperationResult = {
 export type ArchiveEntry = {
   path: string;
   name: string;
-  extension: ".stl" | ".3mf";
+  extension: string;
   sizeBytes: number;
+  isDirectory?: boolean;
 };
+
+export type ArchiveExtractionMode = "here" | "named-folder";
 
 export type ArchiveListResult = {
   ok: boolean;

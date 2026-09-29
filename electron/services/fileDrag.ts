@@ -1,8 +1,10 @@
 import { realpathSync, statSync } from "node:fs";
 import { realpath, stat } from "node:fs/promises";
 import path from "node:path";
+import { SUPPORTED_FILE_EXTENSIONS } from "../../src/shared/fileCapabilities.js";
+import { isPathInside } from "./pathContainment.js";
 
-const DRAGGABLE_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
+const DRAGGABLE_FILE_EXTENSIONS = new Set<string>(SUPPORTED_FILE_EXTENSIONS);
 
 export type NativeFileDragPayload<Icon> = {
   file: string;
@@ -75,7 +77,7 @@ export function createNativeFileDragPayload<Icon>(
 
 function assertSupportedExtension(filePath: string) {
   if (!DRAGGABLE_FILE_EXTENSIONS.has(path.extname(filePath).toLowerCase())) {
-    throw new Error("Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z.");
+    throw new Error("Arraste externo aceita apenas formatos suportados pela biblioteca.");
   }
 }
 
@@ -95,11 +97,7 @@ function assertHasFiles(filePaths: string[]) {
 }
 
 function assertInsideRoot(rootPath: string, candidatePath: string) {
-  const relativePath = path.relative(rootPath, candidatePath);
-  const isOutside =
-    relativePath.startsWith("..") || path.isAbsolute(relativePath) || relativePath === "";
-
-  if (isOutside) {
+  if (!isPathInside(rootPath, candidatePath)) {
     throw new Error("Arquivo fora da biblioteca.");
   }
 }

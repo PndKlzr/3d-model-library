@@ -1,20 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Bounds, OrbitControls } from "@react-three/drei";
 import { RotateCcw } from "lucide-react";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { parseThreeMfPreview } from "../lib/threeMfPreview";
+import { parseObjPreview } from "../lib/objPreview";
 import { orientModelForBed } from "../lib/modelOrientation";
 import type { ModelFile } from "../shared/types";
+import { disposeObjectResources } from "../lib/threeResourceDisposal";
+import { useI18n } from "../i18n/I18nProvider";
+import { localizeErrorMessage } from "../shared/appError";
 
 type ModelViewerProps = {
   model: ModelFile;
 };
 
 export function ModelViewer({ model }: ModelViewerProps) {
+  const { locale, t } = useI18n();
   const [modelBytes, setModelBytes] = useState<ArrayBuffer | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [parsedModel, setParsedModel] = useState<THREE.Object3D | { error: string } | null>(null);
   const [resetKey, setResetKey] = useState(0);
 
   useEffect(() => {
@@ -22,8 +28,16 @@ export function ModelViewer({ model }: ModelViewerProps) {
     setModelBytes(null);
     setLoadError(null);
 
-    window.modelLibrary
-      .readModelFile(model.absolutePath)
+    const readModel = async () => {
+      if (model.extension !== ".obj") {
+        return window.modelLibrary.readModelFile(model.absolutePath);
+      }
+      const state = await window.modelLibrary.getCurrentLibrary();
+      if (!state.session) throw new Error(t("message.librarySessionInactive"));
+      return window.modelLibrary.readObjPreviewFile(state.session, model.absolutePath);
+    };
+
+    readModel()
       .then((bytes) => {
         if (isMounted) {
           setModelBytes(bytes);
@@ -31,58 +45,45 @@ export function ModelViewer({ model }: ModelViewerProps) {
       })
       .catch((error) => {
         if (isMounted) {
-          setLoadError(error instanceof Error ? error.message : String(error));
+          setLoadError(localizeErrorMessage(locale, error));
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, [model.absolutePath]);
+  }, [locale, model.absolutePath, model.extension, t]);
 
-  const parsedModel = useMemo(() => {
+  useEffect(() => {
+    setParsedModel(null);
     if (!modelBytes) {
-      return null;
+      return;
     }
 
+    let object: THREE.Object3D | null = null;
     try {
-      if (model.extension === ".stl") {
-        const geometry = new STLLoader().parse(modelBytes);
-        geometry.computeVertexNormals();
-        const mesh = new THREE.Mesh(
-          geometry,
-          new THREE.MeshStandardMaterial({
-            color: "#78aaa6",
-            roughness: 0.62,
-            metalness: 0.08
-          })
-        );
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        return orientModelForBed(mesh);
-      }
-
-      if (model.extension !== ".3mf") {
-        return {
-          error: "Extraia um STL ou 3MF antes de carregar o preview 3D."
-        };
-      }
-
-      const group = parseThreeMfPreview(modelBytes, { center: false });
-      return orientModelForBed(group);
+      object = parseModelForViewer(model.extension, modelBytes, t("viewer.unavailable"));
+      setParsedModel(object);
     } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : String(error)
-      };
+      const message = error instanceof Error ? error.message : String(error);
+      setParsedModel({
+        error: message === t("viewer.unavailable")
+          ? message
+          : localizeErrorMessage(locale, error)
+      });
     }
-  }, [model.extension, modelBytes]);
+
+    return () => {
+      if (object) disposeObjectResources(object);
+    };
+  }, [locale, model.extension, modelBytes, t]);
 
   if (loadError) {
     return <div className="viewer-message">{loadError}</div>;
   }
 
   if (!modelBytes) {
-    return <div className="viewer-message">Carregando preview...</div>;
+    return <div className="viewer-message">{t("viewer.loading")}</div>;
   }
 
   if (parsedModel && "error" in parsedModel) {
@@ -95,8 +96,8 @@ export function ModelViewer({ model }: ModelViewerProps) {
         className="viewer-reset"
         type="button"
         onClick={() => setResetKey((current) => current + 1)}
-        aria-label="Resetar visualização"
-        title="Resetar visualização"
+        aria-label={t("viewer.reset")}
+        title={t("viewer.reset")}
       >
         <RotateCcw size={16} />
       </button>
@@ -129,4 +130,36 @@ export function ModelViewer({ model }: ModelViewerProps) {
       </Canvas>
     </div>
   );
+}
+
+function parseModelForViewer(
+  extension: ModelFile["extension"],
+  modelBytes: ArrayBuffer,
+  unavailableMessage: string
+) {
+  if (extension === ".stl") {
+    const geometry = new STLLoader().parse(modelBytes);
+    geometry.computeVertexNormals();
+    const mesh = new THREE.Mesh(
+      geometry,
+      new THREE.MeshStandardMaterial({
+        color: "#78aaa6",
+        roughness: 0.62,
+        metalness: 0.08
+      })
+    );
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    return orientModelForBed(mesh);
+  }
+
+  if (extension === ".obj") {
+    return orientModelForBed(parseObjPreview(modelBytes));
+  }
+
+  if (extension === ".3mf") {
+    return orientModelForBed(parseThreeMfPreview(modelBytes, { center: false }));
+  }
+
+  throw new Error(unavailableMessage);
 }

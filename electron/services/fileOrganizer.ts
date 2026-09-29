@@ -1,8 +1,12 @@
 import { mkdir, rename, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { FileOperationResult, FileRestorePair } from "../../src/shared/types.js";
+import {
+  canConvertToStl,
+  toSupportedFileExtension
+} from "../../src/shared/fileCapabilities.js";
+import { isPathAtOrInside, isPathInside } from "./pathContainment.js";
 
-const LIBRARY_FILE_EXTENSIONS = new Set([".stl", ".3mf", ".zip", ".rar", ".7z"]);
 const INVALID_WINDOWS_NAME_CHARS = /[<>:"/\\|?*\u0000-\u001f]/;
 const RESERVED_WINDOWS_NAMES = new Set([
   "con",
@@ -220,7 +224,8 @@ export async function saveConvertedStlFile(
 ): Promise<FileOperationResult> {
   const safeSourcePath = resolveExistingAbsolutePath(rootPath, sourcePath);
 
-  if (path.extname(safeSourcePath).toLowerCase() !== ".3mf") {
+  const sourceExtension = toSupportedFileExtension(path.extname(safeSourcePath));
+  if (!sourceExtension || !canConvertToStl(sourceExtension)) {
     throw new Error("Apenas arquivos 3MF podem ser convertidos para STL.");
   }
 
@@ -308,11 +313,11 @@ function resolveExistingAbsolutePath(rootPath: string, absolutePath: string): st
 }
 
 function assertInsideRoot(rootPath: string, candidatePath: string, allowRoot: boolean) {
-  const relativePath = path.relative(rootPath, candidatePath);
-  const isRoot = relativePath === "";
-  const isOutside = relativePath.startsWith("..") || path.isAbsolute(relativePath);
+  const isAllowed = allowRoot
+    ? isPathAtOrInside(rootPath, candidatePath)
+    : isPathInside(rootPath, candidatePath);
 
-  if (isOutside || (!allowRoot && isRoot)) {
+  if (!isAllowed) {
     throw new Error("Caminho fora da biblioteca.");
   }
 }
@@ -375,7 +380,7 @@ async function assertLibraryFile(filePath: string) {
   const fileStat = await stat(filePath);
   const extension = path.extname(filePath).toLowerCase();
 
-  if (!fileStat.isFile() || !LIBRARY_FILE_EXTENSIONS.has(extension)) {
+  if (!fileStat.isFile() || !toSupportedFileExtension(extension)) {
     throw new Error("Arquivo de modelo invalido.");
   }
 }
@@ -399,8 +404,7 @@ function samePath(left: string, right: string): boolean {
 }
 
 function isSameOrInside(parentPath: string, candidatePath: string): boolean {
-  const relativePath = path.relative(path.resolve(parentPath), path.resolve(candidatePath));
-  return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+  return isPathAtOrInside(parentPath, candidatePath);
 }
 
 function isNotFoundError(error: unknown): boolean {

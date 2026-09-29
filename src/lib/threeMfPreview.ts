@@ -1,4 +1,4 @@
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { strFromU8, unzipSync } from "fflate";
 import * as THREE from "three";
 
@@ -56,7 +56,11 @@ export function parseThreeMfPreview(
   const group = new THREE.Group();
 
   for (const [modelPath, modelFile] of modelFiles) {
-    const parsed = parser.parse(strFromU8(modelFile));
+    const modelXml = strFromU8(modelFile);
+    if (XMLValidator.validate(modelXml) !== true) {
+      throw new Error("XML 3MF inválido.");
+    }
+    const parsed = parser.parse(modelXml);
 
     for (const objectItem of toArray<ThreeMfObject>(parsed?.model?.resources?.object)) {
       if (objectItem.id !== undefined) {

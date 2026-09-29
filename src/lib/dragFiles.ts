@@ -1,12 +1,7 @@
+import { SUPPORTED_FILE_EXTENSIONS } from "../shared/fileCapabilities";
 import type { ModelFile } from "../shared/types";
 
-const EXTERNAL_DRAG_EXTENSIONS = new Set<ModelFile["extension"]>([
-  ".stl",
-  ".3mf",
-  ".zip",
-  ".rar",
-  ".7z"
-]);
+const EXTERNAL_DRAG_EXTENSIONS = new Set<ModelFile["extension"]>(SUPPORTED_FILE_EXTENSIONS);
 
 export function getDragOutFilePaths(
   draggedModel: ModelFile,

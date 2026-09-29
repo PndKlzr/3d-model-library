@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { XMLParser } from "fast-xml-parser";
+import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { strFromU8, unzipSync } from "fflate";
 import type { ModelFile } from "../../src/shared/types.js";
 
@@ -119,11 +119,16 @@ function read3mfMetadata(buffer: Buffer) {
       };
     }
 
+    const modelXml = strFromU8(modelFile);
+    if (XMLValidator.validate(modelXml) !== true) {
+      throw new Error("Invalid 3MF XML");
+    }
+
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: ""
     });
-    const parsed = parser.parse(strFromU8(modelFile));
+    const parsed = parser.parse(modelXml);
     const resources = parsed?.model?.resources;
     const objects = toArray(resources?.object);
     const vertices = objects.flatMap((objectItem) =>

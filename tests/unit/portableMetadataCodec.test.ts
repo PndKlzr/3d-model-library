@@ -38,6 +38,54 @@ describe("portableMetadataCodec", () => {
     expect(decoded.metadata.slicerHistory[0].modelPath).toBe(modelPath);
   });
 
+  it("loads version 1 metadata with an empty identity map", () => {
+    const decoded = decodePortableMetadata(rootPath, {
+      schemaVersion: 1,
+      libraryId: "legacy-library",
+      updatedAt: "2026-09-09T11:00:00.000Z",
+      tagCatalog: ["fidget"],
+      models: {
+        "Brinquedos/acao + teste.3mf": {
+          favorite: true,
+          tags: ["fidget"],
+          notes: "legacy note"
+        }
+      },
+      slicerHistory: []
+    });
+
+    expect(decoded.metadata.fileIdentities).toEqual({});
+    expect(decoded.metadata.models[modelPath].notes).toBe("legacy note");
+  });
+
+  it("stores file identities with relative paths and restores them", () => {
+    const identity = {
+      algorithm: "sha256" as const,
+      digest: "a".repeat(64),
+      sizeBytes: 42,
+      modifiedAt: "2026-09-16T10:00:00.000Z"
+    };
+    const manifest = encodePortableMetadata(
+      rootPath,
+      "library-id",
+      {
+        models: {
+          [modelPath]: { favorite: true, tags: [], notes: "" }
+        },
+        tagCatalog: [],
+        slicerHistory: [],
+        fileIdentities: { [modelPath]: identity }
+      },
+      "2026-09-16T11:00:00.000Z"
+    );
+
+    expect(manifest.schemaVersion).toBe(2);
+    expect(manifest.fileIdentities).toHaveProperty("Brinquedos/acao + teste.3mf");
+    expect(JSON.stringify(manifest.fileIdentities)).not.toContain(rootPath);
+    expect(decodePortableMetadata(rootPath, manifest).metadata.fileIdentities[modelPath])
+      .toEqual(identity);
+  });
+
   it.each(["C:/outside/model.stl", "../outside.stl", "/absolute.stl"])(
     "rejects unsafe manifest path %s",
     (relativePath) => {
@@ -57,7 +105,7 @@ describe("portableMetadataCodec", () => {
   );
 
   it("rejects an incompatible schema version", () => {
-    expect(() => decodePortableMetadata(rootPath, { schemaVersion: 2 })).toThrow(/version/i);
+    expect(() => decodePortableMetadata(rootPath, { schemaVersion: 3 })).toThrow(/version/i);
   });
 
   it("rejects known fields that exceed their safe limits", () => {

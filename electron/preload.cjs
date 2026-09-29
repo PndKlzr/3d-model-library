@@ -2,26 +2,42 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("modelLibrary", {
   version: "0.1.0",
+  getThumbnailBenchmark: () => ipcRenderer.invoke("benchmark:get-config"),
+  markThumbnailBenchmarkCachedGridVisible: () =>
+    ipcRenderer.invoke("benchmark:cached-grid-visible"),
+  submitThumbnailBenchmark: (report) => ipcRenderer.invoke("benchmark:submit-report", report),
+  failThumbnailBenchmark: (message) => ipcRenderer.invoke("benchmark:fatal", message),
+  getRuntimeVersions: () => ipcRenderer.invoke("system:runtime-versions"),
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings) => ipcRenderer.invoke("settings:save", settings),
   chooseLibraryFolder: () => ipcRenderer.invoke("settings:choose-library-folder"),
   chooseArchiveExtractor: () => ipcRenderer.invoke("settings:choose-archive-extractor"),
-  getCachedLibrary: (rootPath) => ipcRenderer.invoke("library:get-cached", rootPath),
-  scanLibrary: (rootPath) => ipcRenderer.invoke("library:scan", rootPath),
-  setLibraryMonitoring: (enabled) => ipcRenderer.invoke("library:set-monitoring", enabled),
+  detectSlicers: () => ipcRenderer.invoke("slicer:detect"),
+  inspectConfiguredSlicers: () => ipcRenderer.invoke("slicer:inspect-configured"),
+  activateLibrary: (rootPath, monitoring) =>
+    ipcRenderer.invoke("library:activate", rootPath, monitoring),
+  getCurrentLibrary: () => ipcRenderer.invoke("library:current"),
+  scanLibrary: (session) => ipcRenderer.invoke("library:scan", session),
+  verifyLibrary: (session) => ipcRenderer.invoke("library:verify", session),
+  rebuildLibraryIndex: (session) => ipcRenderer.invoke("library:rebuild-index", session),
+  showLibraryDataFolder: (session) => ipcRenderer.invoke("library:show-data-folder", session),
+  setLibraryMonitoring: (session, enabled) =>
+    ipcRenderer.invoke("library:set-monitoring", session, enabled),
   onLibraryChanged: (callback) => {
-    const listener = (_event, events) => callback(events);
+    const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("library:changed", listener);
     return () => ipcRenderer.removeListener("library:changed", listener);
   },
   onLibraryMonitoringError: (callback) => {
-    const listener = (_event, message) => callback(message);
+    const listener = (_event, payload) => callback(payload);
     ipcRenderer.on("library:monitoring-error", listener);
     return () => ipcRenderer.removeListener("library:monitoring-error", listener);
   },
   listArchiveEntries: (archivePath) => ipcRenderer.invoke("archive:list", archivePath),
   extractArchiveEntries: (archivePath, entryPaths, destinationRelativeFolder) =>
     ipcRenderer.invoke("archive:extract", archivePath, entryPaths, destinationRelativeFolder),
+  extractArchive: (archivePath, mode) =>
+    ipcRenderer.invoke("archive:extract-all", archivePath, mode),
   createFolder: (parentRelativeFolder, folderName) =>
     ipcRenderer.invoke("library:create-folder", parentRelativeFolder, folderName),
   moveModels: (sourcePaths, destinationRelativeFolder) =>
@@ -37,6 +53,9 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   restoreLibraryPaths: (pathPairs) => ipcRenderer.invoke("library:restore-paths", pathPairs),
   getLibraryMetadata: () => ipcRenderer.invoke("metadata:get"),
   getLibraryMetadataStatus: () => ipcRenderer.invoke("metadata:status"),
+  getLibraryDataStatus: () => ipcRenderer.invoke("metadata:data-status"),
+  exportLibraryBackup: (session) => ipcRenderer.invoke("metadata:export-backup", session),
+  restoreLibraryBackup: (session) => ipcRenderer.invoke("metadata:restore-backup", session),
   retryLibraryMetadata: () => ipcRenderer.invoke("metadata:retry"),
   toggleFavorite: (modelPath) => ipcRenderer.invoke("metadata:toggle-favorite", modelPath),
   setModelTags: (modelPath, tags) => ipcRenderer.invoke("metadata:set-tags", modelPath, tags),
@@ -45,13 +64,24 @@ contextBridge.exposeInMainWorld("modelLibrary", {
   setModelNotes: (modelPath, notes) => ipcRenderer.invoke("metadata:set-notes", modelPath, notes),
   readModelMetadata: (absolutePath) => ipcRenderer.invoke("model:metadata", absolutePath),
   readModelThumbnail: (absolutePath) => ipcRenderer.invoke("model:thumbnail", absolutePath),
+  readImageDataUrl: (session, absolutePath) =>
+    ipcRenderer.invoke("image:read-data-url", session, absolutePath),
+  readObjPreviewFile: (session, absolutePath) =>
+    ipcRenderer.invoke("obj:read-preview-file", session, absolutePath),
   readCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-read", model),
-  writeCachedThumbnail: (model, dataUrl) =>
-    ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl),
+  invalidateCachedThumbnail: (model) => ipcRenderer.invoke("thumbnail:cache-invalidate", model),
+  writeCachedThumbnail: (model, dataUrl, sessionKey) =>
+    ipcRenderer.invoke("thumbnail:cache-write", model, dataUrl, sessionKey),
+  cleanUnusedThumbnails: (session, models) =>
+    ipcRenderer.invoke("thumbnail:clean-library", session, models),
   saveConvertedStl: (sourcePath, stlContent) =>
     ipcRenderer.invoke("model:save-converted-stl", sourcePath, stlContent),
   getModelHashes: (models) => ipcRenderer.invoke("model:hashes", models),
   showModelInFolder: (absolutePath) => ipcRenderer.invoke("model:show-in-folder", absolutePath),
+  showLibraryFolder: (session, relativeFolder) =>
+    ipcRenderer.invoke("library:show-folder", session, relativeFolder),
+  openLibraryFile: (session, absolutePath) =>
+    ipcRenderer.invoke("system:open-library-file", session, absolutePath),
   copyText: (text) => ipcRenderer.invoke("system:copy-text", text),
   startFileDrag: (request) => ipcRenderer.send("model:start-file-drag", request),
   onFileDragStatus: (callback) => {

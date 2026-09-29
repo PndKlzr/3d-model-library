@@ -1,80 +1,151 @@
-import { Archive, FolderOpen, Plug, Settings, Tags, X } from "lucide-react";
+import { Activity, Archive, FolderOpen, Plug, ShieldCheck, Tags } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { DialogHeader } from "./DialogHeader";
 import { DialogShell } from "./DialogShell";
 import type { ThemeMode } from "../lib/viewPreferences";
-import type { AppSettings, SlicerConfig } from "../shared/types";
+import type {
+  AppSettings,
+  LibraryDataStatus,
+  LibraryHealthSnapshot,
+  LibrarySessionRef,
+  SlicerConfig
+} from "../shared/types";
+import type { ThumbnailDiagnosticsSnapshot } from "../lib/thumbnailDiagnostics";
+import {
+  resetSlicerToAutomatic,
+  setDefaultSlicer,
+  setSlicerEnabled,
+  type AppSettingsMutation
+} from "../lib/settingsMutations";
+import { PerformanceDiagnostics } from "./PerformanceDiagnostics";
+import { useI18n } from "../i18n/I18nProvider";
+import { SlicerIntegrationList } from "./SlicerIntegrationList";
+import {
+  LibraryMaintenanceSettings,
+  type MaintenanceAction
+} from "./LibraryMaintenanceSettings";
 
 type SettingsDialogProps = {
   settings: AppSettings;
   tagCatalog: string[];
   metadataWritable: boolean;
   metadataMessage: string | null;
+  thumbnailDiagnostics: ThumbnailDiagnosticsSnapshot;
+  librarySession: LibrarySessionRef | null;
   onClose: () => void;
-  onSaveSettings: (settings: AppSettings) => Promise<void>;
+  onSaveSettings: (mutation: AppSettingsMutation) => Promise<void>;
   onChooseLibraryFolder: () => Promise<void>;
   onChooseArchiveExtractor: () => Promise<void>;
-  onChooseSlicerExecutable: (slicer: SlicerConfig) => Promise<void>;
+  onChooseSlicerExecutable: (slicerId: SlicerConfig["id"]) => Promise<void>;
+  detectingSlicers: boolean;
+  unavailableSlicerIds: string[];
+  onDetectSlicers: () => Promise<void>;
+  onAddSlicer: () => Promise<void>;
+  onRenameSlicer: (slicerId: string) => Promise<void>;
+  onRemoveSlicer: (slicerId: string) => Promise<void>;
   onAddCatalogTag: () => Promise<void>;
   onRemoveCatalogTag: (tag: string) => Promise<void>;
   themeMode: ThemeMode;
   onThemeModeChange: (themeMode: ThemeMode) => void;
+  libraryDataStatus: LibraryDataStatus;
+  libraryHealth: LibraryHealthSnapshot;
+  maintenanceBusyAction: MaintenanceAction | null;
+  onExportLibraryBackup: () => Promise<void>;
+  onRestoreLibraryBackup: () => Promise<void>;
+  onOpenLibraryDataFolder: () => Promise<void>;
+  onVerifyLibrary: () => Promise<void>;
+  onRebuildLibraryIndex: () => Promise<void>;
+  onCleanUnusedThumbnails: () => Promise<void>;
+  onRetryThumbnailPath: (relativePath: string) => void;
 };
 
-type SettingsTab = "library" | "organization" | "integrations";
+type SettingsTab = "library" | "organization" | "integrations" | "maintenance" | "diagnostics";
 
 export function SettingsDialog({
   settings,
   tagCatalog,
   metadataWritable,
   metadataMessage,
+  thumbnailDiagnostics,
+  librarySession,
   onClose,
   onSaveSettings,
   onChooseLibraryFolder,
   onChooseArchiveExtractor,
   onChooseSlicerExecutable,
+  detectingSlicers,
+  unavailableSlicerIds,
+  onDetectSlicers,
+  onAddSlicer,
+  onRenameSlicer,
+  onRemoveSlicer,
   onAddCatalogTag,
   onRemoveCatalogTag,
   themeMode,
-  onThemeModeChange
+  onThemeModeChange,
+  libraryDataStatus,
+  libraryHealth,
+  maintenanceBusyAction,
+  onExportLibraryBackup,
+  onRestoreLibraryBackup,
+  onOpenLibraryDataFolder,
+  onVerifyLibrary,
+  onRebuildLibraryIndex,
+  onCleanUnusedThumbnails,
+  onRetryThumbnailPath
 }: SettingsDialogProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>("library");
+  const [openSlicerMenuId, setOpenSlicerMenuId] = useState<string | null>(null);
+  const { t } = useI18n();
+
+  const cancelSettings = () => {
+    if (openSlicerMenuId) setOpenSlicerMenuId(null);
+    else onClose();
+  };
+
+  const selectTab = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    setOpenSlicerMenuId(null);
+  };
 
   return (
-    <DialogShell className="settings-dialog" title="Configurações" onCancel={onClose}>
-      <header className="dialog-header settings-dialog-header">
-        <div>
-          <p className="eyebrow">Configurações</p>
-          <h2>Preferências do aplicativo</h2>
-        </div>
-        <button
-          className="icon-only"
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar"
-          title="Fechar"
-        >
-          <X size={18} />
-        </button>
-      </header>
+    <DialogShell className="settings-dialog" title={t("common.settings")} onCancel={cancelSettings}>
+      <DialogHeader
+        eyebrow={t("common.settings")}
+        title={t("settings.title")}
+        onClose={onClose}
+      />
 
-      <nav className="settings-tabs" role="tablist" aria-label="Categorias de configurações">
+      <nav className="settings-tabs" role="tablist" aria-label={t("settings.categories")}>
         <SettingsTabButton
           active={activeTab === "library"}
           icon={<FolderOpen size={16} />}
-          label="Biblioteca"
-          onClick={() => setActiveTab("library")}
+          label={t("settings.tabLibrary")}
+          onClick={() => selectTab("library")}
         />
         <SettingsTabButton
           active={activeTab === "organization"}
           icon={<Tags size={16} />}
-          label="Organização"
-          onClick={() => setActiveTab("organization")}
+          label={t("settings.tabOrganization")}
+          onClick={() => selectTab("organization")}
         />
         <SettingsTabButton
           active={activeTab === "integrations"}
           icon={<Plug size={16} />}
-          label="Integrações"
-          onClick={() => setActiveTab("integrations")}
+          label={t("settings.tabIntegrations")}
+          onClick={() => selectTab("integrations")}
+        />
+        <SettingsTabButton
+          active={activeTab === "maintenance"}
+          icon={<ShieldCheck size={16} />}
+          label={t("settings.tabMaintenance")}
+          onClick={() => selectTab("maintenance")}
+        />
+        <SettingsTabButton
+          active={activeTab === "diagnostics"}
+          icon={<Activity size={16} />}
+          label={t("settings.tabPerformance")}
+          onClick={() => selectTab("diagnostics")}
         />
       </nav>
 
@@ -107,6 +178,36 @@ export function SettingsDialog({
             onSaveSettings={onSaveSettings}
             onChooseArchiveExtractor={onChooseArchiveExtractor}
             onChooseSlicerExecutable={onChooseSlicerExecutable}
+            detectingSlicers={detectingSlicers}
+            unavailableSlicerIds={unavailableSlicerIds}
+            openSlicerMenuId={openSlicerMenuId}
+            onOpenSlicerMenuChange={setOpenSlicerMenuId}
+            onDetectSlicers={onDetectSlicers}
+            onAddSlicer={onAddSlicer}
+            onRenameSlicer={onRenameSlicer}
+            onRemoveSlicer={onRemoveSlicer}
+          />
+        ) : null}
+
+        {activeTab === "diagnostics" ? (
+          <PerformanceDiagnostics
+            snapshot={thumbnailDiagnostics}
+            librarySession={librarySession}
+          />
+        ) : null}
+
+        {activeTab === "maintenance" ? (
+          <LibraryMaintenanceSettings
+            dataStatus={libraryDataStatus}
+            health={libraryHealth}
+            busyAction={maintenanceBusyAction}
+            onExportBackup={onExportLibraryBackup}
+            onRestoreBackup={onRestoreLibraryBackup}
+            onOpenDataFolder={onOpenLibraryDataFolder}
+            onVerify={onVerifyLibrary}
+            onRebuildIndex={onRebuildLibraryIndex}
+            onCleanThumbnails={onCleanUnusedThumbnails}
+            onRetryThumbnail={onRetryThumbnailPath}
           />
         ) : null}
       </div>
@@ -149,44 +250,47 @@ function LibrarySettings({
   SettingsDialogProps,
   "settings" | "themeMode" | "onSaveSettings" | "onChooseLibraryFolder" | "onThemeModeChange"
 >) {
+  const { t } = useI18n();
   return (
     <>
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Pasta da biblioteca"
-          description="Local onde o aplicativo procura modelos e subpastas."
+          title={t("settings.libraryFolder")}
+          description={t("settings.libraryDescription")}
         />
         <div className="path-row">
           <FolderOpen size={17} />
-          <span>{settings.libraryPath ?? "Nenhuma pasta escolhida"}</span>
-          <button type="button" onClick={onChooseLibraryFolder}>Trocar</button>
+          <span>{settings.libraryPath ?? t("settings.noLibraryFolder")}</span>
+          <button type="button" onClick={onChooseLibraryFolder}>{t("settings.change")}</button>
         </div>
       </section>
 
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Navegação e aparência"
-          description="Ajustes gerais da biblioteca visual."
+          title={t("settings.navigationTitle")}
+          description={t("settings.navigationDescription")}
         />
         <label className="toggle-row settings-toggle">
           <input
             type="checkbox"
             checked={settings.includeSubfolders}
-            onChange={(event) =>
-              onSaveSettings({ ...settings, includeSubfolders: event.currentTarget.checked })
-            }
+            onChange={(event) => {
+              const includeSubfolders = event.currentTarget.checked;
+              void onSaveSettings((current) => ({ ...current, includeSubfolders }));
+            }}
           />
-          <span>Incluir subpastas ao filtrar uma pasta</span>
+          <span>{t("settings.includeSubfolders")}</span>
         </label>
         <label className="toggle-row settings-toggle">
           <input
             type="checkbox"
             checked={settings.monitorLibrary}
-            onChange={(event) =>
-              onSaveSettings({ ...settings, monitorLibrary: event.currentTarget.checked })
-            }
+            onChange={(event) => {
+              const monitorLibrary = event.currentTarget.checked;
+              void onSaveSettings((current) => ({ ...current, monitorLibrary }));
+            }}
           />
-          <span>Monitorar alterações automaticamente</span>
+          <span>{t("settings.monitor")}</span>
         </label>
         <label className="toggle-row settings-toggle">
           <input
@@ -196,7 +300,20 @@ function LibrarySettings({
               onThemeModeChange(event.currentTarget.checked ? "dark" : "light")
             }
           />
-          <span>Modo escuro</span>
+          <span>{t("settings.darkMode")}</span>
+        </label>
+        <label className="settings-field-row">
+          <span>{t("settings.language")}</span>
+          <select
+            value={settings.locale}
+            onChange={(event) => {
+              const locale = event.currentTarget.value as AppSettings["locale"];
+              void onSaveSettings((current) => ({ ...current, locale }));
+            }}
+          >
+            <option value="pt-BR">{t("settings.languagePortuguese")}</option>
+            <option value="en">{t("settings.languageEnglish")}</option>
+          </select>
         </label>
       </section>
     </>
@@ -221,25 +338,32 @@ function OrganizationSettings({
   | "onAddCatalogTag"
   | "onRemoveCatalogTag"
 >) {
+  const { t } = useI18n();
   return (
     <>
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Arraste de arquivos"
-          description="Escolha qual ação acontece sem pressionar nenhuma tecla."
+          title={t("settings.dragTitle")}
+          description={t("settings.dragDescription")}
         />
-        <div className="drag-behavior-options" role="radiogroup" aria-label="Comportamento do arraste">
+        <div className="drag-behavior-options" role="radiogroup" aria-label={t("settings.dragBehavior")}>
           <DragBehaviorOption
             checked={settings.fileDragBehavior === "organize-default"}
-            title="Organizar por padrão"
-            description="Arrastar move para pastas; Ctrl + arrastar copia para fora."
-            onChange={() => onSaveSettings({ ...settings, fileDragBehavior: "organize-default" })}
+            title={t("settings.organizeDefault")}
+            description={t("settings.organizeDefaultDescription")}
+            onChange={() => onSaveSettings((current) => ({
+              ...current,
+              fileDragBehavior: "organize-default"
+            }))}
           />
           <DragBehaviorOption
             checked={settings.fileDragBehavior === "external-default"}
-            title="Enviar por padrão"
-            description="Arrastar copia para fora; Shift + arrastar move para pastas."
-            onChange={() => onSaveSettings({ ...settings, fileDragBehavior: "external-default" })}
+            title={t("settings.externalDefault")}
+            description={t("settings.externalDefaultDescription")}
+            onChange={() => onSaveSettings((current) => ({
+              ...current,
+              fileDragBehavior: "external-default"
+            }))}
           />
         </div>
       </section>
@@ -247,16 +371,16 @@ function OrganizationSettings({
       <section className="settings-section">
         <div className="settings-section-header">
           <SettingsSectionCopy
-            title="Tags"
-            description="Categorias disponíveis para classificar modelos."
+            title={t("tags.label")}
+            description={t("settings.tagsDescription")}
           />
           <button
             type="button"
             onClick={onAddCatalogTag}
             disabled={!metadataWritable}
-            title={!metadataWritable ? metadataMessage ?? "Tags indisponíveis para edição" : undefined}
+            title={!metadataWritable ? metadataMessage ?? t("tags.unavailable") : undefined}
           >
-            Nova tag
+            {t("settings.newTag")}
           </button>
         </div>
         <div className="tag-settings-list">
@@ -268,14 +392,14 @@ function OrganizationSettings({
                   type="button"
                   onClick={() => onRemoveCatalogTag(tag)}
                   disabled={!metadataWritable}
-                  title={!metadataWritable ? metadataMessage ?? "Tags indisponíveis para edição" : undefined}
+                  title={!metadataWritable ? metadataMessage ?? t("tags.unavailable") : undefined}
                 >
-                  Excluir
+                  {t("common.delete")}
                 </button>
               </div>
             ))
           ) : (
-            <p>Nenhuma tag predefinida.</p>
+            <p>{t("settings.noTags")}</p>
           )}
         </div>
       </section>
@@ -287,78 +411,74 @@ function IntegrationSettings({
   settings,
   onSaveSettings,
   onChooseArchiveExtractor,
-  onChooseSlicerExecutable
+  onChooseSlicerExecutable,
+  detectingSlicers,
+  unavailableSlicerIds,
+  openSlicerMenuId,
+  onOpenSlicerMenuChange,
+  onDetectSlicers,
+  onAddSlicer,
+  onRenameSlicer,
+  onRemoveSlicer
 }: Pick<
   SettingsDialogProps,
   "settings" | "onSaveSettings" | "onChooseArchiveExtractor" | "onChooseSlicerExecutable"
->) {
+  | "detectingSlicers" | "unavailableSlicerIds"
+  | "onDetectSlicers" | "onAddSlicer" | "onRenameSlicer" | "onRemoveSlicer"
+> & {
+  openSlicerMenuId: string | null;
+  onOpenSlicerMenuChange: (id: string | null) => void;
+}) {
+  const { t } = useI18n();
   return (
     <>
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Slicers"
-          description="Programas disponíveis para abrir STL e 3MF. O Slicer padrão recebe o duplo clique."
+          title={t("settings.slicers")}
+          description={t("settings.slicersDescription")}
         />
-        <div className="slicer-list">
-          {settings.slicers.map((slicer) => (
-            <div className="slicer-row" key={slicer.id}>
-              <Settings size={17} />
-              <div>
-                <strong>{slicer.name}</strong>
-                <span>{slicer.executablePath || "Executável não configurado"}</span>
-              </div>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={slicer.enabled}
-                  onChange={(event) =>
-                    onSaveSettings({
-                      ...settings,
-                      slicers: settings.slicers.map((item) =>
-                        item.id === slicer.id
-                          ? { ...item, enabled: event.currentTarget.checked }
-                          : item
-                      )
-                    })
-                  }
-                />
-                Ativo
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="default-slicer"
-                  checked={settings.defaultSlicerId === slicer.id}
-                  onChange={() => onSaveSettings({ ...settings, defaultSlicerId: slicer.id })}
-                />
-                Padrão
-              </label>
-              <button type="button" onClick={() => onChooseSlicerExecutable(slicer)}>
-                Escolher .exe
-              </button>
-            </div>
-          ))}
-        </div>
+        <SlicerIntegrationList
+          slicers={settings.slicers}
+          defaultSlicerId={settings.defaultSlicerId}
+          detecting={detectingSlicers}
+          unavailableSlicerIds={unavailableSlicerIds}
+          openMenuId={openSlicerMenuId}
+          onOpenMenuChange={onOpenSlicerMenuChange}
+          onDetect={() => void onDetectSlicers()}
+          onAdd={() => void onAddSlicer()}
+          onEnable={(id, enabled) => void onSaveSettings(setSlicerEnabled(id, enabled))}
+          onDefault={(id) => void onSaveSettings(setDefaultSlicer(id))}
+          onChooseExecutable={(id) => void onChooseSlicerExecutable(id)}
+          onUseAutomatic={(id) => void (async () => {
+            await onSaveSettings(resetSlicerToAutomatic(id));
+            await onDetectSlicers();
+          })()}
+          onRename={(id) => void onRenameSlicer(id)}
+          onRemove={(id) => void onRemoveSlicer(id)}
+        />
       </section>
 
       <section className="settings-section">
         <SettingsSectionCopy
-          title="Arquivos compactados"
-          description="O 7-Zip é usado para abrir e extrair ZIP, RAR e 7Z."
+          title={t("settings.archives")}
+          description={t("settings.archivesDescription")}
         />
         <div className={`path-row ${settings.archiveExtractorPath ? "has-secondary-action" : ""}`}>
           <Archive size={17} />
           <span>
             {settings.archiveExtractorPath ||
-              "Automático: C:\\Program Files\\7-Zip\\7z.exe ou 7-Zip no PATH"}
+              t("settings.archiveAutomaticPath")}
           </span>
-          <button type="button" onClick={onChooseArchiveExtractor}>Escolher 7z.exe</button>
+          <button type="button" onClick={onChooseArchiveExtractor}>{t("settings.choose7Zip")}</button>
           {settings.archiveExtractorPath ? (
             <button
               type="button"
-              onClick={() => onSaveSettings({ ...settings, archiveExtractorPath: "" })}
+              onClick={() => onSaveSettings((current) => ({
+                ...current,
+                archiveExtractorPath: ""
+              }))}
             >
-              Automático
+              {t("common.automatic")}
             </button>
           ) : null}
         </div>

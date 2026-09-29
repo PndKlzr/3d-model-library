@@ -1,17 +1,29 @@
-import { Box, FileArchive } from "lucide-react";
+import { Box, FileArchive, Image as ImageIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { requestRenderedModelThumbnail } from "../lib/modelThumbnailQueue";
-import type { ThumbnailPriority, ThumbnailRequest } from "../lib/thumbnailScheduler";
+import {
+  modelThumbnailService,
+  type ModelThumbnailRequest,
+  type ThumbnailPriority
+} from "../lib/modelThumbnailService";
 import type { ModelFile } from "../shared/types";
+import { isArchive, isDirectImage } from "../shared/fileCapabilities";
 
 type ModelCardThumbnailProps = {
   model: ModelFile;
+  selected: boolean;
 };
 
-export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
+export function ModelCardThumbnail({ model, selected }: ModelCardThumbnailProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const requestRef = useRef<ModelThumbnailRequest | null>(null);
+  const selectedRef = useRef(selected);
+  const isIntersectingRef = useRef(false);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const isArchive = [".zip", ".rar", ".7z"].includes(model.extension);
+  const archive = isArchive(model.extension);
+  const directImage = isDirectImage(model.extension);
+  const modelSignature = `${model.absolutePath}:${model.modifiedAt}:${model.sizeBytes}`;
+
+  selectedRef.current = selected;
 
   useEffect(() => {
     const element = rootRef.current;
@@ -20,7 +32,10 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
     setThumbnailUrl(null);
     if (!element) return;
 
-    let request = requestModelThumbnail(model, "nearby");
+    const initialPriority: ThumbnailPriority = selected ? "selected" : "nearby";
+    const request = modelThumbnailService.request(model, initialPriority);
+    requestRef.current = request;
+    isIntersectingRef.current = false;
     void request.promise
       .then((imageUrl) => {
         if (isMounted && imageUrl) setThumbnailUrl(imageUrl);
@@ -28,7 +43,10 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
       .catch(() => undefined);
 
     const visibleObserver = new IntersectionObserver(([entry]) => {
-      request.setPriority(entry.isIntersecting ? "visible" : "nearby");
+      isIntersectingRef.current = entry.isIntersecting;
+      request.setPriority(
+        selectedRef.current ? "selected" : entry.isIntersecting ? "visible" : "nearby"
+      );
     });
 
     visibleObserver.observe(element);
@@ -37,72 +55,43 @@ export function ModelCardThumbnail({ model }: ModelCardThumbnailProps) {
       isMounted = false;
       visibleObserver.disconnect();
       request.release();
+      if (requestRef.current === request) requestRef.current = null;
     };
-  }, [model]);
+  }, [modelSignature]);
+
+  useEffect(() => {
+    requestRef.current?.setPriority(
+      selected ? "selected" : isIntersectingRef.current ? "visible" : "nearby"
+    );
+  }, [selected]);
 
   return (
-    <div className={`thumb-fallback${isArchive ? " archive-thumb-fallback" : ""}`} ref={rootRef}>
+    <div
+      className={`thumb-fallback${archive ? " archive-thumb-fallback" : ""}${directImage ? " image-thumb-fallback" : ""}`}
+      ref={rootRef}
+    >
       {thumbnailUrl ? (
-        <img className="thumbnail-image" src={thumbnailUrl} alt="" draggable={false} />
+        <img
+          className="thumbnail-image"
+          src={thumbnailUrl}
+          alt=""
+          draggable={false}
+          onError={() => setThumbnailUrl(null)}
+        />
       ) : (
         <>
-          {isArchive ? <FileArchive size={34} strokeWidth={1.7} /> : <Box size={30} />}
-          <span className={isArchive ? "archive-extension" : undefined}>
+          {archive ? (
+            <FileArchive size={34} strokeWidth={1.7} />
+          ) : directImage ? (
+            <ImageIcon size={32} strokeWidth={1.7} />
+          ) : (
+            <Box size={30} />
+          )}
+          <span className={archive ? "archive-extension" : undefined}>
             {model.extension.toUpperCase()}
           </span>
         </>
       )}
     </div>
   );
-}
-
-export async function loadModelThumbnail(model: ModelFile): Promise<string | null> {
-  const request = requestModelThumbnail(model, "background");
-  return request.promise.finally(request.release);
-}
-
-function requestModelThumbnail(
-  model: ModelFile,
-  initialPriority: ThumbnailPriority
-): ThumbnailRequest<string | null> {
-  let priority = initialPriority;
-  let released = false;
-  let renderRequest: ThumbnailRequest<string | null> | null = null;
-
-  const promise = resolveModelThumbnail(model, () => {
-    renderRequest = requestRenderedModelThumbnail(model, released ? "background" : priority);
-    if (released) renderRequest.release();
-    return renderRequest;
-  });
-
-  return {
-    promise,
-    setPriority(nextPriority) {
-      priority = nextPriority;
-      renderRequest?.setPriority(nextPriority);
-    },
-    release() {
-      released = true;
-      renderRequest?.release();
-    }
-  };
-}
-
-async function resolveModelThumbnail(
-  model: ModelFile,
-  createRenderRequest: () => ThumbnailRequest<string | null>
-) {
-  if ([".zip", ".rar", ".7z"].includes(model.extension)) return null;
-
-  const cachedThumbnail = await window.modelLibrary.readCachedThumbnail(model);
-  if (cachedThumbnail) return cachedThumbnail;
-
-  let thumbnail: string | null = null;
-  if (model.extension === ".3mf") {
-    thumbnail = await window.modelLibrary.readModelThumbnail(model.absolutePath);
-  }
-
-  thumbnail ??= await createRenderRequest().promise;
-  if (thumbnail) void window.modelLibrary.writeCachedThumbnail(model, thumbnail).catch(() => undefined);
-  return thumbnail;
 }

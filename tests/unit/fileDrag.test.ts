@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -19,21 +19,23 @@ afterEach(async () => {
 });
 
 describe("fileDrag", () => {
-  it("allows STL and 3MF files inside the configured library", async () => {
-    const stlPath = path.join(tempRoot, "part.stl");
-    const threeMfPath = path.join(tempRoot, "nested", "part.3mf");
-    await mkdir(path.dirname(threeMfPath), { recursive: true });
-    await writeFile(stlPath, "solid part");
-    await writeFile(threeMfPath, "3mf");
+  it("allows every supported file format inside the configured library", async () => {
+    const filePaths = [
+      "part.stl",
+      "part.3mf",
+      "mesh.OBJ",
+      "preview.png",
+      "preview.jpg",
+      "preview.JPEG",
+      "preview.webp",
+      "pack.zip",
+      "pack.rar",
+      "pack.7z"
+    ].map((name) => path.join(tempRoot, name));
+    await Promise.all(filePaths.map((filePath) => writeFile(filePath, "file")));
 
-    await expect(resolveDraggableFilePaths(tempRoot, [stlPath, threeMfPath])).resolves.toEqual([
-      stlPath,
-      threeMfPath
-    ]);
-    expect(resolveDraggableFilePathsSync(tempRoot, [stlPath, threeMfPath])).toEqual([
-      stlPath,
-      threeMfPath
-    ]);
+    await expect(resolveDraggableFilePaths(tempRoot, filePaths)).resolves.toEqual(filePaths);
+    expect(resolveDraggableFilePathsSync(tempRoot, filePaths)).toEqual(filePaths);
   });
 
   it("rejects files outside the configured library", async () => {
@@ -73,10 +75,10 @@ describe("fileDrag", () => {
     await writeFile(filePath, "notes");
 
     await expect(resolveDraggableFilePaths(tempRoot, [filePath])).rejects.toThrow(
-      "Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z."
+      "Arraste externo aceita apenas formatos suportados pela biblioteca."
     );
     expect(() => resolveDraggableFilePathsSync(tempRoot, [filePath])).toThrow(
-      "Arraste externo aceita apenas STL, 3MF, ZIP, RAR e 7Z."
+      "Arraste externo aceita apenas formatos suportados pela biblioteca."
     );
   });
 

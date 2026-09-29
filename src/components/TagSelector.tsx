@@ -1,5 +1,6 @@
 import { Plus, Search, Tag } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useI18n } from "../i18n/I18nProvider";
 
 type TagSelectorProps = {
   selectedTags: string[];
@@ -15,13 +16,17 @@ export function TagSelector({
   selectedTags,
   availableTags,
   onChange,
-  label = "Tags",
-  placeholder = "Buscar ou criar tag",
+  label,
+  placeholder,
   disabled = false,
   disabledReason = null
 }: TagSelectorProps) {
+  const { t } = useI18n();
+  const resolvedLabel = label ?? t("tags.label");
+  const resolvedPlaceholder = placeholder ?? t("tags.searchOrCreate");
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [placeAbove, setPlaceAbove] = useState(false);
   const selectorRef = useRef<HTMLDivElement | null>(null);
   const listboxId = useId();
   const normalizedSelectedTags = useMemo(() => normalizeTags(selectedTags), [selectedTags]);
@@ -71,6 +76,12 @@ export function TagSelector({
     };
   }, [isOpen]);
 
+  useLayoutEffect(() => {
+    if (!isOpen || !selectorRef.current) return;
+    const bounds = selectorRef.current.getBoundingClientRect();
+    setPlaceAbove(window.innerHeight - bounds.bottom < 290 && bounds.top > 290);
+  }, [isOpen]);
+
   async function toggleTag(tag: string) {
     if (selectedTagSet.has(tag)) {
       await onChange(normalizedSelectedTags.filter((selectedTag) => selectedTag !== tag));
@@ -93,14 +104,14 @@ export function TagSelector({
     <div className="tag-selector" ref={selectorRef}>
       <span className="tag-selector-label">
         <Tag size={15} />
-        {label}
+        {resolvedLabel}
       </span>
       <button
         className="tag-selector-trigger"
         type="button"
         onClick={() => setIsOpen((currentValue) => !currentValue)}
         disabled={disabled}
-        title={disabled ? disabledReason ?? "Tags indisponíveis para edição" : undefined}
+        title={disabled ? disabledReason ?? t("tags.unavailable") : undefined}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         aria-controls={isOpen ? listboxId : undefined}
@@ -112,15 +123,15 @@ export function TagSelector({
             ))}
           </span>
         ) : (
-          <span className="tag-selector-empty">Selecionar tags</span>
+          <span className="tag-selector-empty">{t("tags.select")}</span>
         )}
       </button>
       {isOpen ? (
         <div
-          className="tag-selector-popover"
+          className={`tag-selector-popover viewport-safe-popover ${placeAbove ? "place-above" : ""}`}
           role="listbox"
           id={listboxId}
-          aria-label={label}
+          aria-label={resolvedLabel}
           aria-multiselectable="true"
         >
           <label className="tag-selector-search">
@@ -134,7 +145,7 @@ export function TagSelector({
                   void createTag();
                 }
               }}
-              placeholder={placeholder}
+              placeholder={resolvedPlaceholder}
             />
           </label>
           <div className="tag-selector-options">
@@ -165,13 +176,13 @@ export function TagSelector({
                 </div>
               ))
             ) : (
-              <span className="tag-selector-no-results">Nenhuma tag encontrada.</span>
+              <span className="tag-selector-no-results">{t("tags.noResults")}</span>
             )}
           </div>
           {canCreateTag ? (
             <button className="tag-selector-create" type="button" onClick={() => void createTag()}>
               <Plus size={15} />
-              Criar tag "{normalizedQuery}"
+              {t("tags.create", { name: normalizedQuery })}
             </button>
           ) : null}
         </div>

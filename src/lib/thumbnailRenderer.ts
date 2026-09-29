@@ -1,8 +1,10 @@
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { parseThreeMfPreview } from "./threeMfPreview";
+import { parseObjPreview } from "./objPreview";
 import { orientModelForBed } from "./modelOrientation";
 import type { ModelFile } from "../shared/types";
+import { disposeObjectResources } from "./threeResourceDisposal";
 
 const THUMBNAIL_WIDTH = 260;
 const THUMBNAIL_HEIGHT = 180;
@@ -10,6 +12,20 @@ let sharedRenderer: THREE.WebGLRenderer | null = null;
 
 export function renderThumbnail(extension: ModelFile["extension"], modelBytes: ArrayBuffer) {
   const renderer = getSharedRenderer();
+  try {
+    renderThumbnailScene(renderer, extension, modelBytes);
+    return renderer.domElement.toDataURL("image/webp", 0.78);
+  } catch (error) {
+    resetSharedRenderer();
+    throw error;
+  }
+}
+
+export function renderThumbnailScene(
+  renderer: THREE.WebGLRenderer,
+  extension: ModelFile["extension"],
+  modelBytes: ArrayBuffer
+) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, THUMBNAIL_WIDTH / THUMBNAIL_HEIGHT, 0.1, 10000);
 
@@ -33,12 +49,8 @@ export function renderThumbnail(extension: ModelFile["extension"], modelBytes: A
     scene.add(grid);
 
     renderer.render(scene, camera);
-    return renderer.domElement.toDataURL("image/webp", 0.78);
-  } catch (error) {
-    resetSharedRenderer();
-    throw error;
   } finally {
-    disposeObject(scene);
+    disposeObjectResources(scene);
     scene.clear();
   }
 }
@@ -65,7 +77,6 @@ function resetSharedRenderer() {
 function createThumbnailObject(extension: ModelFile["extension"], modelBytes: ArrayBuffer) {
   if (extension === ".stl") {
     const geometry = new STLLoader().parse(modelBytes);
-    geometry.computeVertexNormals();
     return orientModelForBed(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
       color: "#78aaa6",
       roughness: 0.62,
@@ -74,6 +85,9 @@ function createThumbnailObject(extension: ModelFile["extension"], modelBytes: Ar
   }
   if (extension === ".3mf") {
     return orientModelForBed(parseThreeMfPreview(modelBytes, { center: false }));
+  }
+  if (extension === ".obj") {
+    return orientModelForBed(parseObjPreview(modelBytes));
   }
   throw new Error("Arquivo sem thumbnail 3D.");
 }
@@ -88,18 +102,4 @@ function fitCamera(camera: THREE.PerspectiveCamera, object: THREE.Object3D) {
   camera.far = distance * 100;
   camera.lookAt(0, targetY, 0);
   camera.updateProjectionMatrix();
-}
-
-function disposeObject(object: THREE.Object3D) {
-  object.traverse((child) => {
-    if (child instanceof THREE.Mesh || child instanceof THREE.LineSegments) {
-      child.geometry.dispose();
-      disposeMaterial(child.material);
-    }
-  });
-}
-
-function disposeMaterial(material: THREE.Material | THREE.Material[]) {
-  if (Array.isArray(material)) material.forEach((item) => item.dispose());
-  else material.dispose();
 }
