@@ -6,6 +6,8 @@ Um aplicativo desktop local para Windows, criado para navegar, visualizar e orga
 
 ![Visão geral da biblioteca](docs/assets/library-overview.png)
 
+Os modelos e as imagens de referência visíveis nas capturas servem apenas para demonstrar a interface e não fazem parte deste repositório.
+
 ## Por Que Ele Existe
 
 Coleções grandes de STL e 3MF ficam difíceis de reconhecer no Explorador de Arquivos. O 3D Model Library adiciona prévias visuais, navegação rápida, tags, notas, ferramentas para arquivos compactados e integração com slicers, mantendo a estrutura original de pastas como fonte de verdade.
@@ -107,4 +109,12 @@ Os relatórios guardam somente contagens e tempos agregados. Eles não contêm n
 - Não envie bibliotecas de modelos, executáveis de slicers, chaves de API, tokens, arquivos `.env` ou caminhos pessoais para o repositório.
 
 Para relatar vulnerabilidades e consultar a política de dependências, leia [SECURITY.md](SECURITY.md).
+
+## Como Contribuir
+
+Relatos de bugs, ideias de funcionalidades, melhorias na documentação e pull requests são bem-vindos. Leia [CONTRIBUTING.md](CONTRIBUTING.md) antes de enviar logs, capturas ou modelos.
+
+## Licença
+
+Copyright (c) 2026 PndKlzr. Este projeto é licenciado sob a [GNU General Public License v3.0](LICENSE). Versões distribuídas e trabalhos derivados devem preservar a licença e disponibilizar o código-fonte correspondente conforme exigido pela GPL-3.0.
 
