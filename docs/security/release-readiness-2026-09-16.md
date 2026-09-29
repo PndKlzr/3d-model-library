@@ -1,5 +1,7 @@
 # Security and Release Readiness - 2026-09-16
 
+Last reverified: 2026-09-29
+
 ## Scope
 
 This checkpoint covers the Electron window boundary, privileged library reads,
@@ -31,20 +33,18 @@ native drag flows required before installer work begins.
 
 - Runtime: Electron `44.4.1`.
 - XML parser: `fast-xml-parser` `5.11.1`.
+- Test runner: Vitest `5.0.2`.
 - Unused development packages `concurrently` and `wait-on` were removed.
 - Compatible dependency patches were applied without updating React, React Three Fiber, Drei,
   Three.js, or other direct major UI dependencies.
 - `npm audit --omit=dev`: **0 vulnerabilities**.
-- Automated suite: **99 test files and 719 tests passed**.
+- Full `npm audit`: **0 vulnerabilities**.
+- Automated suite: **103 test files and 753 tests passed**.
 - Production renderer build: **passed**. Vite reports the existing large-chunk advisory for the
   Three.js renderer and thumbnail worker; this is a performance advisory, not a build failure.
-- Full `npm audit`: **5 development-only vulnerabilities**: 3 moderate, 1 high, and 1 critical.
 
-The remaining advisories are reachable only through Vitest 2 and its private Vite, vite-node,
-esbuild, and mocker dependencies. They are not included in the packaged application. Resolving
-them requires the breaking Vitest 5 upgrade, so that migration is deferred to a dedicated tooling
-task. The development server remains bound to `127.0.0.1` with a strict port, and Vitest UI is not
-enabled by project scripts.
+The Vitest 5 migration removed the previous development-only advisories. The development server
+remains bound to `127.0.0.1` with a strict port, and Vitest UI is not enabled by project scripts.
 
 ## Repository Privacy
 
@@ -87,7 +87,6 @@ restore, snapshot retention, scoped cleanup, and preservation of durable metadat
 
 ## Deferred Work
 
-- Upgrade Vitest 2 to Vitest 5 in an isolated tooling task.
 - Repeat this checklist after installer packaging and code signing are introduced.
 - Package-time Electron fuses, ASAR integrity configuration, signing, and updater trust remain part of
   installer work and are not claimed by this checkpoint.
