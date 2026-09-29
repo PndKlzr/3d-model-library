@@ -87,6 +87,7 @@ describe("thumbnail benchmark command", () => {
         userData: "C:\\temp\\profile"
       }, {
         spawn: () => child,
+        electronPath: "electron.exe",
         timeoutMs: 10,
         terminationGraceMs: 20
       });
@@ -124,6 +125,7 @@ describe("thumbnail benchmark command", () => {
         rm,
         spawnElectron: (options: Record<string, string>) => spawnElectron(options, {
           spawn: () => child,
+          electronPath: "electron.exe",
           timeoutMs: 10,
           terminationGraceMs: 20
         })

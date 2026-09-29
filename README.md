@@ -68,7 +68,7 @@ The project is under active development and does not have a signed installer or 
 
 ### Run Locally
 
-The easiest Windows setup is to double-click `setup-windows.cmd`. It verifies Node.js, installs the exact locked dependencies, and creates a desktop shortcut. The script does not request administrator access or download anything outside npm.
+The easiest Windows setup is to double-click `setup-windows.cmd`. It verifies Node.js, installs the exact locked dependencies, prepares the Electron runtime, and creates a desktop shortcut. The script does not request administrator access or download anything outside npm and Electron's official package installer.
 
 After setup, use the desktop shortcut or double-click `start-3d-model-library.cmd`.
 
