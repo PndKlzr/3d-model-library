@@ -3,6 +3,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   writeFile
 } from "node:fs/promises";
@@ -50,7 +51,7 @@ describe("portableMetadataRepository", () => {
     await repository.save(root, validManifest("library-id", "2026-09-09T10:00:00.000Z"));
     await repository.save(root, validManifest("library-id", "2026-09-09T11:00:00.000Z"));
 
-    const directory = path.join(root, PORTABLE_METADATA_DIRECTORY);
+    const directory = path.join(await realpath(root), PORTABLE_METADATA_DIRECTORY);
     const primary = JSON.parse(
       await readFile(path.join(directory, PORTABLE_METADATA_FILENAME), "utf8")
     );

@@ -1,4 +1,5 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -33,9 +34,14 @@ describe("fileDrag", () => {
       "pack.7z"
     ].map((name) => path.join(tempRoot, name));
     await Promise.all(filePaths.map((filePath) => writeFile(filePath, "file")));
+    const canonicalFilePaths = await Promise.all(filePaths.map((filePath) => realpath(filePath)));
 
-    await expect(resolveDraggableFilePaths(tempRoot, filePaths)).resolves.toEqual(filePaths);
-    expect(resolveDraggableFilePathsSync(tempRoot, filePaths)).toEqual(filePaths);
+    await expect(resolveDraggableFilePaths(tempRoot, filePaths)).resolves.toEqual(
+      canonicalFilePaths
+    );
+    expect(resolveDraggableFilePathsSync(tempRoot, filePaths)).toEqual(
+      filePaths.map((filePath) => realpathSync.native(filePath))
+    );
   });
 
   it("rejects files outside the configured library", async () => {
@@ -53,21 +59,27 @@ describe("fileDrag", () => {
   it("allows supported archive files for drag-out to Explorer or desktop", async () => {
     const archivePath = path.join(tempRoot, "pack.zip");
     await writeFile(archivePath, "zip");
+    const canonicalArchivePath = await realpath(archivePath);
 
     await expect(resolveDraggableFilePaths(tempRoot, [archivePath])).resolves.toEqual([
-      archivePath
+      canonicalArchivePath
     ]);
-    expect(resolveDraggableFilePathsSync(tempRoot, [archivePath])).toEqual([archivePath]);
+    expect(resolveDraggableFilePathsSync(tempRoot, [archivePath])).toEqual([
+      realpathSync.native(archivePath)
+    ]);
   });
 
   it("deduplicates repeated file paths", async () => {
     const filePath = path.join(tempRoot, "part.stl");
     await writeFile(filePath, "solid part");
+    const canonicalFilePath = await realpath(filePath);
 
     await expect(resolveDraggableFilePaths(tempRoot, [filePath, filePath])).resolves.toEqual([
-      filePath
+      canonicalFilePath
     ]);
-    expect(resolveDraggableFilePathsSync(tempRoot, [filePath, filePath])).toEqual([filePath]);
+    expect(resolveDraggableFilePathsSync(tempRoot, [filePath, filePath])).toEqual([
+      realpathSync.native(filePath)
+    ]);
   });
 
   it("rejects unsupported files before creating a native payload", async () => {

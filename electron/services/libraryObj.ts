@@ -62,7 +62,7 @@ export async function readLibraryObjPreview(
 
     finalDescriptorStat = await handle.stat() as ObjStat;
     if (offset !== initialDescriptorStat.size ||
-        !sameFileVersion(initialDescriptorStat, finalDescriptorStat)) {
+        !sameOpenFileVersion(initialDescriptorStat, finalDescriptorStat)) {
       throw new Error("O OBJ foi alterado durante a leitura.");
     }
     assertCurrentSession(expectedSession, access.getCurrentSession());
@@ -80,7 +80,7 @@ export async function readLibraryObjPreview(
   }
 
   const currentPathStat = await fileSystem.stat(currentPath);
-  if (!sameFileVersion(finalDescriptorStat, currentPathStat)) {
+  if (!sameFileIdentity(finalDescriptorStat, currentPathStat)) {
     throw new Error("O OBJ foi substituído durante a leitura.");
   }
 
@@ -119,10 +119,14 @@ function assertReadableObjStat(fileStat: ObjStat) {
   }
 }
 
-function sameFileVersion(left: ObjStat, right: ObjStat) {
+function sameFileIdentity(left: ObjStat, right: ObjStat) {
   return right.isFile() && left.size === right.size &&
     left.dev === right.dev && left.ino === right.ino &&
-    left.mtimeMs === right.mtimeMs && left.ctimeMs === right.ctimeMs;
+    left.mtimeMs === right.mtimeMs;
+}
+
+function sameOpenFileVersion(left: ObjStat, right: ObjStat) {
+  return sameFileIdentity(left, right) && left.ctimeMs === right.ctimeMs;
 }
 
 function assertCurrentSession(expected: LibrarySessionRef, current: LibrarySessionRef | null) {

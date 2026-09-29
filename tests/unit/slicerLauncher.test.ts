@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,7 +73,7 @@ describe("launchSlicer", () => {
       ok: true,
       message: "Abrindo bench.stl no Cura."
     });
-    expect(spawnProcess).toHaveBeenCalledWith(executablePath, [modelPath], {
+    expect(spawnProcess).toHaveBeenCalledWith(await realpath(executablePath), [modelPath], {
       detached: true,
       stdio: "ignore"
     });
@@ -96,10 +96,14 @@ describe("launchSlicer", () => {
       ok: true,
       message: "Abrindo 2 modelos no Cura."
     });
-    expect(spawnProcess).toHaveBeenCalledWith(executablePath, [modelPath, secondModelPath], {
-      detached: true,
-      stdio: "ignore"
-    });
+    expect(spawnProcess).toHaveBeenCalledWith(
+      await realpath(executablePath),
+      [modelPath, secondModelPath],
+      {
+        detached: true,
+        stdio: "ignore"
+      }
+    );
   });
 });
 

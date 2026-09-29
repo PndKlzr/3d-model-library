@@ -39,7 +39,7 @@ native drag flows required before installer work begins.
   Three.js, or other direct major UI dependencies.
 - `npm audit --omit=dev`: **0 vulnerabilities**.
 - Full `npm audit`: **0 vulnerabilities**.
-- Automated suite: **103 test files and 753 tests passed**.
+- Automated suite: **103 test files and 754 tests passed**.
 - Production renderer build: **passed**. Vite reports the existing large-chunk advisory for the
   Three.js renderer and thumbnail worker; this is a performance advisory, not a build failure.
 

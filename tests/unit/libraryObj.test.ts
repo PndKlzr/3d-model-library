@@ -35,6 +35,16 @@ describe("library OBJ preview access", () => {
     expect(fixture.handle.close).toHaveBeenCalledOnce();
   });
 
+  it("accepts the same file when Windows reports a different path ctime after close", async () => {
+    const bytes = objBytes();
+    const fixture = createFixture({ bytes, pathCtimeMs: 91 });
+
+    const result = await readLibraryObjPreview(fixture.session, fixture.filePath, fixture.access);
+
+    expect(Buffer.from(result)).toEqual(bytes);
+    expect(fixture.handle.close).toHaveBeenCalledOnce();
+  });
+
   it("rejects a stale session after reading and still closes the descriptor", async () => {
     const fixture = createFixture({
       bytes: objBytes(),
@@ -91,6 +101,7 @@ function createFixture(options: {
   beforeSize?: number;
   afterSize?: number;
   pathIno?: number;
+  pathCtimeMs?: number;
   onRead?: () => void;
   onFirstStat?: () => void;
   onFileRealpath?: () => void;
@@ -136,6 +147,7 @@ function createFixture(options: {
     stat: vi.fn(async () => ({
       ...baseStat,
       ino: options.pathIno ?? baseStat.ino,
+      ctimeMs: options.pathCtimeMs ?? baseStat.ctimeMs,
       size: options.afterSize ?? baseStat.size
     }))
   };
