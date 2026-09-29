@@ -80,8 +80,11 @@ export async function readLibraryObjPreview(
   }
 
   const currentPathStat = await fileSystem.stat(currentPath);
-  if (!sameFileIdentity(finalDescriptorStat, currentPathStat)) {
-    throw new Error("O OBJ foi substituído durante a leitura.");
+  const identityMismatches = fileIdentityMismatches(finalDescriptorStat, currentPathStat);
+  if (identityMismatches.length > 0) {
+    throw new Error(
+      `O OBJ foi substituído durante a leitura. Campos divergentes: ${identityMismatches.join(", ")}.`
+    );
   }
 
   assertCurrentSession(expectedSession, access.getCurrentSession());
@@ -120,13 +123,21 @@ function assertReadableObjStat(fileStat: ObjStat) {
 }
 
 function sameFileIdentity(left: ObjStat, right: ObjStat) {
-  return right.isFile() && left.size === right.size &&
-    left.dev === right.dev && left.ino === right.ino &&
-    left.mtimeMs === right.mtimeMs;
+  return fileIdentityMismatches(left, right).length === 0;
 }
 
 function sameOpenFileVersion(left: ObjStat, right: ObjStat) {
   return sameFileIdentity(left, right) && left.ctimeMs === right.ctimeMs;
+}
+
+function fileIdentityMismatches(left: ObjStat, right: ObjStat): string[] {
+  const mismatches: string[] = [];
+  if (!right.isFile()) mismatches.push("type");
+  if (left.size !== right.size) mismatches.push("size");
+  if (left.dev !== right.dev) mismatches.push("dev");
+  if (left.ino !== right.ino) mismatches.push("ino");
+  if (left.mtimeMs !== right.mtimeMs) mismatches.push("mtime");
+  return mismatches;
 }
 
 function assertCurrentSession(expected: LibrarySessionRef, current: LibrarySessionRef | null) {

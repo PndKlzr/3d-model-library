@@ -30,7 +30,7 @@ describe("library OBJ preview access", () => {
     const fixture = createFixture({ bytes: objBytes(), pathIno: 99 });
 
     await expect(readLibraryObjPreview(fixture.session, fixture.filePath, fixture.access))
-      .rejects.toThrow(/substituído durante a leitura/i);
+      .rejects.toThrow(/substituído durante a leitura.*ino/i);
     expect(fixture.access.fileSystem.open).toHaveBeenCalledOnce();
     expect(fixture.handle.close).toHaveBeenCalledOnce();
   });
