@@ -27,6 +27,7 @@ type ObjFileSystem = {
 export type LibraryObjAccess = {
   getCurrentSession: () => LibrarySessionRef | null;
   fileSystem?: ObjFileSystem;
+  platform?: NodeJS.Platform;
 };
 
 const defaultFileSystem: ObjFileSystem = { realpath, open, stat };
@@ -80,7 +81,11 @@ export async function readLibraryObjPreview(
   }
 
   const currentPathStat = await fileSystem.stat(currentPath);
-  const identityMismatches = fileIdentityMismatches(finalDescriptorStat, currentPathStat);
+  const identityMismatches = fileIdentityMismatches(
+    finalDescriptorStat,
+    currentPathStat,
+    (access.platform ?? process.platform) !== "win32"
+  );
   if (identityMismatches.length > 0) {
     throw new Error(
       `O OBJ foi substituído durante a leitura. Campos divergentes: ${identityMismatches.join(", ")}.`
@@ -130,11 +135,11 @@ function sameOpenFileVersion(left: ObjStat, right: ObjStat) {
   return sameFileIdentity(left, right) && left.ctimeMs === right.ctimeMs;
 }
 
-function fileIdentityMismatches(left: ObjStat, right: ObjStat): string[] {
+function fileIdentityMismatches(left: ObjStat, right: ObjStat, compareDevice = true): string[] {
   const mismatches: string[] = [];
   if (!right.isFile()) mismatches.push("type");
   if (left.size !== right.size) mismatches.push("size");
-  if (left.dev !== right.dev) mismatches.push("dev");
+  if (compareDevice && left.dev !== right.dev) mismatches.push("dev");
   if (left.ino !== right.ino) mismatches.push("ino");
   if (left.mtimeMs !== right.mtimeMs) mismatches.push("mtime");
   return mismatches;

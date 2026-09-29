@@ -45,6 +45,23 @@ describe("library OBJ preview access", () => {
     expect(fixture.handle.close).toHaveBeenCalledOnce();
   });
 
+  it("accepts the same file when Windows reports a different path device after close", async () => {
+    const bytes = objBytes();
+    const fixture = createFixture({ bytes, pathDev: 19, platform: "win32" });
+
+    const result = await readLibraryObjPreview(fixture.session, fixture.filePath, fixture.access);
+
+    expect(Buffer.from(result)).toEqual(bytes);
+    expect(fixture.handle.close).toHaveBeenCalledOnce();
+  });
+
+  it("still rejects a different path device outside Windows", async () => {
+    const fixture = createFixture({ bytes: objBytes(), pathDev: 19, platform: "linux" });
+
+    await expect(readLibraryObjPreview(fixture.session, fixture.filePath, fixture.access))
+      .rejects.toThrow(/substituído durante a leitura.*dev/i);
+  });
+
   it("rejects a stale session after reading and still closes the descriptor", async () => {
     const fixture = createFixture({
       bytes: objBytes(),
@@ -101,7 +118,9 @@ function createFixture(options: {
   beforeSize?: number;
   afterSize?: number;
   pathIno?: number;
+  pathDev?: number;
   pathCtimeMs?: number;
+  platform?: NodeJS.Platform;
   onRead?: () => void;
   onFirstStat?: () => void;
   onFileRealpath?: () => void;
@@ -146,6 +165,7 @@ function createFixture(options: {
     open: vi.fn(async () => handle),
     stat: vi.fn(async () => ({
       ...baseStat,
+      dev: options.pathDev ?? baseStat.dev,
       ino: options.pathIno ?? baseStat.ino,
       ctimeMs: options.pathCtimeMs ?? baseStat.ctimeMs,
       size: options.afterSize ?? baseStat.size
@@ -157,7 +177,7 @@ function createFixture(options: {
     current,
     filePath,
     handle,
-    access: { getCurrentSession: () => current.value, fileSystem }
+    access: { getCurrentSession: () => current.value, fileSystem, platform: options.platform }
   };
 }
 
