@@ -260,10 +260,11 @@ async function seedLibrary(
   await writeFile(path.join(rootPath, `preview-${suffix}.png`), PNG_BYTES);
   await writeFile(path.join(rootPath, excludedFolder, `hidden-${suffix}.stl`), STL_TEXT);
   const canonicalRoot = await realpath(rootPath);
+  const canonicalStlPath = await realpath(stlPath);
   const scan = await scanLibrary(canonicalRoot);
   const metadata: LibraryMetadata = {
     models: {
-      [stlPath]: { favorite: suffix === "a", tags: [expectedTag], notes: `note-${suffix}` }
+      [canonicalStlPath]: { favorite: suffix === "a", tags: [expectedTag], notes: `note-${suffix}` }
     },
     tagCatalog: [expectedTag],
     slicerHistory: []

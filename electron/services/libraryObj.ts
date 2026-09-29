@@ -27,6 +27,7 @@ type ObjFileSystem = {
 export type LibraryObjAccess = {
   getCurrentSession: () => LibrarySessionRef | null;
   fileSystem?: ObjFileSystem;
+  platform?: NodeJS.Platform;
 };
 
 const defaultFileSystem: ObjFileSystem = { realpath, open, stat };
@@ -62,7 +63,7 @@ export async function readLibraryObjPreview(
 
     finalDescriptorStat = await handle.stat() as ObjStat;
     if (offset !== initialDescriptorStat.size ||
-        !sameFileVersion(initialDescriptorStat, finalDescriptorStat)) {
+        !sameOpenFileVersion(initialDescriptorStat, finalDescriptorStat)) {
       throw new Error("O OBJ foi alterado durante a leitura.");
     }
     assertCurrentSession(expectedSession, access.getCurrentSession());
@@ -80,8 +81,15 @@ export async function readLibraryObjPreview(
   }
 
   const currentPathStat = await fileSystem.stat(currentPath);
-  if (!sameFileVersion(finalDescriptorStat, currentPathStat)) {
-    throw new Error("O OBJ foi substituído durante a leitura.");
+  const identityMismatches = fileIdentityMismatches(
+    finalDescriptorStat,
+    currentPathStat,
+    (access.platform ?? process.platform) !== "win32"
+  );
+  if (identityMismatches.length > 0) {
+    throw new Error(
+      `O OBJ foi substituído durante a leitura. Campos divergentes: ${identityMismatches.join(", ")}.`
+    );
   }
 
   assertCurrentSession(expectedSession, access.getCurrentSession());
@@ -119,10 +127,22 @@ function assertReadableObjStat(fileStat: ObjStat) {
   }
 }
 
-function sameFileVersion(left: ObjStat, right: ObjStat) {
-  return right.isFile() && left.size === right.size &&
-    left.dev === right.dev && left.ino === right.ino &&
-    left.mtimeMs === right.mtimeMs && left.ctimeMs === right.ctimeMs;
+function sameFileIdentity(left: ObjStat, right: ObjStat) {
+  return fileIdentityMismatches(left, right).length === 0;
+}
+
+function sameOpenFileVersion(left: ObjStat, right: ObjStat) {
+  return sameFileIdentity(left, right) && left.ctimeMs === right.ctimeMs;
+}
+
+function fileIdentityMismatches(left: ObjStat, right: ObjStat, compareDevice = true): string[] {
+  const mismatches: string[] = [];
+  if (!right.isFile()) mismatches.push("type");
+  if (left.size !== right.size) mismatches.push("size");
+  if (compareDevice && left.dev !== right.dev) mismatches.push("dev");
+  if (left.ino !== right.ino) mismatches.push("ino");
+  if (left.mtimeMs !== right.mtimeMs) mismatches.push("mtime");
+  return mismatches;
 }
 
 function assertCurrentSession(expected: LibrarySessionRef, current: LibrarySessionRef | null) {

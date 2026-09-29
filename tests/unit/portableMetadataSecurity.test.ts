@@ -1,6 +1,6 @@
 import path from "node:path";
 import os from "node:os";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { createActiveLibraryMetadataStore } from "../../electron/services/activeLibraryMetadataStore";
 import { createLibraryMetadataMirrorStore } from "../../electron/services/libraryMetadataMirrorStore";
@@ -145,13 +145,15 @@ describe("portable metadata security", () => {
         createLibraryId: () => "portable-library-id"
       });
       await store.open(sourceRoot);
-      await store.setNotes(path.join(sourceRoot, "part.stl"), "travels with model");
-      await store.setTags(path.join(sourceRoot, "part.stl"), ["portable"]);
+      const canonicalSourceModel = await realpath(path.join(sourceRoot, "part.stl"));
+      await store.setNotes(canonicalSourceModel, "travels with model");
+      await store.setTags(canonicalSourceModel, ["portable"]);
       await cp(sourceRoot, copiedRoot, { recursive: true });
 
       await store.open(copiedRoot);
+      const canonicalCopiedRoot = await realpath(copiedRoot);
 
-      expect(store.getMetadata().models[path.join(copiedRoot, "part.stl")]).toMatchObject({
+      expect(store.getMetadata().models[path.join(canonicalCopiedRoot, "part.stl")]).toMatchObject({
         notes: "travels with model",
         tags: ["portable"]
       });
