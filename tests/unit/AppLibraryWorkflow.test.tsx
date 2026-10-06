@@ -88,6 +88,40 @@ describe("App library workflow", () => {
     expect(reopened.container.querySelector(".app-shell")).toHaveAttribute("data-folders-pinned", "true");
   });
 
+  it("restores saved library filters without restoring transient search or selection", async () => {
+    installApi();
+    const view = render(<App />);
+    await screen.findByRole("button", { name: "Somente favoritos" });
+
+    fireEvent.change(screen.getByLabelText("Ordenar"), { target: { value: "modified" } });
+    fireEvent.click(screen.getByRole("button", { name: "Somente favoritos" }));
+    fireEvent.click(screen.getByRole("button", { name: "synthetic-tag-a" }));
+    fireEvent.click(screen.getByRole("button", { name: "Filtros avançados" }));
+    fireEvent.change(screen.getByLabelText("Notas"), { target: { value: "with-notes" } });
+    fireEvent.change(screen.getByLabelText("Tags selecionadas"), { target: { value: "any" } });
+    fireEvent.change(screen.getByPlaceholderText("Buscar por nome, pasta, tag ou nota"), {
+      target: { value: "fixture" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /fixture-a\.stl/i }));
+
+    await waitFor(() => expect(window.localStorage.getItem(
+      "model-library:view-preferences:synthetic-a"
+    )).toContain('"sortMode":"modified"'));
+    view.unmount();
+
+    const reopened = render(<App />);
+    await screen.findByRole("button", { name: "Somente favoritos" });
+    expect(screen.getByLabelText("Ordenar")).toHaveValue("modified");
+    expect(screen.getByRole("button", { name: "Somente favoritos" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "synthetic-tag-a" })).toHaveClass("active");
+    fireEvent.click(screen.getByRole("button", { name: "Filtros avançados" }));
+    expect(screen.getByLabelText("Notas")).toHaveValue("with-notes");
+    expect(screen.getByLabelText("Tags selecionadas")).toHaveValue("any");
+    expect(screen.getByPlaceholderText("Buscar por nome, pasta, tag ou nota")).toHaveValue("");
+    expect(reopened.container.querySelector(".model-card.selected")).toBeNull();
+  });
+
   it("applies real search, type, and favorite controls without scanning, after a positive activation scan", async () => {
     const api = installApi();
     render(<App />);

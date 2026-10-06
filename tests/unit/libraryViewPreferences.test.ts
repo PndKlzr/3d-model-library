@@ -10,20 +10,56 @@ describe("libraryViewPreferences", () => {
     const storage = createStorage();
 
     saveLibraryViewPreferences(storage, "library-a", {
-      version: 1,
+      version: 2,
       visibleExtensions: [".stl", ".obj"],
-      excludedFolders: ["Archive"]
+      excludedFolders: ["Archive"],
+      sortMode: "modified",
+      onlyFavorites: true,
+      notesFilter: "with-notes",
+      tagMatchMode: "any",
+      selectedTags: ["functional", "tested"]
     });
 
     expect(loadLibraryViewPreferences(storage, "library-a")).toEqual({
-      version: 1,
+      version: 2,
       visibleExtensions: [".stl", ".obj"],
-      excludedFolders: ["Archive"]
+      excludedFolders: ["Archive"],
+      sortMode: "modified",
+      onlyFavorites: true,
+      notesFilter: "with-notes",
+      tagMatchMode: "any",
+      selectedTags: ["functional", "tested"]
     });
     expect(loadLibraryViewPreferences(storage, "library-b")).toEqual({
-      version: 1,
+      version: 2,
       visibleExtensions: [...SUPPORTED_FILE_EXTENSIONS],
-      excludedFolders: []
+      excludedFolders: [],
+      sortMode: "name",
+      onlyFavorites: false,
+      notesFilter: "all",
+      tagMatchMode: "all",
+      selectedTags: []
+    });
+  });
+
+  it("migrates version 1 preferences with safe filter defaults", () => {
+    const storage = createStorage({
+      "model-library:view-preferences:library-a": JSON.stringify({
+        version: 1,
+        visibleExtensions: [".stl", ".3mf"],
+        excludedFolders: ["Archive"]
+      })
+    });
+
+    expect(loadLibraryViewPreferences(storage, "library-a")).toEqual({
+      version: 2,
+      visibleExtensions: [".stl", ".3mf"],
+      excludedFolders: ["Archive"],
+      sortMode: "name",
+      onlyFavorites: false,
+      notesFilter: "all",
+      tagMatchMode: "all",
+      selectedTags: []
     });
   });
 
@@ -31,7 +67,7 @@ describe("libraryViewPreferences", () => {
     const storage = createStorage({
       "model-library:view-preferences:broken": "{not-json",
       "model-library:view-preferences:future": JSON.stringify({
-        version: 2,
+        version: 3,
         visibleExtensions: [".stl"],
         excludedFolders: ["Archive"]
       })
@@ -45,7 +81,7 @@ describe("libraryViewPreferences", () => {
   it("normalizes unsupported extensions and unsafe folder exclusions", () => {
     const storage = createStorage({
       "model-library:view-preferences:library-a": JSON.stringify({
-        version: 1,
+        version: 2,
         visibleExtensions: [".stl", ".exe", ".stl", ".png"],
         excludedFolders: [
           "Archive\\Old",
@@ -56,14 +92,24 @@ describe("libraryViewPreferences", () => {
           "",
           "Safe/../Outside",
           "..draft"
-        ]
+        ],
+        sortMode: "oldest",
+        onlyFavorites: "yes",
+        notesFilter: "invalid",
+        tagMatchMode: "some",
+        selectedTags: [" useful ", "useful", "", 42, "decorative"]
       })
     });
 
     expect(loadLibraryViewPreferences(storage, "library-a")).toEqual({
-      version: 1,
+      version: 2,
       visibleExtensions: [".stl", ".png"],
-      excludedFolders: ["Archive/Old", "..draft"]
+      excludedFolders: ["Archive/Old", "..draft"],
+      sortMode: "name",
+      onlyFavorites: false,
+      notesFilter: "all",
+      tagMatchMode: "all",
+      selectedTags: ["useful", "decorative"]
     });
   });
 
@@ -71,15 +117,25 @@ describe("libraryViewPreferences", () => {
     const storage = createStorage();
 
     saveLibraryViewPreferences(storage, "library/a", {
-      version: 1,
+      version: 2,
       visibleExtensions: [".obj", ".obj", ".zip"],
-      excludedFolders: ["Parts\\Old", "../Outside"]
+      excludedFolders: ["Parts\\Old", "../Outside"],
+      sortMode: "size",
+      onlyFavorites: true,
+      notesFilter: "without-notes",
+      tagMatchMode: "exclude",
+      selectedTags: [" draft ", "draft"]
     });
 
     expect(storage.values.get("model-library:view-preferences:library%2Fa")).toBe(JSON.stringify({
-      version: 1,
+      version: 2,
       visibleExtensions: [".obj", ".zip"],
-      excludedFolders: ["Parts/Old"]
+      excludedFolders: ["Parts/Old"],
+      sortMode: "size",
+      onlyFavorites: true,
+      notesFilter: "without-notes",
+      tagMatchMode: "exclude",
+      selectedTags: ["draft"]
     }));
   });
 });

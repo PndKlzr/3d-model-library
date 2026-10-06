@@ -45,7 +45,7 @@ describe("repository automation", () => {
 
     expect(readiness).toContain("Vitest `5.0.2`");
     expect(readiness).toContain("**0 vulnerabilities**");
-    expect(readiness).toContain("**103 test files and 756 tests passed**");
+    expect(readiness).toContain("**103 test files and 758 tests passed**");
     expect(readiness).not.toContain("719 tests passed");
     expect(readiness).not.toContain("5 development-only vulnerabilities");
     expect(publicationChecklist).toContain(

@@ -48,9 +48,10 @@ import { getSlicerLaunchFilePaths } from "./lib/slicerLaunchSelection";
 import { getDuplicateModelIds } from "./lib/duplicateModels";
 import { getGridFolderCards } from "./lib/gridFolders";
 import {
+  defaultLibraryViewPreferences,
   loadLibraryViewPreferences,
   saveLibraryViewPreferences,
-  type LibraryViewPreferencesV1
+  type LibraryViewPreferencesV2
 } from "./lib/libraryViewPreferences";
 import {
   createLibrarySessionResetState,
@@ -306,7 +307,7 @@ function LibraryApp() {
   const [selectedTagFilters, setSelectedTagFilters] = useState<Set<string>>(() => new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [libraryViewPreferences, setLibraryViewPreferences] =
-    useState<LibraryViewPreferencesV1 | null>(null);
+    useState<LibraryViewPreferencesV2 | null>(null);
   const [libraryMetadata, setLibraryMetadata] = useState<LibraryMetadata>({
     models: {},
     tagCatalog: [],
@@ -1040,19 +1041,14 @@ function LibraryApp() {
   function toggleTagFilter(tag: string) {
     setSelectedTagFilters((currentTags) => {
       const nextTags = new Set(currentTags);
-
-      if (nextTags.has(tag)) {
-        nextTags.delete(tag);
-      } else {
-        nextTags.add(tag);
-      }
-
+      if (nextTags.has(tag)) nextTags.delete(tag);
+      else nextTags.add(tag);
       return nextTags;
     });
   }
 
   function updateLibraryViewPreferences(
-    update: (current: LibraryViewPreferencesV1) => LibraryViewPreferencesV1
+    update: (current: LibraryViewPreferencesV2) => LibraryViewPreferencesV2
   ) {
     const expectedSession = activeLibrarySessionRef.current;
     if (!expectedSession) return;
@@ -1067,6 +1063,41 @@ function LibraryApp() {
       return next;
     });
   }
+
+  function updateSortMode(sortMode: ModelSortMode) {
+    setSortMode(sortMode);
+    updateLibraryViewPreferences((current) => ({ ...current, sortMode }));
+  }
+
+  function updateOnlyFavorites(onlyFavorites: boolean) {
+    setOnlyFavorites(onlyFavorites);
+    updateLibraryViewPreferences((current) => ({ ...current, onlyFavorites }));
+  }
+
+  function updateNotesFilter(notesFilter: NotesFilter) {
+    setNotesFilter(notesFilter);
+    updateLibraryViewPreferences((current) => ({ ...current, notesFilter }));
+  }
+
+  function updateTagMatchMode(tagMatchMode: TagMatchMode) {
+    setTagMatchMode(tagMatchMode);
+    updateLibraryViewPreferences((current) => ({ ...current, tagMatchMode }));
+  }
+
+  function applyPersistedFilters(preferences: LibraryViewPreferencesV2) {
+    setSortMode(preferences.sortMode);
+    setOnlyFavorites(preferences.onlyFavorites);
+    setNotesFilter(preferences.notesFilter);
+    setTagMatchMode(preferences.tagMatchMode);
+    setSelectedTagFilters(new Set(preferences.selectedTags));
+  }
+
+  useEffect(() => {
+    if (!libraryViewPreferences) return;
+    const selectedTags = [...selectedTagFilters];
+    if (sameStrings(selectedTags, libraryViewPreferences.selectedTags)) return;
+    updateLibraryViewPreferences((current) => ({ ...current, selectedTags }));
+  }, [libraryViewPreferences, selectedTagFilters]);
 
   function updateVisibleExtensions(visibleExtensions: ReadonlySet<SupportedFileExtension>) {
     updateLibraryViewPreferences((current) => ({
@@ -1135,9 +1166,12 @@ function LibraryApp() {
 
       activeLibrarySessionRef.current = activation.session;
       modelThumbnailService.beginLibrarySession(activation.session);
-      setLibraryViewPreferences(
-        loadLibraryViewPreferences(window.localStorage, activation.session.libraryId)
+      const preferences = loadLibraryViewPreferences(
+        window.localStorage,
+        activation.session.libraryId
       );
+      setLibraryViewPreferences(preferences);
+      applyPersistedFilters(preferences);
       if (!isCurrentLibraryResult(activeLibrarySessionRef.current, activation.session)) return null;
       setLibraryMetadata(activation.metadata);
       setMetadataStatus(activation.metadataStatus);
@@ -1170,6 +1204,7 @@ function LibraryApp() {
     activeFileDragSessionRef.current = reset.activeFileDragSessionId;
     setDraggedModelIds(reset.draggedModelIds);
     setSearchQuery(reset.searchQuery);
+    applyPersistedFilters(defaultLibraryViewPreferences());
     setFolderContextMenu(reset.folderContextMenu);
     setModelContextMenu(reset.modelContextMenu);
     setTagPickerDialog(null);
@@ -1359,7 +1394,7 @@ function LibraryApp() {
       modelContextMenu: typeof modelContextMenu;
       libraryMetadata: LibraryMetadata;
       metadataStatus: LibraryMetadataStatus;
-      libraryViewPreferences: LibraryViewPreferencesV1 | null;
+      libraryViewPreferences: LibraryViewPreferencesV2 | null;
       monitorStatus: typeof monitorStatus;
       actionLogEntries: LocalActionLogEntry[];
       undoToast: LocalActionLogEntry | null;
@@ -1393,9 +1428,12 @@ function LibraryApp() {
       setModelContextMenu(null);
       setActionLogEntries(isPriorRoot ? previous.actionLogEntries : []);
       setUndoToast(isPriorRoot ? previous.undoToast : null);
-      setLibraryViewPreferences(
-        loadLibraryViewPreferences(window.localStorage, restored.session.libraryId)
+      const preferences = loadLibraryViewPreferences(
+        window.localStorage,
+        restored.session.libraryId
       );
+      setLibraryViewPreferences(preferences);
+      applyPersistedFilters(preferences);
       setLibraryMetadata(restored.metadata);
       setMetadataStatus(restored.metadataStatus);
       setMonitorStatus(isPriorRoot ? previous.monitorStatus : "disabled");
@@ -1541,13 +1579,13 @@ function LibraryApp() {
   function restoreNavigationEntry(entry: FolderNavigationEntry) {
     navigateToFolder(entry.folderId);
     setSearchQuery(entry.searchQuery);
-    setSortMode(entry.sortMode);
+    updateSortMode(entry.sortMode);
     setOnlySelected(entry.onlySelected);
-    setOnlyFavorites(entry.onlyFavorites);
+    updateOnlyFavorites(entry.onlyFavorites);
     setOnlyDuplicates(entry.onlyDuplicates);
     setUsageFilter(entry.usageFilter);
-    setNotesFilter(entry.notesFilter);
-    setTagMatchMode(entry.tagMatchMode);
+    updateNotesFilter(entry.notesFilter);
+    updateTagMatchMode(entry.tagMatchMode);
     setSelectedTagFilters(new Set(entry.selectedTags));
     requestGridScroll(entry.scrollTop);
   }
@@ -1690,6 +1728,10 @@ function LibraryApp() {
     setLastSelectedModelId(model.id);
     updateLibraryViewPreferences((current) => ({
       ...current,
+      onlyFavorites: false,
+      notesFilter: "all",
+      tagMatchMode: "all",
+      selectedTags: [],
       visibleExtensions: [...new Set([...current.visibleExtensions, model.extension])],
       excludedFolders: current.excludedFolders.filter((excluded) =>
         !isFolderExcluded(model.relativeFolder, [excluded])
@@ -2392,13 +2434,13 @@ function LibraryApp() {
         onVisibleExtensionsChange={updateVisibleExtensions}
         onRemoveFolderExclusion={removeFolderExclusion}
         onClearFolderExclusions={clearFolderExclusions}
-        onSortModeChange={setSortMode}
+        onSortModeChange={updateSortMode}
         onOnlySelectedChange={setOnlySelected}
-        onOnlyFavoritesChange={setOnlyFavorites}
+        onOnlyFavoritesChange={updateOnlyFavorites}
         onOnlyDuplicatesChange={setOnlyDuplicates}
         onUsageFilterChange={setUsageFilter}
-        onNotesFilterChange={setNotesFilter}
-        onTagMatchModeChange={setTagMatchMode}
+        onNotesFilterChange={updateNotesFilter}
+        onTagMatchModeChange={updateTagMatchMode}
         onToggleTagFilter={toggleTagFilter}
         onViewModeChange={setModelViewMode}
         onFileDragBehaviorChange={updateFileDragBehavior}
