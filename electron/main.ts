@@ -93,6 +93,7 @@ import {
 import { configureWindowSecurity } from "./services/windowSecurity.js";
 import { resolveCanonicalLibraryFile } from "./services/libraryFileAccess.js";
 import { createTrustedIpc, denyUnusedPermissions } from "./services/ipcSecurity.js";
+import { activateStartupLibrary } from "./services/startupLibrary.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1241,7 +1242,12 @@ app.whenReady().then(async () => {
     }
   });
   const startupSettings = settingsStore.getSettings();
-  await activeLibrarySession.activate(startupSettings.libraryPath, startupSettings.monitorLibrary);
+  await activateStartupLibrary(
+    activeLibrarySession,
+    startupSettings.libraryPath,
+    startupSettings.monitorLibrary,
+    (error) => console.error("[library:startup-unavailable]", error)
+  );
   modelHashStore = await createElectronModelHashStore();
   thumbnailCache = createThumbnailCache({
     cacheDirectory: path.join(app.getPath("userData"), "thumbnail-cache"),
@@ -1258,7 +1264,14 @@ app.whenReady().then(async () => {
       await createWindow();
     }
   });
-}).catch(failBenchmark);
+}).catch((error) => {
+  if (benchmarkEnvironment) {
+    failBenchmark(error);
+    return;
+  }
+  console.error("[startup:fatal]", error);
+  app.exit(1);
+});
 
 function sendFileDragStatus(sender: WebContents, status: FileDragStatus) {
   sender.send("model:file-drag-status", status);

@@ -404,13 +404,13 @@ describe("interaction flow contract", () => {
     expect(mainSource).toContain("[metadata] failed to migrate path metadata");
   });
 
-  it("activates the saved library before the window opens", async () => {
+  it("attempts to activate the saved library before the window opens", async () => {
     const mainSource = await readFile("electron/main.ts", "utf8");
 
     expect(mainSource).toContain("createActiveLibraryMetadataStore");
     expect(mainSource).toContain("createActiveLibrarySession");
-    expect(mainSource).toContain("await activeLibrarySession.activate(");
-    expect(mainSource.indexOf("await activeLibrarySession.activate(")).toBeLessThan(
+    expect(mainSource).toContain("await activateStartupLibrary(");
+    expect(mainSource.indexOf("await activateStartupLibrary(")).toBeLessThan(
       mainSource.lastIndexOf("await createWindow()")
     );
     expect(mainSource).toContain('ipcMain.handle("metadata:status"');

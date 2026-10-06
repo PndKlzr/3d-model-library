@@ -19,6 +19,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import type { MaintenanceAction } from "./components/LibraryMaintenanceSettings";
 import { TagSelector } from "./components/TagSelector";
 import { TextInputDialog, type TextInputDialogOptions } from "./components/TextInputDialog";
+import { UnavailableLibrary } from "./components/UnavailableLibrary";
 import { appendActionLogEntry, markActionUndone } from "./lib/actionLog";
 import { runAfterCommittedUpdate } from "./lib/committedExternalAction";
 import { getContextMenuPosition } from "./lib/contextMenuPosition";
@@ -320,6 +321,8 @@ function LibraryApp() {
     message: t("message.libraryNotConnected")
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [unavailableLibraryPath, setUnavailableLibraryPath] = useState<string | null>(null);
+  const [isRetryingLibrary, setIsRetryingLibrary] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [monitorStatus, setMonitorStatus] = useState<"active" | "disabled" | "error">("disabled");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -688,6 +691,16 @@ function LibraryApp() {
     }
 
     await saveSettings((current) => ({ ...current, libraryPath }));
+  }
+
+  async function retryUnavailableLibrary() {
+    if (!settings?.libraryPath || isRetryingLibrary) return;
+    setIsRetryingLibrary(true);
+    try {
+      await activateLibrary(settings.libraryPath, settings.monitorLibrary);
+    } finally {
+      setIsRetryingLibrary(false);
+    }
   }
 
   async function saveSettings(mutation: AppSettingsMutation) {
@@ -1165,6 +1178,7 @@ function LibraryApp() {
       if (activationRequestRef.current !== requestId || !activation) return null;
 
       activeLibrarySessionRef.current = activation.session;
+      setUnavailableLibraryPath(null);
       modelThumbnailService.beginLibrarySession(activation.session);
       const preferences = loadLibraryViewPreferences(
         window.localStorage,
@@ -1185,6 +1199,7 @@ function LibraryApp() {
       if (activationRequestRef.current !== requestId) return null;
       await restorePreviousLibrary(previousRendererState, requestId);
       if (activationRequestRef.current === requestId) {
+        if (!previousSession) setUnavailableLibraryPath(rootPath);
         setOperationMessage(readLocalizedErrorMessage(error));
       }
       return null;
@@ -2352,6 +2367,20 @@ function LibraryApp() {
     return (
       <I18nProvider locale={settings?.locale ?? "pt-BR"}>
         <FirstRun onChooseFolder={chooseFolder} themeMode={themeMode} />
+      </I18nProvider>
+    );
+  }
+
+  if (unavailableLibraryPath) {
+    return (
+      <I18nProvider locale={settings.locale}>
+        <UnavailableLibrary
+          libraryPath={unavailableLibraryPath}
+          retrying={isRetryingLibrary}
+          themeMode={themeMode}
+          onRetry={() => void retryUnavailableLibrary()}
+          onChooseFolder={() => void chooseFolder()}
+        />
       </I18nProvider>
     );
   }
