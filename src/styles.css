@@ -150,6 +150,55 @@ button:disabled {
   font-weight: 800;
 }
 
+.unavailable-library-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.unavailable-library-panel > svg {
+  width: 28px;
+  height: 28px;
+  color: var(--warn);
+}
+
+.unavailable-library-panel > code {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--ink-muted);
+  padding: 10px 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unavailable-library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.unavailable-library-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 0;
+}
+
+.unavailable-library-actions button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.unavailable-library-actions button.secondary {
+  border-color: var(--line);
+  background: var(--panel-strong);
+  color: inherit;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: clamp(220px, 18vw, 260px) minmax(0, 1fr) clamp(300px, 24vw, 360px);
