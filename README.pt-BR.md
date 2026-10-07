@@ -57,7 +57,7 @@ Consulte [Backup e recuperação](docs/maintenance/library-data-recovery.md) par
 
 ## Estado do Desenvolvimento
 
-O projeto está em desenvolvimento ativo e ainda não possui instalador assinado nem versão empacotada. Por enquanto, execute o aplicativo pelo código-fonte.
+A primeira versão beta pública está disponível como [`v0.1.0-beta.1`](https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.1). Ela é distribuída pelo código-fonte e ainda não possui instalador assinado para Windows. Consulte o [changelog](CHANGELOG.md) para ver os recursos incluídos e as limitações conhecidas.
 
 ### Requisitos
 
