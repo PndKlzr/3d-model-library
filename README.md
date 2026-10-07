@@ -57,7 +57,7 @@ See [Backup and recovery](docs/maintenance/library-data-recovery.md) for the ful
 
 ## Development Status
 
-The project is under active development and does not have a signed installer or packaged release yet. Run it from source while the application is being finalized.
+The first public beta is available as [`v0.1.0-beta.1`](https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.1). It is a source release and does not yet include a signed Windows installer, so run it from source while the application is being finalized. See the [changelog](CHANGELOG.md) for included features and known limitations.
 
 ### Requirements
 
