@@ -9,6 +9,7 @@ import {
   shell,
   type WebContents
 } from "electron";
+import squirrelStartup from "electron-squirrel-startup";
 import { readFile, writeFile } from "node:fs/promises";
 import { realpathSync } from "node:fs";
 import path from "node:path";
@@ -94,6 +95,7 @@ import { configureWindowSecurity } from "./services/windowSecurity.js";
 import { resolveCanonicalLibraryFile } from "./services/libraryFileAccess.js";
 import { createTrustedIpc, denyUnusedPermissions } from "./services/ipcSecurity.js";
 import { activateStartupLibrary } from "./services/startupLibrary.js";
+import { shouldStartNormalApplication } from "./services/squirrelStartup.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1186,7 +1188,12 @@ function resolveDevRendererUrl(configuredUrl: string | undefined): string {
   return parsed.href;
 }
 
-app.whenReady().then(async () => {
+if (shouldStartNormalApplication(squirrelStartup)) {
+  void startApplication().catch(handleStartupFailure);
+}
+
+async function startApplication() {
+  await app.whenReady();
   denyUnusedPermissions(session.defaultSession);
 
   if (benchmarkEnvironment) {
@@ -1264,14 +1271,16 @@ app.whenReady().then(async () => {
       await createWindow();
     }
   });
-}).catch((error) => {
+}
+
+function handleStartupFailure(error: unknown) {
   if (benchmarkEnvironment) {
     failBenchmark(error);
     return;
   }
   console.error("[startup:fatal]", error);
   app.exit(1);
-});
+}
 
 function sendFileDragStatus(sender: WebContents, status: FileDragStatus) {
   sender.send("model:file-drag-status", status);

@@ -2,6 +2,19 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 describe("product flow contract", () => {
+  it("handles Squirrel lifecycle events before normal Electron startup", async () => {
+    const mainSource = await readFile("electron/main.ts", "utf8");
+
+    expect(mainSource).toContain('from "electron-squirrel-startup"');
+    expect(mainSource).toContain("shouldStartNormalApplication(squirrelStartup)");
+    expect(mainSource).toMatch(
+      /if \(shouldStartNormalApplication\(squirrelStartup\)\) \{[\s\S]*?startApplication\(\)/,
+    );
+    expect(mainSource.indexOf("shouldStartNormalApplication(squirrelStartup)")).toBeLessThan(
+      mainSource.indexOf("app.whenReady()"),
+    );
+  });
+
   it("refreshes slicer availability whenever settings opens", async () => {
     const appSource = await readFile("src/App.tsx", "utf8");
     expect(appSource).toMatch(
