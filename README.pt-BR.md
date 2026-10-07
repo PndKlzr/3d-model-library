@@ -57,16 +57,25 @@ Consulte [Backup e recuperação](docs/maintenance/library-data-recovery.md) par
 
 ## Estado do Desenvolvimento
 
-A primeira versão beta pública está disponível como [`v0.1.0-beta.1`](https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.1). Ela é distribuída pelo código-fonte e ainda não possui instalador assinado para Windows. Consulte o [changelog](CHANGELOG.md) para ver os recursos incluídos e as limitações conhecidas.
+A primeira versão beta pública está disponível como [`v0.1.0-beta.1`](https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.1). Os arquivos de instalação para Windows serão introduzidos na próxima beta. Consulte o [changelog](CHANGELOG.md) para ver os recursos incluídos e as limitações conhecidas.
 
-### Requisitos
+### Instalar No Windows
+
+Em uma versão que inclua arquivos para Windows, baixe `3D-Model-Library-Setup.exe` na seção **Assets** da versão e execute-o. O instalador por usuário não exige Node.js, Git ou acesso de administrador. Como a beta ainda não possui assinatura digital, o Windows pode mostrar um aviso de **editor desconhecido**. Confirme que o arquivo veio da versão oficial deste repositório; não desative o Windows Defender para instalar.
+
+O ZIP portátil é uma alternativa para executar o mesmo aplicativo sem instalação. Extraia o arquivo completo antes de abrir o executável.
+
+Instalar, atualizar ou desinstalar o aplicativo não apaga as bibliotecas de modelos nem seus metadados `.3d-model-library`. Mantenha essa pasta oculta junto dos modelos ao fazer backups.
+
+### Requisitos Para Uso
 
 - Windows 10 ou mais recente.
-- Node.js 22.12 ou mais recente.
 - Cura, Creality Print ou outro slicer FDM é opcional.
 - 7-Zip ou um extrator compatível é opcional para arquivos RAR e 7Z.
 
-### Executar Localmente
+### Executar Pelo Código-Fonte
+
+O desenvolvimento pelo código-fonte exige Node.js 22.12 ou mais recente.
 
 No Windows, a forma mais simples é abrir `setup-windows.cmd` com dois cliques. Ele verifica o Node.js, instala exatamente as dependências travadas no projeto, prepara o runtime do Electron e cria um atalho na Área de Trabalho. O script não pede acesso de administrador nem baixa nada fora do npm e do instalador oficial do pacote Electron.
 

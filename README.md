@@ -57,16 +57,25 @@ See [Backup and recovery](docs/maintenance/library-data-recovery.md) for the ful
 
 ## Development Status
 
-The first public beta is available as [`v0.1.0-beta.1`](https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.1). It is a source release and does not yet include a signed Windows installer, so run it from source while the application is being finalized. See the [changelog](CHANGELOG.md) for included features and known limitations.
+The first public beta is available as [`v0.1.0-beta.1`](https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.1). Windows installer artifacts are being introduced in the next beta. See the [changelog](CHANGELOG.md) for included features and known limitations.
 
-### Requirements
+### Install On Windows
+
+For a release that includes Windows artifacts, download `3D-Model-Library-Setup.exe` from the release's **Assets** section and run it. The per-user installer does not require Node.js, Git, or administrator access. Because the beta is not yet code-signed, Windows may show an **unknown publisher** warning. Verify that the file came from this repository's official release; do not disable Windows Defender to install it.
+
+The portable ZIP is an alternative for running the same application without installation. Extract the complete archive before opening the executable.
+
+Installing, upgrading, or uninstalling the application does not delete model libraries or their `.3d-model-library` metadata. Keep that hidden metadata folder with the models when making backups.
+
+### User Requirements
 
 - Windows 10 or later.
-- Node.js 22.12 or later.
 - Cura, Creality Print, or another FDM slicer is optional.
 - 7-Zip or a compatible extractor is optional for RAR and 7Z archives.
 
-### Run Locally
+### Run From Source
+
+Source development requires Node.js 22.12 or later.
 
 The easiest Windows setup is to double-click `setup-windows.cmd`. It verifies Node.js, installs the exact locked dependencies, prepares the Electron runtime, and creates a desktop shortcut. The script does not request administrator access or download anything outside npm and Electron's official package installer.
 

@@ -2,7 +2,7 @@
 
 ## Supported Version
 
-3D Model Library is still in active development. Security fixes are applied to the latest commit on the active development branch. There is no signed installer or packaged release yet.
+3D Model Library is still in active development. Security fixes are applied to the latest commit on the active development branch. Windows beta packages are currently unsigned and do not use automatic updates. Download release artifacts only from this repository and do not disable Windows security controls to run them.
 
 ## Reporting a Vulnerability
 
@@ -39,6 +39,8 @@ A runtime audit must be clean before a packaged release. Development-only adviso
 ## Before Publishing
 
 - Run tests and a production build.
+- Run the package privacy audit and the Windows installer acceptance checklist.
+- Scan the unsigned Setup, portable ZIP, and packaged executable with Windows Defender.
 - Review tracked and staged files for generated artifacts and personal data.
 - Scan commit metadata and history for personal e-mail addresses and filesystem paths.
 - Never publish `.env` files, tokens, private keys, slicer executables, user libraries, or local application data.
