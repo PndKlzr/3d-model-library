@@ -57,11 +57,11 @@ See [Backup and recovery](docs/maintenance/library-data-recovery.md) for the ful
 
 ## Development Status
 
-The first public beta is available as [`v0.1.0-beta.1`](https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.1). Windows installer artifacts are being introduced in the next beta. See the [changelog](CHANGELOG.md) for included features and known limitations.
+The latest beta is [`v0.1.0-beta.2`](https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.2), which introduces the Windows installer. See the [changelog](CHANGELOG.md) for included features and known limitations.
 
 ### Install On Windows
 
-For a release that includes Windows artifacts, download `3D-Model-Library-Setup.exe` from the release's **Assets** section and run it. The per-user installer does not require Node.js, Git, or administrator access. Because the beta is not yet code-signed, Windows may show an **unknown publisher** warning. Verify that the file came from this repository's official release; do not disable Windows Defender to install it.
+Download `3D-Model-Library-Setup.exe` from the release's **Assets** section and run it. The per-user installer does not require Node.js, Git, or administrator access. Because the beta is not yet code-signed, Windows may show an **unknown publisher** warning. Verify that the file came from this repository's official release; do not disable Windows Defender to install it.
 
 The portable ZIP is an alternative for running the same application without installation. Extract the complete archive before opening the executable.
 

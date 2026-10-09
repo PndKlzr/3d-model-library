@@ -7,6 +7,28 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 
 ## [Unreleased]
 
+## [0.1.0-beta.2] - 2026-10-09
+
+### Added
+
+- Added a per-user Windows installer and a portable ZIP package.
+
+### Security
+
+- Hardened the packaged Electron runtime and limited the archive to runtime files.
+- Added an automated package audit that rejects private paths, source maps, and development files.
+
+### Changed
+
+- Reduced the packaged application archive by pruning build-only dependencies and source maps.
+
+### Known Limitations
+
+- The Windows installer is not yet digitally signed and may show an unknown publisher warning.
+- RAR and 7Z support requires 7-Zip or another compatible extractor.
+- OBJ previews display geometry only; materials, external textures, points, and lines are ignored.
+- The application is Windows-focused and has not been validated for production use on macOS or Linux.
+
 ## [0.1.0-beta.1] - 2026-10-07
 
 ### Added
@@ -36,5 +58,6 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
 - OBJ previews display geometry only; materials, external textures, points, and lines are ignored.
 - The application is Windows-focused and has not been validated for production use on macOS or Linux.
 
-[Unreleased]: https://github.com/PndKlzr/3d-model-library/compare/v0.1.0-beta.1...HEAD
+[Unreleased]: https://github.com/PndKlzr/3d-model-library/compare/v0.1.0-beta.2...HEAD
+[0.1.0-beta.2]: https://github.com/PndKlzr/3d-model-library/compare/v0.1.0-beta.1...v0.1.0-beta.2
 [0.1.0-beta.1]: https://github.com/PndKlzr/3d-model-library/releases/tag/v0.1.0-beta.1

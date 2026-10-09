@@ -1,6 +1,7 @@
 const path = require("node:path");
 const { FusesPlugin } = require("@electron-forge/plugin-fuses");
 const { FuseV1Options, FuseVersion } = require("@electron/fuses");
+const { prunePackageFiles } = require("./scripts/prune-package-files.cjs");
 
 const runtimeRoots = [
   "/package.json",
@@ -27,6 +28,7 @@ module.exports = {
     executableName: "3D Model Library",
     icon: path.resolve(__dirname, "assets", "app-icon"),
     ignore: ignoreNonRuntimeFiles,
+    afterPrune: [prunePackageFiles],
   },
   rebuildConfig: {},
   makers: [

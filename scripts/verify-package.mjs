@@ -1,4 +1,4 @@
-import { extractFile, listPackage } from "@electron/asar";
+import { extractFile, listPackage, statFile } from "@electron/asar";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -56,6 +56,14 @@ export function containsPersonalPath(content, profileRoot) {
   );
 }
 
+export function toAsarLookupPath(entry) {
+  return entry.replace(/^[/\\]+/, "");
+}
+
+export function isExtractableAsarEntry(fileInfo) {
+  return !("files" in fileInfo) && !("link" in fileInfo);
+}
+
 export async function verifyPackagedApplication(outRoot, profileRoot) {
   const archives = await findNamedFiles(outRoot, "app.asar");
   if (archives.length !== 1) {
@@ -71,7 +79,11 @@ export async function verifyPackagedApplication(outRoot, profileRoot) {
     const extension = path.posix.extname(entry).toLowerCase();
     if (!TEXT_EXTENSIONS.has(extension)) continue;
 
-    const bytes = extractFile(archivePath, entry.replace(/^\/+/, ""));
+    const lookupPath = toAsarLookupPath(entry);
+    const fileInfo = statFile(archivePath, lookupPath, false);
+    if (!isExtractableAsarEntry(fileInfo)) continue;
+
+    const bytes = extractFile(archivePath, lookupPath, false);
     if (bytes.byteLength > MAX_TEXT_SCAN_BYTES) continue;
     if (containsPersonalPath(bytes.toString("utf8"), profileRoot)) {
       personalPathEntries.push(normalizeAsarPath(entry));

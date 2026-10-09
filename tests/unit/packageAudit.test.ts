@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   containsPersonalPath,
   findForbiddenPackagedPaths,
+  isExtractableAsarEntry,
+  toAsarLookupPath,
 } from "../../scripts/verify-package.mjs";
 
 describe("packaged application privacy audit", () => {
@@ -46,5 +48,17 @@ describe("packaged application privacy audit", () => {
 
     expect(containsPersonalPath(bundledText, profileRoot)).toBe(true);
     expect(containsPersonalPath("const relative = './models';", profileRoot)).toBe(false);
+  });
+
+  it("normalizes Windows ASAR entries before extracting their contents", () => {
+    expect(toAsarLookupPath("\\dist-electron\\electron\\main.js")).toBe(
+      "dist-electron\\electron\\main.js",
+    );
+  });
+
+  it("scans files but skips ASAR directories and links", () => {
+    expect(isExtractableAsarEntry({ size: 42, offset: "0" })).toBe(true);
+    expect(isExtractableAsarEntry({ files: {} })).toBe(false);
+    expect(isExtractableAsarEntry({ link: "target" })).toBe(false);
   });
 });

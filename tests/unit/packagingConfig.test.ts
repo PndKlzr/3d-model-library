@@ -20,6 +20,29 @@ describe("Windows packaging configuration", () => {
     expect(packageJson.scripts["package:windows"]).toContain("electron-forge package");
     expect(packageJson.scripts["make:windows"]).toContain("npm run build");
     expect(packageJson.scripts["make:windows"]).toContain("--platform win32 --arch x64");
+
+    for (const runtimeDependency of [
+      "chokidar",
+      "electron-squirrel-startup",
+      "electron-store",
+      "fast-xml-parser",
+      "fflate",
+    ]) {
+      expect(packageJson.dependencies[runtimeDependency]).toBeTruthy();
+    }
+
+    for (const bundledRendererDependency of [
+      "@react-three/drei",
+      "@react-three/fiber",
+      "@tanstack/react-virtual",
+      "lucide-react",
+      "react",
+      "react-dom",
+      "three",
+    ]) {
+      expect(packageJson.dependencies[bundledRendererDependency]).toBeUndefined();
+      expect(packageJson.devDependencies[bundledRendererDependency]).toBeTruthy();
+    }
   });
 
   it("packages an ASAR with integrity fuses and both Windows artifact makers", () => {
